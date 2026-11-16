@@ -1,0 +1,5 @@
+{
+  "CFBundleDisplayName": "HealthFlow",
+  "NSCameraUsageDescription": "The camera is used to scan the booking QR code at check-in.",
+  "NSFaceIDUsageDescription": "Face ID is used to unlock your account securely."
+}

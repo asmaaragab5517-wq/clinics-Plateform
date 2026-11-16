@@ -16,17 +16,14 @@
   "site.viewAll": "View all",
   "site.yes": "Yes",
   "site.no": "No",
-
   "lang.ar": "Arabic",
   "lang.en": "English",
-  "lang.switchTo": "Switch language to English",
-
+  "lang.switchTo": "Switch language to Arabic",
   "footer.rights": "© {{year}} HealthFlow Clinics. All rights reserved.",
   "footer.legal": "Legal",
   "footer.explore": "Explore",
   "footer.patients": "Patients",
   "footer.verifyRx": "Verify a prescription",
-
   "home.metaTitle": "HealthFlow Clinics: book your doctor online",
   "home.hero.title": "The right doctor, at a clinic near you",
   "home.hero.subtitle": "Compare specialists, see fees and ratings, and book a confirmed appointment in minutes.",
@@ -44,7 +41,6 @@
   "home.feature.payment.text": "Pay online securely with HealthPay or pay at the clinic.",
   "home.feature.records.title": "Your records in one place",
   "home.feature.records.text": "Prescriptions, invoices and visit summaries in your patient account.",
-
   "clinics.title": "Clinics directory",
   "clinics.subtitle": "Find a HealthFlow clinic near you.",
   "clinics.metaDescription": "All HealthFlow clinics in Egypt with addresses, phone numbers, working hours and maps.",
@@ -65,7 +61,6 @@
   "clinics.noDoctors": "No doctors listed at this clinic yet.",
   "clinics.metaClinic": "{{name}}, {{city}}: doctors, specialties, working hours and online booking.",
   "clinics.closed": "Closed",
-
   "weekday.0": "Sunday",
   "weekday.1": "Monday",
   "weekday.2": "Tuesday",
@@ -73,14 +68,12 @@
   "weekday.4": "Thursday",
   "weekday.5": "Friday",
   "weekday.6": "Saturday",
-
   "specialties.title": "Medical specialties",
   "specialties.metaDescription": "Browse medical specialties at HealthFlow Clinics and book a specialist.",
   "specialties.doctorsCount": "{{count}} doctors",
   "specialties.doctorsIn": "{{name}} doctors",
   "specialties.metaSpecialty": "Book a {{name}} doctor at HealthFlow Clinics: fees, ratings and availability.",
   "specialties.empty": "No doctors are listed for this specialty yet.",
-
   "doctors.title": "Find a doctor",
   "doctors.metaDescription": "Search doctors by specialty, governorate, clinic, gender, fee and rating.",
   "doctors.results": "{{count}} doctors found",
@@ -97,7 +90,6 @@
   "filter.name": "Doctor name",
   "filter.apply": "Apply filters",
   "filter.reset": "Reset",
-
   "doctor.book": "Book appointment",
   "doctor.profile": "View profile",
   "doctor.about": "About",
@@ -118,7 +110,6 @@
   "doctor.title.dr": "Doctor",
   "doctor.title.professor": "Professor",
   "doctor.title.lecturer": "Lecturer",
-
   "services.title": "Services and prices",
   "services.metaDescription": "Consultation and procedure prices at each HealthFlow clinic.",
   "services.vatNote": "Prices are in Egyptian pounds. Services marked taxable are subject to 14% VAT, added on the invoice. Final prices may vary by doctor.",
@@ -138,7 +129,6 @@
   "serviceType.procedure": "Procedure",
   "serviceType.package": "Package",
   "serviceType.telemedicine": "Video consultation",
-
   "articles.title": "Health articles and news",
   "articles.metaDescription": "Health tips and news from HealthFlow Clinics doctors.",
   "articles.empty": "No articles published yet.",
@@ -147,7 +137,6 @@
   "articles.kind.news": "News",
   "articles.kind.page": "Page",
   "articles.updated": "Updated",
-
   "legal.updated": "Last updated: {{date}}",
   "privacy.metaDescription": "How HealthFlow Clinics collects, uses and protects your personal and health data.",
   "privacy.h1": "What we collect",
@@ -175,7 +164,6 @@
   "terms.p5": "You are responsible for keeping access to your mobile number. You may request account deletion at any time from your account.",
   "terms.h6": "Reviews",
   "terms.p6": "Reviews are moderated before publication and must be honest, respectful and free of personal data.",
-
   "verify.title": "Prescription verification",
   "verify.metaDescription": "Check that a HealthFlow prescription is genuine.",
   "verify.code": "Verification code",
@@ -183,7 +171,6 @@
   "verify.doctor": "Doctor",
   "verify.clinic": "Clinic",
   "verify.note": "This page only confirms whether a prescription is genuine. Prescription contents are never shown here.",
-
   "booking.metaDescription": "Book an appointment at HealthFlow Clinics in a few steps.",
   "booking.progress": "Step {{current}} of {{total}}",
   "booking.resumed": "We restored your booking in progress.",
@@ -232,7 +219,6 @@
   "booking.result.success": "Payment received. Your appointment is confirmed and a message is on its way.",
   "booking.result.failed": "The payment did not go through. Your slot may still be held: you can try again from your account.",
   "booking.result.pending": "We are confirming your payment. This usually takes a few seconds; check your appointments shortly.",
-
   "relation.self": "Myself",
   "relation.child": "Child",
   "relation.spouse": "Spouse",
@@ -247,7 +233,6 @@
   "patient.nameEn": "Name in English",
   "patient.nationalIdHint": "14 digits. Date of birth and gender are filled in from it.",
   "patient.nationalIdInvalid": "This National ID is not valid.",
-
   "auth.signInTitle": "Sign in",
   "auth.signInSubtitle": "We will send a 6-digit code to your mobile by SMS.",
   "auth.phoneHint": "Egyptian mobile, e.g. 010 1234 5678",
@@ -256,7 +241,6 @@
   "auth.resend": "Resend code",
   "auth.devCode": "Development code: {{code}}",
   "auth.signedIn": "Signed in.",
-
   "error.otp_invalid": "The code is incorrect. Please check and try again.",
   "error.otp_expired": "The code has expired. Request a new one.",
   "error.otp_attempts_exceeded": "Too many wrong attempts. Request a new code.",
@@ -281,7 +265,6 @@
   "error.reschedule_limit": "This appointment cannot be rescheduled again.",
   "error.file_too_large": "The file is too large.",
   "error.unsupported_file": "This file type is not supported.",
-
   "portal.metaTitle": "My account",
   "portal.nav.appointments": "Appointments",
   "portal.nav.prescriptions": "Prescriptions",
@@ -295,7 +278,6 @@
   "portal.signedInAs": "Signed in as {{phone}}",
   "portal.forPatient": "Patient",
   "portal.noPatients": "No patient profile yet. Add yourself in Family to start booking.",
-
   "appt.upcoming": "Upcoming",
   "appt.past": "Past",
   "appt.noUpcoming": "No upcoming appointments.",
@@ -318,22 +300,18 @@
   "appt.nowServing": "Now serving ticket {{ticket}}",
   "appt.refreshQueue": "Refresh",
   "appt.rate": "Rate this visit",
-
   "review.rating": "Your rating",
   "review.star": "{{count}} out of 5 stars",
   "review.comment": "Comment",
   "review.thanks": "Thank you. Your review will appear after moderation.",
-
   "rx.empty": "No prescriptions yet.",
   "rx.download": "Download PDF",
   "rx.days": "{{days}} days",
   "rx.issuedBy": "By {{doctor}}",
-
   "visits.empty": "No visit summaries yet.",
   "visits.followUp": "Follow-up",
   "visits.diagnoses": "Diagnoses",
   "visits.summary": "Summary",
-
   "documents.empty": "No documents yet.",
   "documents.view": "Open",
   "documents.upload": "Upload a document",
@@ -341,7 +319,6 @@
   "documents.file": "File (PDF or image)",
   "documents.uploaded": "Uploaded. It will appear after a security scan.",
   "documents.patientProvided": "Uploaded by you",
-
   "invoices.empty": "No invoices yet.",
   "invoices.number": "Invoice no.",
   "invoices.download": "Download PDF",
@@ -353,15 +330,12 @@
   "billStatus.refunded": "Refunded",
   "billStatus.draft": "Draft",
   "billStatus.void": "Void",
-
   "packages.empty": "No packages.",
   "packages.usage": "{{used}} of {{total}} sessions used",
   "packages.expires": "Expires",
-
   "family.title": "Family members",
   "family.add": "Add family member",
   "family.empty": "No patients linked to this account yet.",
-
   "notifications.inbox": "Messages",
   "notifications.empty": "No messages yet.",
   "prefs.title": "Notification preferences",
@@ -374,7 +348,6 @@
   "channel.sms": "SMS",
   "channel.push": "App notifications",
   "channel.email": "Email",
-
   "consents.title": "Consents",
   "consents.granted": "Granted",
   "consents.withdrawn": "Withdrawn",
@@ -388,7 +361,6 @@
   "consentType.marketing": "Marketing",
   "consentType.telemedicine": "Telemedicine",
   "consentType.itqan_sharing": "Sharing with national health records",
-
   "dsr.title": "Privacy requests",
   "dsr.kind": "Request type",
   "dsr.kind.access": "Access my data",
@@ -402,5 +374,6 @@
   "account.deleteConfirm": "Type DELETE to confirm",
   "account.deleteWord": "DELETE",
   "account.deleteSubmit": "Request account deletion",
-  "account.deleted": "Your deletion request was received. You have been signed out."
+  "account.deleted": "Your deletion request was received. You have been signed out.",
+  "site.breadcrumb": "Breadcrumb"
 }

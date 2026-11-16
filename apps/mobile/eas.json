@@ -1,0 +1,62 @@
+{
+  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "build": {
+    "base": {
+      "node": "22.23.0",
+      "pnpm": "10.28.0",
+      "env": {
+        "EXPO_PUBLIC_ORG_SLUG": "demo",
+        "APP_LINK_DOMAINS": "healthflow.eg,www.healthflow.eg"
+      }
+    },
+    "development": {
+      "extends": "base",
+      "developmentClient": false,
+      "distribution": "internal",
+      "android": { "buildType": "apk", "gradleCommand": ":app:assembleDebug" },
+      "ios": { "buildConfiguration": "Debug", "simulator": true },
+      "env": {
+        "APP_ENV": "development",
+        "EXPO_PUBLIC_API_URL": "https://api.dev.healthflow.eg",
+        "EXPO_PUBLIC_ALLOW_DEV_STAFF_TOKEN": "1",
+        "HF_FLAG_SECURE": "0"
+      }
+    },
+    "preview": {
+      "extends": "base",
+      "distribution": "internal",
+      "channel": "preview",
+      "android": { "buildType": "apk" },
+      "env": {
+        "APP_ENV": "staging",
+        "EXPO_PUBLIC_API_URL": "https://api.staging.healthflow.eg",
+        "EXPO_PUBLIC_KEYCLOAK_ISSUER": "https://auth.staging.healthflow.eg/realms/healthflow",
+        "EXPO_PUBLIC_KEYCLOAK_CLIENT_ID": "healthflow-mobile",
+        "EXPO_PUBLIC_ALLOW_DEV_STAFF_TOKEN": "0",
+        "CERT_PIN_HOST": "api.staging.healthflow.eg",
+        "HF_FLAG_SECURE": "1"
+      }
+    },
+    "production": {
+      "extends": "base",
+      "channel": "production",
+      "autoIncrement": true,
+      "android": { "buildType": "app-bundle" },
+      "env": {
+        "APP_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://api.healthflow.eg",
+        "EXPO_PUBLIC_KEYCLOAK_ISSUER": "https://auth.healthflow.eg/realms/healthflow",
+        "EXPO_PUBLIC_KEYCLOAK_CLIENT_ID": "healthflow-mobile",
+        "EXPO_PUBLIC_ALLOW_DEV_STAFF_TOKEN": "0",
+        "CERT_PIN_HOST": "api.healthflow.eg",
+        "HF_FLAG_SECURE": "1"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": { "track": "internal", "releaseStatus": "draft" },
+      "ios": { "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID", "appleTeamId": "REPLACE_WITH_TEAM_ID" }
+    }
+  }
+}

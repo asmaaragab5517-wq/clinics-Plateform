@@ -1,0 +1,354 @@
+import type { AppointmentStatus, ConsentType, QueuePriority, Role } from '@hf/shared';
+
+/** Response shapes of the endpoints the app uses (see apps/api/src/modules/*.ts). Timestamps are ISO strings. */
+export interface Named {
+  name_ar: string;
+  name_en: string | null;
+}
+
+// ---- auth
+export interface OtpRequestResponse {
+  sent: boolean;
+  expiresInSeconds: number;
+  resendAfterSeconds: number;
+  devCode?: string;
+}
+export interface OtpVerifyResponse {
+  ok: true;
+  accessToken: string;
+  refreshToken: string;
+  accountId: string;
+  locale: 'ar' | 'en';
+}
+export interface StaffMe {
+  userId: string;
+  orgId: string;
+  name: string;
+  roles: Role[];
+  memberships: { role: Role; clinicId: string | null }[];
+  network: boolean;
+  clinics: ({ id: string; slug: string } & Named)[];
+  privileges: string[];
+  authTime: number | null;
+}
+
+// ---- public catalogue
+export interface Specialty extends Named {
+  id: string;
+  slug: string;
+  doctors: number;
+}
+export interface DoctorSummary extends Named {
+  id: string;
+  slug: string;
+  title: string | null;
+  gender: 'male' | 'female' | null;
+  bio_ar: string | null;
+  bio_en: string | null;
+  rating_avg: string | number | null;
+  rating_count: number | null;
+  specialties: ({ slug: string } & Named)[];
+  clinics: ({ id: string; slug: string; governorate: string } & Named)[];
+  fee: number | null;
+}
+export interface DoctorService extends Named {
+  id: string;
+  code: string;
+  duration_minutes: number;
+  type: string;
+  prices: { clinicId: string; price: number }[] | null;
+}
+export interface DoctorProfile extends DoctorSummary {
+  syndicate_number: string | null;
+  qualifications: unknown;
+  services: DoctorService[];
+  reviews: { rating: number; comment: string | null; display_name: string; created_at: string }[];
+  nextAvailable: string | null;
+}
+export interface Slot {
+  start: string;
+  end: string;
+  date: string;
+  localStart: string;
+  clinicId: string;
+}
+export interface PublicService extends Named {
+  id: string;
+  code: string;
+  type: string;
+  duration_minutes: number;
+  clinic_id: string;
+  price: number;
+}
+
+// ---- portal
+export interface PortalPatient {
+  id: string;
+  mrn: string;
+  first_name_ar: string;
+  father_name_ar: string;
+  family_name_ar: string;
+  name_en: string | null;
+  date_of_birth: string;
+  gender: 'male' | 'female';
+  relation: 'self' | 'child' | 'spouse' | 'parent' | 'sibling' | 'other';
+  confirmed_at: string | null;
+}
+export interface PortalMe {
+  account: { id: string; phone: string; locale: 'ar' | 'en'; status: string; created_at: string };
+  patients: PortalPatient[];
+}
+export interface PortalAppointment {
+  id: string;
+  ref: string;
+  patient_id: string;
+  clinic_id: string;
+  doctor_id: string;
+  start_at: string;
+  end_at: string;
+  status: AppointmentStatus;
+  payment_mode: 'online' | 'at_clinic' | null;
+  hold_expires_at: string | null;
+  clinic_name_ar: string;
+  clinic_name_en: string | null;
+  address_lines: string | null;
+  doctor_name_ar: string;
+  doctor_name_en: string | null;
+  ticket_number: number | null;
+  checkout_url: string | null;
+}
+export interface BookingResponse {
+  appointment: { id: string; ref: string; status: AppointmentStatus; start_at: string; hold_expires_at: string | null };
+  payment: { id: string; checkout_url: string; amount: number; status: string } | null;
+  holdExpiresAt: string | null;
+}
+export interface QueuePosition {
+  ticketNumber: number;
+  status: 'waiting' | 'called' | 'serving' | 'done' | 'skipped';
+  position: number | null;
+  nowServing: number | null;
+}
+export interface PortalPrescription {
+  id: string;
+  patient_id: string;
+  issued_at: string;
+  doctor_name_ar: string;
+  doctor_name_en: string | null;
+  lines: { drug: string | null; instructionsAr: string; instructionsEn: string; durationDays: number | null }[] | null;
+}
+export interface PortalVisit {
+  id: string;
+  patient_id: string;
+  signed_at: string;
+  patient_summary: string | null;
+  diagnoses: { code: string; primary?: boolean; note?: string }[];
+  follow_up: { date: string } | null;
+  doctor_name_ar: string;
+  clinic_name_ar: string;
+}
+export interface PortalDocument {
+  id: string;
+  patient_id: string;
+  title: string;
+  kind: string;
+  mime: string;
+  size_bytes: number;
+  patient_provided: boolean;
+  created_at: string;
+}
+export interface PortalInvoice {
+  id: string;
+  patient_id: string;
+  number: string;
+  status: string;
+  total: number;
+  paid: number;
+  refunded: number;
+  credited: number;
+  issued_at: string;
+  clinic_name_ar: string;
+}
+export interface PortalPackage {
+  id: string;
+  patient_id: string;
+  sessions_total: number;
+  sessions_used: number;
+  expires_on: string;
+  name_ar: string;
+  name_en: string | null;
+}
+export interface PortalNotification {
+  id: string;
+  patient_id: string | null;
+  event: string;
+  channel: string;
+  body: string;
+  status: string;
+  created_at: string;
+}
+export interface NotificationPreferences {
+  channels: ('whatsapp' | 'sms' | 'push' | 'email')[];
+  marketing_opt_out: boolean;
+  sms_opt_out: boolean;
+  whatsapp_opt_out: boolean;
+}
+export interface ConsentsResponse {
+  versions: { id: string; type: ConsentType; version: number; text_ar: string; text_en: string; published_at: string }[];
+  consents: { patient_id: string; type: ConsentType; granted: boolean; version_id: string; created_at: string; needsReconsent: boolean }[];
+}
+
+// ---- staff
+export interface StaffAppointment {
+  id: string;
+  ref: string;
+  clinic_id: string;
+  doctor_id: string;
+  patient_id: string;
+  start_at: string;
+  end_at: string;
+  status: AppointmentStatus;
+  channel: string;
+  payment_mode: string | null;
+  is_walk_in: boolean;
+  notes: string | null;
+  patient_name: string;
+  mrn: string;
+  doctor_name: string;
+  services: ({ id: string } & Named)[];
+  ticket_number: number | null;
+}
+export interface QueueTicket {
+  id: string;
+  ticket_number: number;
+  priority: QueuePriority;
+  status: 'waiting' | 'called' | 'serving' | 'done' | 'skipped';
+  checked_in_at: string;
+  doctor_id: string;
+  doctor_name: string;
+  patient_name: string | null;
+  appointment_id: string;
+  patient_id: string;
+}
+export interface QueueGroup {
+  doctorId: string;
+  doctorName: string;
+  serving: QueueTicket | null;
+  called: QueueTicket | null;
+  waiting: QueueTicket[];
+  done: number;
+}
+export interface PatientSearchRow {
+  id: string;
+  mrn: string;
+  first_name_ar: string;
+  father_name_ar: string;
+  grandfather_name_ar: string;
+  family_name_ar: string;
+  name_en: string | null;
+  date_of_birth: string;
+  gender: 'male' | 'female';
+  phone: string | null;
+}
+export interface Allergy {
+  id?: string;
+  text: string;
+  severity: 'mild' | 'moderate' | 'severe' | null;
+  ingredient: string | null;
+}
+export interface StaffPatient extends PatientSearchRow {
+  allergies: Allergy[];
+  contacts: { id: string; phone: string; is_primary: boolean }[];
+}
+export interface HistoryItem {
+  id: string;
+  kind: 'allergy' | 'chronic' | 'surgery' | 'medication' | 'family' | 'social' | 'immunisation';
+  text: string;
+  severity: string | null;
+  is_active: boolean;
+}
+export interface EncounterListRow {
+  id: string;
+  clinic_id: string;
+  clinic_name: string;
+  doctor_id: string;
+  doctor_name: string;
+  status: 'open' | 'signed';
+  chief_complaint: string;
+  diagnoses: { code: string; primary?: boolean }[];
+  created_at: string;
+  signed_at: string | null;
+}
+export interface Vitals {
+  systolic?: number;
+  diastolic?: number;
+  heartRate?: number;
+  temperatureC?: number;
+  respiratoryRate?: number;
+  spo2?: number;
+  weightKg?: number;
+  heightCm?: number;
+  glucoseMgDl?: number;
+  bmi?: number;
+}
+export interface Encounter {
+  id: string;
+  clinic_id: string;
+  doctor_id: string;
+  patient_id: string;
+  appointment_id: string | null;
+  status: 'open' | 'signed';
+  vitals: Vitals;
+  chief_complaint: string;
+  notes: string;
+  diagnoses: { code: string; primary: boolean; note?: string }[];
+  allergies: Allergy[];
+  prescriptions: { id: string; status: string; verify_code: string; issued_at: string | null }[];
+  signed_at: string | null;
+}
+export interface Icd10 {
+  code: string;
+  title_en: string;
+  title_ar: string | null;
+}
+export interface Drug {
+  id: string;
+  trade_name_en: string;
+  trade_name_ar: string | null;
+  active_ingredients: string[];
+  strength: string | null;
+  form: string | null;
+  price: number | null;
+}
+export interface RxLineInput {
+  drugId?: string;
+  freeText?: string;
+  dose: string;
+  route: string;
+  frequency: string;
+  durationDays?: number;
+  instructionsAr: string;
+  instructionsEn: string;
+  /** display only */
+  label?: string;
+}
+export interface RxTemplate {
+  id: string;
+  name: string;
+  diagnosis_code: string | null;
+  lines: RxLineInput[];
+}
+export interface RxWarning {
+  line: number;
+  kind: 'allergy' | 'duplicate_ingredient' | 'free_text';
+  detail: string;
+}
+export interface CommissionStatement {
+  id: string;
+  doctor_id: string;
+  clinic_id: string | null;
+  month: string;
+  revenue: number;
+  share: number;
+  status: 'draft' | 'approved';
+  doctor_name: string;
+}

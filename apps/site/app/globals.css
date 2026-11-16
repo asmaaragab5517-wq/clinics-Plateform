@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  h1, h2, h3 { font-family: Cairo, 'IBM Plex Sans Arabic', sans-serif; }
+  a { text-underline-offset: 3px; }
+}
+
+@layer components {
+  .container-page { @apply mx-auto w-full max-w-6xl px-4; }
+  .link { @apply text-primary underline-offset-4 hover:underline; }
+  .btn { @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 font-medium transition; }
+  .btn-primary { @apply btn bg-primary text-primary-fg hover:opacity-90; }
+  .btn-secondary { @apply btn border border-border bg-surface hover:bg-bg; }
+  .btn-sm { @apply h-8 px-3 text-sm; }
+  .skip-link { @apply sr-only focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-surface focus:px-4 focus:py-2; }
+}

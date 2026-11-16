@@ -19,7 +19,8 @@ const nextConfig = {
     return [
       { source: '/:path*', headers: securityHeaders },
       // Patient data: never cached by browsers, proxies or CDNs.
-      { source: '/api/:path*', headers: [{ key: 'Cache-Control', value: 'no-store' }, { key: 'X-Robots-Tag', value: 'noindex' }] },
+      { source: '/api/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] },
+      { source: '/api/(auth|portal)/:path*', headers: [{ key: 'Cache-Control', value: 'no-store, private' }] },
       { source: '/:locale(ar|en)/portal/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] },
     ];
   },

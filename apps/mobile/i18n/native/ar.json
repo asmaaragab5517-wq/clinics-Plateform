@@ -1,0 +1,5 @@
+{
+  "CFBundleDisplayName": "هيلث فلو",
+  "NSCameraUsageDescription": "يستخدم التطبيق الكاميرا لمسح رمز QR الخاص بالحجز عند تسجيل الوصول.",
+  "NSFaceIDUsageDescription": "يستخدم التطبيق Face ID لفتح حسابك بأمان."
+}
