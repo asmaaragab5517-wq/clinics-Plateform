@@ -80,7 +80,7 @@ export class EmrController {
     return this.tenancy.run(s, async (tx) => {
       await visiblePatient(tx, patientId);
       const rows = await tx.query(
-        `select e.id, e.clinic_id, c.name_ar as clinic_name, e.doctor_id, u.name_ar as doctor_name, e.status, e.chief_complaint, e.diagnoses, e.created_at, e.signed_at
+        `select e.id, e.appointment_id, e.clinic_id, c.name_ar as clinic_name, e.doctor_id, u.name_ar as doctor_name, e.status, e.chief_complaint, e.diagnoses, e.created_at, e.signed_at
          from encounters e join users u on u.id = e.doctor_id join clinics c on c.id = e.clinic_id where e.patient_id = $1 order by e.created_at desc`,
         [uuid(patientId)],
       );

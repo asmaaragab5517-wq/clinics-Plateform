@@ -69,7 +69,11 @@ export const H1 = ({ children }: { children: ReactNode }) => (
   </T>
 );
 export const H2 = ({ children }: { children: ReactNode }) => <T style={s.h2}>{children}</T>;
-export const Muted = ({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) => <T style={[s.muted, style]}>{children}</T>;
+export const Muted = ({ children, style, ltr }: { children: ReactNode; style?: StyleProp<TextStyle>; ltr?: boolean }) => (
+  <T style={[s.muted, style]} ltr={ltr}>
+    {children}
+  </T>
+);
 
 export function Screen({ children, scroll = true, refreshing, onRefresh, footer }: { children: ReactNode; scroll?: boolean; refreshing?: boolean; onRefresh?: () => void; footer?: ReactNode }) {
   return (
@@ -185,7 +189,7 @@ export function ListItem({ title, subtitle, end, onPress, accessibilityLabel }: 
     </Row>
   );
   return (
-    <Card onPress={onPress} accessibilityLabel={accessibilityLabel ?? [title, subtitle].filter(Boolean).join('، ')}>
+    <Card onPress={onPress} accessibilityLabel={accessibilityLabel ?? [title, subtitle].filter(Boolean).join(', ')}>
       {body}
     </Card>
   );

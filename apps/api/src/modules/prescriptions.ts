@@ -17,6 +17,7 @@ import { CONFIG, type Config } from '../config';
 import { PatientsService } from './patients.service';
 import { MessagingService } from './messaging.service';
 import { clinicHeader } from './emr';
+import { BillingService } from './billing.service';
 
 export interface RxWarning {
   line: number;
@@ -108,6 +109,7 @@ export class PrescriptionsController {
     private readonly messaging: MessagingService,
     private readonly tokens: TokenService,
     private readonly renderer: PrescriptionRenderer,
+    private readonly billingSvc: BillingService,
     @Inject(CONFIG) private readonly cfg: Config,
   ) {}
 
@@ -213,6 +215,19 @@ export class PrescriptionsController {
       return r.buffer;
     });
     res.setHeader('content-type', 'application/pdf').setHeader('cache-control', 'no-store, private').setHeader('x-robots-tag', 'noindex').send(pdf);
+  }
+
+  @Get('share/invoice/:token')
+  @Webhook()
+  async sharedInvoice(@Param('token') token: string, @Res() res: Response) {
+    const v = this.tokens.verifyShareLink('invoice', token);
+    const [orgId, billId] = v?.split(':') ?? [];
+    if (!orgId || !billId) throw notFound('link');
+    const html = await this.tenancy.system(orgId, async (tx) => {
+      const { invoiceDocument } = await import('./billing');
+      return (await invoiceDocument(tx, this.billingSvc, this.patients, billId, 'invoice')).html;
+    });
+    res.setHeader('content-type', 'application/pdf').setHeader('cache-control', 'no-store, private').send(await renderPdf(html));
   }
 
   /** Public verification page data: validity only, never contents (FR-RX-5). */

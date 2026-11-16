@@ -54,7 +54,7 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["healthflow://auth/callback"],
+      "redirectUris": ["healthflow://oauth/callback"],
       "attributes": { "pkce.code.challenge.method": "S256" },
       "defaultClientScopes": ["openid", "profile", "healthflow-api"]
     },

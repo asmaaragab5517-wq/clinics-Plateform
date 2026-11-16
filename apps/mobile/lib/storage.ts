@@ -80,6 +80,7 @@ export async function deleteJson(key: string): Promise<void> {
 /** Storage keys in one place so sign-out can wipe them. */
 export const KEYS = {
   locale: 'hf.locale',
+  rtlReload: 'hf.rtlReload',
   patientSession: 'hf.session.patient',
   staffSession: 'hf.session.staff',
   mode: 'hf.mode',

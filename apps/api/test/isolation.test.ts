@@ -19,7 +19,7 @@ function routes(): Route[] {
     const base = String(Reflect.getMetadata(PATH_METADATA, ctrl) ?? '');
     const classAccess = Reflect.getMetadata(ACCESS_KEY, ctrl);
     for (const key of Object.getOwnPropertyNames(ctrl.prototype)) {
-      const fn = ctrl.prototype[key];
+      const fn = (ctrl.prototype as unknown as Record<string, unknown>)[key] as object;
       if (key === 'constructor' || typeof fn !== 'function') continue;
       const sub = Reflect.getMetadata(PATH_METADATA, fn);
       if (sub === undefined) continue;

@@ -96,8 +96,8 @@ export class AuthService {
   /** Rotating refresh tokens with reuse detection: presenting a rotated token revokes the whole family. */
   async refresh(orgId: string, token: string) {
     const r = await this.tenancy.system(orgId, async (tx) => {
-      const row = await tx.maybeOne<{ id: string; account_id: string; family: string; revoked_at: Date | null; expires_at: Date; phone: string }>(
-        `select r.id, r.account_id, r.family, r.revoked_at, r.expires_at, a.phone from refresh_tokens r join patient_accounts a on a.id = r.account_id where r.token_hash = $1 for update of r`,
+      const row = await tx.maybeOne<{ id: string; account_id: string; family: string; revoked_at: Date | null; expires_at: Date; phone: string; device_id: string | null }>(
+        `select r.id, r.account_id, r.family, r.revoked_at, r.expires_at, r.device_id, a.phone from refresh_tokens r join patient_accounts a on a.id = r.account_id where r.token_hash = $1 for update of r`,
         [this.tokens.hashRefresh(token)],
       );
       if (!row) throw new DomainError('invalid_refresh_token', HttpStatus.UNAUTHORIZED);
@@ -109,8 +109,8 @@ export class AuthService {
       if (new Date(row.expires_at) < new Date()) throw new DomainError('refresh_token_expired', HttpStatus.UNAUTHORIZED);
       const next = this.tokens.newRefreshToken();
       const created = await tx.one<{ id: string }>(
-        `insert into refresh_tokens (organisation_id, account_id, token_hash, family, expires_at) values (app_org(), $1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days') returning id`,
-        [row.account_id, next.hash, row.family],
+        `insert into refresh_tokens (organisation_id, account_id, token_hash, family, device_id, expires_at) values (app_org(), $1, $2, $3, $4, now() + interval '${REFRESH_TTL_DAYS} days') returning id`,
+        [row.account_id, next.hash, row.family, row.device_id],
       );
       await tx.query('update refresh_tokens set revoked_at = now(), replaced_by = $2 where id = $1', [row.id, created.id]);
       return { reused: false as const, accessToken: await this.tokens.signPatient(row.account_id, orgId, row.phone), refreshToken: next.token };
@@ -119,8 +119,13 @@ export class AuthService {
     return { accessToken: r.accessToken, refreshToken: r.refreshToken };
   }
 
-  async logout(orgId: string, accountId: string) {
-    await this.tenancy.system(orgId, (tx) => tx.query('update refresh_tokens set revoked_at = now() where account_id = $1 and revoked_at is null', [accountId]));
+  /** Signs out one device (its refresh-token family) when a token is given, otherwise every device. */
+  async logout(orgId: string, accountId: string, refreshToken?: string) {
+    await this.tenancy.system(orgId, (tx) =>
+      refreshToken
+        ? tx.query('update refresh_tokens set revoked_at = now() where account_id = $1 and revoked_at is null and family = (select family from refresh_tokens where token_hash = $2)', [accountId, this.tokens.hashRefresh(refreshToken)])
+        : tx.query('update refresh_tokens set revoked_at = now() where account_id = $1 and revoked_at is null', [accountId]),
+    );
     return { ok: true };
   }
 }
@@ -173,9 +178,10 @@ export class AuthController {
   @Post('logout')
   @PatientAuth()
   @HttpCode(200)
-  logout(@Auth() p: Principal) {
+  logout(@Auth() p: Principal, @Body() body: unknown) {
     const pt = asPatient(p);
-    return this.svc.logout(pt.orgId, pt.accountId);
+    const b = parse(z.object({ refreshToken: z.string().optional(), allDevices: z.boolean().default(false) }), body ?? {});
+    return this.svc.logout(pt.orgId, pt.accountId, b.allDevices ? undefined : b.refreshToken);
   }
 
   @Get('me')

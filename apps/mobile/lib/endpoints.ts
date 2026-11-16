@@ -40,7 +40,7 @@ import type { ConsentType, QueuePriority } from '@hf/shared';
 
 /** Typed helpers, one per API route used by the app. Route sources: apps/api/src/modules/*.ts. */
 export const authApi = {
-  requestOtp: (phone: string) => api.post<OtpRequestResponse>('/v1/auth/otp/request', { phone, purpose: 'login' }),
+  requestOtp: (phone: string, purpose: 'login' | 'link_family' = 'login') => api.post<OtpRequestResponse>('/v1/auth/otp/request', { phone, purpose }),
   verifyOtp: (phone: string, code: string, deviceId: string) => api.post<OtpVerifyResponse>('/v1/auth/otp/verify', { phone, code, deviceId }),
   logout: () => api.post<{ ok: true }>('/v1/auth/logout', {}, 'patient'),
   staffMe: () => api.get<StaffMe>('/v1/auth/me', undefined, 'staff'),
@@ -63,6 +63,8 @@ export const portalApi = {
     consentHealthData: true;
     consentMessaging: boolean;
   }) => api.post<{ id: string }>('/v1/portal/patients', body, 'patient'),
+  /** FR-PAT-4: confirm family links created at reception with an OTP (purpose link_family) sent to this phone. */
+  confirmLinks: (code: string) => api.post<{ linked: string[] }>('/v1/portal/links/confirm', { code }, 'patient'),
   appointments: (scope: 'upcoming' | 'past') => api.get<PortalAppointment[]>('/v1/portal/appointments', { scope }, 'patient'),
   /** Idempotency-Key: create one per booking attempt (newIdempotencyKey) and reuse it on retry. */
   book: (body: { clinicId: string; doctorId: string; serviceId: string; start: string; patientId: string; paymentMode: 'online' | 'at_clinic' }, idempotencyKey: string) =>
@@ -89,7 +91,7 @@ export const portalApi = {
 };
 
 export const staffApi = {
-  appointments: (q: { clinicId?: string; doctorId?: string; from: string; to: string; status?: string }) => api.get<StaffAppointment[]>('/v1/appointments', q, 'staff'),
+  appointments: (q: { clinicId?: string; doctorId?: string; patientId?: string; from: string; to: string; status?: string }) => api.get<StaffAppointment[]>('/v1/appointments', q, 'staff'),
   queue: (clinicId: string, doctorId?: string) => api.get<QueueGroup[]>('/v1/queue', { clinicId, doctorId }, 'staff'),
   callNext: (clinicId: string, doctorId: string) => api.post<{ called: { id: string; ticketNumber: number; appointmentId: string } }>('/v1/queue/call-next', { clinicId, doctorId }, 'staff'),
   updateTicket: (id: string, b: { priority?: QueuePriority; status?: 'waiting' | 'skipped' }) => api.patch<{ ok: true }>(`/v1/queue/${id}`, b, 'staff'),

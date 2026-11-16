@@ -14,6 +14,9 @@ const linkDomains = (env.APP_LINK_DOMAINS ?? 'healthflow.eg,www.healthflow.eg')
 /** Paths that SMS/WhatsApp messages and the payment return URL point to (FR-APP-5). */
 const LINK_PATH_PREFIXES = ['/book/result', '/appointments', '/review', '/reports', '/rx'];
 
+/** preview/production builds (eas.json APP_ENV) never allow cleartext; local/dev builds must reach Metro over http. */
+const releaseBuild = env.APP_ENV === 'production' || env.APP_ENV === 'staging';
+
 const pins = (env.CERT_PINS ?? '')
   .split(',')
   .map((p) => p.trim())
@@ -37,7 +40,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       CFBundleDevelopmentRegion: 'ar',
       CFBundleLocalizations: ['ar', 'en'],
-      // FR-APP-4: no cleartext traffic. ATS stays at its secure default (no arbitrary loads).
+      // FR-APP-4: no cleartext traffic. ATS stays at its secure default (no arbitrary loads); the security plugin
+      // adds NSAllowsLocalNetworking for development builds only.
       NSAppTransportSecurity: { NSAllowsArbitraryLoads: false },
       ITSAppUsesNonExemptEncryption: false,
     },
@@ -82,6 +86,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         pins,
         pinExpiration: env.CERT_PIN_EXPIRES ?? '2027-12-31',
         flagSecure: env.HF_FLAG_SECURE === '1',
+        allowCleartext: !releaseBuild,
       },
     ],
   ],

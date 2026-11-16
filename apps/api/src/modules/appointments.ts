@@ -25,7 +25,7 @@ export class AppointmentsController {
   @Get('appointments')
   @Staff('appointment:view')
   list(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ clinicId: z.string().uuid().optional(), doctorId: z.string().uuid().optional(), patientId: z.string().uuid().optional(), from: z.string().datetime(), to: z.string().datetime(), status: z.string().optional() }), q);
+    const b = parse(z.object({ clinicId: z.string().uuid().optional(), doctorId: z.string().uuid().optional(), patientId: z.string().uuid().optional(), from: z.string().datetime(), to: z.string().datetime(), status: z.string().optional(), ref: z.string().max(20).optional() }), q);
     const s = asStaff(p);
     // Doctors without broader appointment rights see their own schedule.
     const onlyOwn = s.roles.length === 1 && s.roles[0] === 'doctor' && !b.doctorId ? s.userId : null;
@@ -37,9 +37,9 @@ export class AppointmentsController {
                 (select ticket_number from queue_tickets q where q.appointment_id = a.id) as ticket_number
          from appointments a join patients p on p.id = a.patient_id join users u on u.id = a.doctor_id
          where a.start_at >= $1 and a.start_at < $2 and ($3::uuid is null or a.clinic_id = $3) and ($4::uuid is null or a.doctor_id = $4)
-           and ($5::uuid is null or a.patient_id = $5) and ($6::text is null or a.status = any(string_to_array($6, ',')))
+           and ($5::uuid is null or a.patient_id = $5) and ($6::text is null or a.status = any(string_to_array($6, ','))) and ($7::text is null or a.ref = upper($7))
          order by a.start_at`,
-        [b.from, b.to, b.clinicId ?? null, b.doctorId ?? onlyOwn, b.patientId ?? null, b.status ?? null],
+        [b.from, b.to, b.clinicId ?? null, b.doctorId ?? onlyOwn, b.patientId ?? null, b.status ?? null, b.ref ?? null],
       ),
     );
   }

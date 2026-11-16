@@ -21,6 +21,7 @@ import { PrescriptionRenderer } from './prescriptions';
 import { BillingService } from './billing.service';
 import { invoiceDocument } from './billing';
 import { storeDocument } from './emr';
+import { CONFIG, type Config } from '../config';
 
 /** Patient portal & app API (BR-11, FR-APP-1). Every query also runs under patient-mode RLS (MT-4). */
 @Controller('v1/portal')
@@ -34,6 +35,7 @@ export class PortalController {
     private readonly rx: PrescriptionRenderer,
     private readonly billing: BillingService,
     private readonly tokens: TokenService,
+    @Inject(CONFIG) private readonly cfg: Config,
     @Inject(STORAGE) private readonly storage: Storage,
     @Inject(ANTIVIRUS) private readonly av: Antivirus,
   ) {}
@@ -241,6 +243,50 @@ export class PortalController {
     res.setHeader('content-type', 'application/pdf').setHeader('cache-control', 'no-store').send(pdf);
   }
 
+  /** Short-lived signed links so the system browser / share sheet can open PDFs without a bearer header. */
+  @Get('prescriptions/:id/link')
+  @PatientAuth()
+  async prescriptionLink(@Auth() p: Principal, @Param('id') id: string) {
+    const rx = await this.tenancy.run(p, (tx) => tx.maybeOne(`select id from prescriptions where id = $1 and status = 'issued'`, [uuid(id)]));
+    if (!rx) throw notFound('prescription');
+    return { url: `${this.cfg.API_PUBLIC_URL}/v1/share/rx/${this.tokens.signShareLink('rx', id, 600)}`, expiresInSeconds: 600 };
+  }
+
+  @Get('invoices/:id/link')
+  @PatientAuth()
+  async invoiceLink(@Auth() p: Principal, @Param('id') id: string) {
+    const b = await this.tenancy.run(p, (tx) => tx.maybeOne(`select id from bills where id = $1 and status not in ('draft','void')`, [uuid(id)]));
+    if (!b) throw notFound('bill');
+    return { url: `${this.cfg.API_PUBLIC_URL}/v1/share/invoice/${this.tokens.signShareLink('invoice', `${p.orgId}:${id}`, 600)}`, expiresInSeconds: 600 };
+  }
+
+  @Get('appointments/:id')
+  @PatientAuth()
+  async appointment(@Auth() p: Principal, @Param('id') id: string) {
+    const a = await this.tenancy.run(p, (tx) =>
+      tx.maybeOne(
+        `select a.id, a.ref, a.patient_id, a.clinic_id, a.doctor_id, a.start_at, a.end_at, a.status, a.payment_mode, a.hold_expires_at,
+                c.name_ar as clinic_name_ar, c.name_en as clinic_name_en, c.address_lines, u.name_ar as doctor_name_ar, u.name_en as doctor_name_en,
+                (select ticket_number from queue_tickets q where q.appointment_id = a.id) as ticket_number,
+                (select checkout_url from payment_intents i where i.appointment_id = a.id and i.status = 'pending' limit 1) as checkout_url
+         from appointments a join clinics c on c.id = a.clinic_id join users u on u.id = a.doctor_id where a.id = $1`,
+        [uuid(id)],
+      ),
+    );
+    if (!a) throw notFound('appointment');
+    return a;
+  }
+
+  @Post('devices/unregister')
+  @PatientAuth()
+  @HttpCode(200)
+  async unregisterDevice(@Auth() p: Principal, @Body() body: unknown) {
+    const pt = asPatient(p);
+    const { token } = parse(z.object({ token: z.string().min(20).max(4096) }), body);
+    await this.tenancy.system(pt.orgId, (tx) => tx.query('delete from device_tokens where token = $1 and account_id = $2', [token, pt.accountId]));
+    return { ok: true };
+  }
+
   @Get('visits')
   @PatientAuth()
   visits(@Auth() p: Principal) {
@@ -377,7 +423,7 @@ export class PortalController {
 
   @Post('consents')
   @PatientAuth()
-  giveConsent(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
+  giveConsent(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta, @Req() req: Request) {
     const pt = asPatient(p);
     const b = parse(z.object({ patientId: z.string().uuid(), type: z.enum(CONSENT_TYPES), granted: z.boolean(), versionId: z.string().uuid() }), body);
     this.own(pt, b.patientId);
@@ -386,7 +432,7 @@ export class PortalController {
       if (!v || v.type !== b.type) throw badRequest('invalid_consent_version');
       const r = await tx.one(
         `insert into consents (organisation_id, patient_id, version_id, type, granted, channel, ip, device) values (app_org(), $1,$2,$3,$4,$5,$6::inet,$7) returning id, type, granted, created_at`,
-        [b.patientId, b.versionId, b.type, b.granted, pt.kind === 'patient' ? 'portal' : 'app', meta.ip, meta.userAgent?.slice(0, 200) ?? null],
+        [b.patientId, b.versionId, b.type, b.granted, req.headers['x-client'] === 'app' ? 'app' : 'portal', meta.ip, meta.userAgent?.slice(0, 200) ?? null],
       );
       await this.audit.record(tx, pt, meta, { action: 'privacy.consent', entity: 'patient', entityId: b.patientId, patientId: b.patientId, details: { type: b.type, granted: b.granted } });
       return r;

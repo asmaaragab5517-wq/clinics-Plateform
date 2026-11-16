@@ -103,7 +103,7 @@ export class StaffController {
   }
 
   @Get('doctors')
-  @Staff('staff:view')
+  @Staff('schedule:view')
   doctors(@Auth() p: Principal, @Query('clinicId') clinicId?: string) {
     return this.tenancy.run(p, (tx) =>
       tx.query(
