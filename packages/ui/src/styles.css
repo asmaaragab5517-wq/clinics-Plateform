@@ -1,0 +1,42 @@
+/* Design tokens; overridden per clinic via [data-brand] or inline style. */
+:root {
+  --hf-bg: 248 250 250;
+  --hf-surface: 255 255 255;
+  --hf-fg: 17 24 39;
+  --hf-muted: 100 116 139;
+  --hf-border: 226 232 240;
+  --hf-primary: 15 118 110;
+  --hf-primary-fg: 255 255 255;
+  --hf-accent: 2 132 199;
+  --hf-danger: 220 38 38;
+  --hf-warning: 217 119 6;
+  --hf-success: 22 163 74;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --hf-bg: 15 23 42;
+    --hf-surface: 30 41 59;
+    --hf-fg: 241 245 249;
+    --hf-muted: 148 163 184;
+    --hf-border: 51 65 85;
+    --hf-primary: 45 212 191;
+    --hf-primary-fg: 15 23 42;
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --hf-bg: 15 23 42;
+  --hf-surface: 30 41 59;
+  --hf-fg: 241 245 249;
+  --hf-muted: 148 163 184;
+  --hf-border: 51 65 85;
+  --hf-primary: 45 212 191;
+  --hf-primary-fg: 15 23 42;
+  color-scheme: dark;
+}
+html { background: rgb(var(--hf-bg)); color: rgb(var(--hf-fg)); }
+body { font-family: 'IBM Plex Sans Arabic', system-ui, sans-serif; }
+:focus-visible { outline: 2px solid rgb(var(--hf-accent)); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; unicode-bidi: isolate; direction: ltr; }
+[dir='rtl'] .dir-icon { transform: scaleX(-1); }

@@ -104,7 +104,15 @@ export class MessagingService {
       return 'sent';
     } catch (e) {
       this.log.warn(`dispatch failed for message ${m.id}: ${(e as Error).message}`);
-      await this.tenancy.system(orgId, (tx) => tx.query(`update messages set status = 'failed', error = $2 where id = $1`, [m.id, (e as Error).message.slice(0, 200)]));
+      // Retry policy (FR-COM-5): up to 3 attempts with exponential backoff, then failed.
+      await this.tenancy.system(orgId, (tx) =>
+        tx.query(
+          `update messages set attempts = attempts + 1, error = $2,
+             status = case when attempts + 1 >= 3 then 'failed' else 'queued' end,
+             scheduled_for = now() + (interval '1 minute' * power(4, attempts)) where id = $1`,
+          [m.id, (e as Error).message.slice(0, 200)],
+        ),
+      );
       return 'failed';
     }
   }

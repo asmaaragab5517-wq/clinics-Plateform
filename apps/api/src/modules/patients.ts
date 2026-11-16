@@ -10,6 +10,12 @@ import { parse, uuid } from '../common/zod';
 import { PatientsService } from './patients.service';
 import { MessagingService } from './messaging.service';
 
+/** 404 unless the patient row is visible under the caller's RLS context. */
+export async function visiblePatient(tx: import('@hf/db').Tx, id: string) {
+  const r = await tx.maybeOne('select id from patients where id = $1', [uuid(id)]);
+  if (!r) throw notFound('patient');
+}
+
 const PUBLIC_COLS = `p.id, p.mrn, p.first_name_ar, p.father_name_ar, p.grandfather_name_ar, p.family_name_ar, p.name_en, p.date_of_birth, p.gender, p.governorate, p.city,
   p.merged_into_id, (select phone from patient_contacts c where c.patient_id = p.id order by is_primary desc limit 1) as phone`;
 
@@ -181,7 +187,7 @@ export class PatientsController {
   timeline(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
     return this.tenancy.run(s, async (tx) => {
-      uuid(id);
+      await visiblePatient(tx, id);
       const emr = await this.svc.canViewEmr(tx, s, id);
       const items = await tx.query(
         `select * from (
@@ -204,7 +210,8 @@ export class PatientsController {
   @Staff('emr:view')
   history(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
     return this.tenancy.run(p, async (tx) => {
-      const rows = await tx.query('select * from medical_history_items where patient_id = $1 order by kind, created_at desc', [uuid(id)]);
+      await visiblePatient(tx, id);
+      const rows = await tx.query('select * from medical_history_items where patient_id = $1 order by kind, created_at desc', [id]);
       await this.audit.record(tx, p, meta, { action: 'emr.history_read', entity: 'patient', entityId: id, patientId: id });
       return rows;
     });
@@ -216,6 +223,7 @@ export class PatientsController {
     const s = asStaff(p);
     const b = parse(medicalHistoryItemSchema, body);
     return this.tenancy.run(s, async (tx) => {
+      await visiblePatient(tx, id);
       const r = await tx.one<{ id: string }>(
         `insert into medical_history_items (organisation_id, patient_id, kind, text, severity, ingredient, since, created_by) values (app_org(), $1,$2,$3,$4,$5,$6,$7) returning *`,
         [uuid(id), b.kind, b.text, b.severity ?? null, b.ingredient?.toLowerCase() ?? null, b.since ?? null, s.userId],
@@ -311,8 +319,9 @@ export class PatientsController {
   @Get(':id/messages')
   @Staff('message:view')
   messages(@Auth() p: Principal, @Param('id') id: string) {
-    return this.tenancy.run(p, (tx) =>
-      tx.query('select id, event, channel, status, segments, cost, created_at, sent_at, error from messages where patient_id = $1 order by created_at desc limit 200', [uuid(id)]),
-    );
+    return this.tenancy.run(p, async (tx) => {
+      await visiblePatient(tx, id);
+      return tx.query('select id, event, channel, status, segments, cost, created_at, sent_at, error from messages where patient_id = $1 order by created_at desc limit 200', [id]);
+    });
   }
 }

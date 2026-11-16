@@ -14,6 +14,7 @@ import { DomainError, badRequest, forbidden, notFound } from '../common/errors';
 import { parse, uuid } from '../common/zod';
 import { ANTIVIRUS, MAX_UPLOAD_BYTES, STORAGE, sniffMime, type Antivirus, type Storage } from '../integrations/storage';
 import { PatientsService } from './patients.service';
+import { visiblePatient } from './patients';
 import { MessagingService } from './messaging.service';
 
 const SIGN_OFF_MAX_AUTH_AGE_S = 12 * 3600; // IAM-3
@@ -77,6 +78,7 @@ export class EmrController {
   list(@Auth() p: Principal, @Param('patientId') patientId: string, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
     return this.tenancy.run(s, async (tx) => {
+      await visiblePatient(tx, patientId);
       const rows = await tx.query(
         `select e.id, e.clinic_id, c.name_ar as clinic_name, e.doctor_id, u.name_ar as doctor_name, e.status, e.chief_complaint, e.diagnoses, e.created_at, e.signed_at
          from encounters e join users u on u.id = e.doctor_id join clinics c on c.id = e.clinic_id where e.patient_id = $1 order by e.created_at desc`,
@@ -299,7 +301,8 @@ export class EmrController {
   @Staff('emr:view')
   documents(@Auth() p: Principal, @Param('patientId') patientId: string, @Meta() meta: RequestMeta) {
     return this.tenancy.run(p, async (tx) => {
-      const rows = await tx.query('select id, title, kind, mime, size_bytes, patient_provided, encounter_id, order_id, created_at from documents where patient_id = $1 order by created_at desc', [uuid(patientId)]);
+      await visiblePatient(tx, patientId);
+      const rows = await tx.query('select id, title, kind, mime, size_bytes, patient_provided, encounter_id, order_id, created_at from documents where patient_id = $1 order by created_at desc', [patientId]);
       await this.audit.record(tx, p, meta, { action: 'document.list', entity: 'patient', entityId: patientId, patientId });
       return rows;
     });

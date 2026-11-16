@@ -55,7 +55,7 @@ export class ReportsController {
     const attended = (statusMap.completed ?? 0) + (statusMap.no_show ?? 0);
     const utilisation = await this.utilisation(tx, r);
     return {
-      range: r,
+      range: { from: r.from, to: r.to },
       appointments: { byStatus: statusMap, byChannel: Object.fromEntries(byChannel.map((c) => [c.channel, c.n])), total: byStatus.reduce((a, s) => a + s.n, 0) },
       noShowRate: attended ? Math.round(((statusMap.no_show ?? 0) / attended) * 1000) / 10 : 0,
       utilisation,

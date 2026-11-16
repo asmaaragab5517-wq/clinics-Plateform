@@ -12,6 +12,7 @@ import { DomainError, badRequest, forbidden, notFound } from '../common/errors';
 import { parse, uuid } from '../common/zod';
 import { BillingService } from './billing.service';
 import { PatientsService } from './patients.service';
+import { visiblePatient } from './patients';
 import { MessagingService } from './messaging.service';
 import { clinicHeader } from './emr';
 
@@ -273,9 +274,10 @@ export class BillingController {
   @Get('patients/:id/packages')
   @Staff('bill:view')
   packages(@Auth() p: Principal, @Param('id') id: string) {
-    return this.tenancy.run(p, (tx) =>
-      tx.query(`select pb.*, pk.name_ar, pk.name_en from package_balances pb join packages pk on pk.id = pb.package_id where pb.patient_id = $1 order by pb.created_at desc`, [uuid(id)]),
-    );
+    return this.tenancy.run(p, async (tx) => {
+      await visiblePatient(tx, id);
+      return tx.query(`select pb.*, pk.name_ar, pk.name_en from package_balances pb join packages pk on pk.id = pb.package_id where pb.patient_id = $1 order by pb.created_at desc`, [id]);
+    });
   }
 
   /** FR-BIL-9 patient balance and statement. */
@@ -283,6 +285,7 @@ export class BillingController {
   @Staff('bill:view')
   statement(@Auth() p: Principal, @Param('id') id: string) {
     return this.tenancy.run(p, async (tx) => {
+      await visiblePatient(tx, id);
       const bills = await tx.query<{ total: number; credited: number; paid: number; refunded: number }>(`select id, number, status, total, credited, paid, refunded, issued_at from bills where patient_id = $1 and status not in ('draft','void') order by issued_at`, [uuid(id)]);
       const balance = bills.reduce((a, b) => a + (b.total - b.credited - (b.paid - b.refunded)), 0);
       return { bills, balance };

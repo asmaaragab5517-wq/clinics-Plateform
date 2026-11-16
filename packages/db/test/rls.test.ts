@@ -112,6 +112,15 @@ describe('row-level security (MT-1..MT-4)', () => {
     await expect(ins('R3', 1)).resolves.toBeDefined();
   });
 
+  it('foreign keys cannot point at another organisation (tenant-bound FKs)', async () => {
+    const foreignPatient = (await db.withTenant({ orgId: env.other.orgId, mode: 'staff', network: true }, (tx) => tx.query<{ id: string }>('select id from patients limit 1')))[0]!.id;
+    await expect(
+      db.withTenant({ orgId: env.demo.orgId, mode: 'staff', network: true }, (tx) =>
+        tx.query(`insert into medical_history_items (organisation_id, patient_id, kind, text) values ($1, $2, 'allergy', 'x')`, [env.demo.orgId, foreignPatient]),
+      ),
+    ).rejects.toThrow(/_org/);
+  });
+
   it('next_number is atomic per scope', async () => {
     const ctx = { orgId: env.demo.orgId, mode: 'system' as const };
     const nums = await Promise.all(Array.from({ length: 5 }, () => db.withTenant(ctx, (tx) => tx.one<{ n: string }>(`select next_number('test') as n`))));
