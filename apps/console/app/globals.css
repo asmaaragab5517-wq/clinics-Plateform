@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background: rgb(var(--hf-bg));
+    color: rgb(var(--hf-fg));
+    min-width: 320px;
+  }
+  h1, h2, h3 { font-family: Cairo, 'IBM Plex Sans Arabic', system-ui, sans-serif; }
+}
+
+/* Calendar status colours (FR-APT-8). */
+.appt-requested { background: rgb(var(--hf-warning) / 0.12); border-color: rgb(var(--hf-warning) / 0.5); }
+.appt-booked { background: rgb(var(--hf-primary) / 0.10); border-color: rgb(var(--hf-primary) / 0.5); }
+.appt-confirmed { background: rgb(var(--hf-accent) / 0.12); border-color: rgb(var(--hf-accent) / 0.5); }
+.appt-checked_in { background: rgb(234 179 8 / 0.15); border-color: rgb(234 179 8 / 0.6); }
+.appt-in_consultation { background: rgb(147 51 234 / 0.12); border-color: rgb(147 51 234 / 0.5); }
+.appt-completed { background: rgb(var(--hf-success) / 0.12); border-color: rgb(var(--hf-success) / 0.5); }
+.appt-no_show { background: rgb(var(--hf-danger) / 0.12); border-color: rgb(var(--hf-danger) / 0.5); }
+.appt-cancelled { background: rgb(var(--hf-muted) / 0.12); border-color: rgb(var(--hf-muted) / 0.4); text-decoration: line-through; }
+
+@media print {
+  aside, header, .no-print { display: none !important; }
+  main { padding: 0 !important; }
+}
