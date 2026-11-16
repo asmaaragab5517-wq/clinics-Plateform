@@ -1,0 +1,70 @@
+{
+  "realm": "healthflow",
+  "enabled": true,
+  "displayName": "HealthFlow Clinics",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["ar", "en"],
+  "defaultLocale": "ar",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "maxFailureWaitSeconds": 900,
+  "passwordPolicy": "length(12) and notUsername and upperCase(1) and digits(1) and passwordHistory(5)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 43200,
+  "accessTokenLifespan": 300,
+  "requiredActions": [
+    { "alias": "CONFIGURE_TOTP", "name": "Configure OTP", "providerId": "CONFIGURE_TOTP", "enabled": true, "defaultAction": true, "priority": 10 },
+    { "alias": "UPDATE_PASSWORD", "name": "Update Password", "providerId": "UPDATE_PASSWORD", "enabled": true, "defaultAction": false, "priority": 20 },
+    { "alias": "VERIFY_EMAIL", "name": "Verify Email", "providerId": "VERIFY_EMAIL", "enabled": true, "defaultAction": false, "priority": 30 }
+  ],
+  "clientScopes": [
+    {
+      "name": "healthflow-api",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "true" },
+      "protocolMappers": [
+        { "name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "healthflow-api", "access.token.claim": "true" } },
+        { "name": "org", "protocol": "openid-connect", "protocolMapper": "oidc-usermodel-attribute-mapper", "config": { "user.attribute": "org", "claim.name": "org", "access.token.claim": "true", "jsonType.label": "String" } }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "healthflow-console",
+      "name": "HealthFlow staff console",
+      "publicClient": false,
+      "secret": "change-me-console-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3001/api/auth/callback", "https://console.healthflow.example/api/auth/callback"],
+      "webOrigins": ["http://localhost:3001", "https://console.healthflow.example"],
+      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://localhost:3001/*##https://console.healthflow.example/*" },
+      "defaultClientScopes": ["openid", "profile", "email", "healthflow-api"]
+    },
+    {
+      "clientId": "healthflow-mobile",
+      "name": "HealthFlow mobile (staff modes)",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["healthflow://auth/callback"],
+      "attributes": { "pkce.code.challenge.method": "S256" },
+      "defaultClientScopes": ["openid", "profile", "healthflow-api"]
+    },
+    {
+      "clientId": "healthflow-admin",
+      "name": "API service account for staff provisioning",
+      "publicClient": false,
+      "secret": "change-me-admin-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false
+    }
+  ]
+}

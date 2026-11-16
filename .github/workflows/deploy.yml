@@ -1,0 +1,56 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/clinics-plateform-api:${{ steps.meta.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  staging:
+    needs: image
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: digitalocean/action-doctl@v2
+        with: { token: "${{ secrets.DO_TOKEN }}" }
+      - name: Roll out image to staging (pre-deploy job runs migrations)
+        run: |
+          doctl apps spec get "${{ vars.STAGING_APP_ID }}" > spec.yaml
+          sed -i "s/tag: .*/tag: ${{ needs.image.outputs.tag }}/" spec.yaml
+          doctl apps update "${{ vars.STAGING_APP_ID }}" --spec spec.yaml --wait
+
+  production:
+    # Promotion only after approval (SRS §2.2): the production environment requires reviewers.
+    needs: [image, staging]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: digitalocean/action-doctl@v2
+        with: { token: "${{ secrets.DO_TOKEN }}" }
+      - run: |
+          doctl apps spec get "${{ vars.PRODUCTION_APP_ID }}" > spec.yaml
+          sed -i "s/tag: .*/tag: ${{ needs.image.outputs.tag }}/" spec.yaml
+          doctl apps update "${{ vars.PRODUCTION_APP_ID }}" --spec spec.yaml --wait

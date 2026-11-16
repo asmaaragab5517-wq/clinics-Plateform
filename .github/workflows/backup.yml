@@ -1,0 +1,46 @@
+name: Backups
+on:
+  schedule:
+    - cron: "15 0 * * *" # daily 02:15 Cairo (winter) - logical backup to second provider
+    - cron: "0 6 1 * *" # monthly restore drill
+  workflow_dispatch:
+
+jobs:
+  backup:
+    if: github.event.schedule != '0 6 1 * *'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client-16 age || sudo apt-get install -y postgresql-client age
+      - run: infra/backup/backup.sh
+        env:
+          DATABASE_ADMIN_URL: ${{ secrets.DATABASE_ADMIN_URL }}
+          AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }}
+          BACKUP_S3_URI: ${{ vars.BACKUP_S3_URI }}
+          BACKUP_S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET }}
+
+  restore-drill:
+    if: github.event.schedule == '0 6 1 * *'
+    runs-on: ubuntu-latest
+    environment: production
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client age
+      - run: echo "${{ secrets.BACKUP_AGE_IDENTITY }}" > /tmp/age.key && infra/backup/restore-drill.sh | tee drill.log
+        env:
+          AGE_IDENTITY_FILE: /tmp/age.key
+          BACKUP_S3_URI: ${{ vars.BACKUP_S3_URI }}
+          BACKUP_S3_ENDPOINT: ${{ vars.BACKUP_S3_ENDPOINT }}
+          DRILL_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET }}
+      - uses: actions/upload-artifact@v4
+        with: { name: restore-drill-evidence, path: drill.log, retention-days: 400 }

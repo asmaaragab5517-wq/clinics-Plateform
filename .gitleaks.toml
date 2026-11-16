@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Development placeholders"
+regexes = ['''dev-[a-z-]*secret[a-z0-9-]*''', '''change-me-[a-z-]*''', '''minio-secret''']
+paths = ['''.env.example''', '''infra/keycloak/realm-healthflow.json''']

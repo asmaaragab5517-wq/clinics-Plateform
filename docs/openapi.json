@@ -1,0 +1,4015 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "HealthController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/v1/auth/otp/request": {
+      "post": {
+        "operationId": "AuthController_request",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/otp/verify": {
+      "post": {
+        "operationId": "AuthController_verify",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/dev/staff-token": {
+      "post": {
+        "operationId": "AuthController_devStaffToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/pin": {
+      "post": {
+        "operationId": "AuthController_setPin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/auth/pin/verify": {
+      "post": {
+        "operationId": "AuthController_verifyPin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/v1/specialties": {
+      "get": {
+        "operationId": "OrgController_specialties",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/governorates": {
+      "get": {
+        "operationId": "OrgController_governorates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/org": {
+      "get": {
+        "operationId": "OrgController_org",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/org/settings": {
+      "patch": {
+        "operationId": "OrgController_updateSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/org/privileges": {
+      "get": {
+        "operationId": "OrgController_privileges",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/org/privileges/{role}": {
+      "put": {
+        "operationId": "OrgController_setPrivileges",
+        "parameters": [
+          {
+            "name": "role",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      },
+      "delete": {
+        "operationId": "OrgController_resetPrivileges",
+        "parameters": [
+          {
+            "name": "role",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/clinics": {
+      "get": {
+        "operationId": "OrgController_clinics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      },
+      "post": {
+        "operationId": "OrgController_createClinic",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/clinics/{id}": {
+      "get": {
+        "operationId": "OrgController_clinic",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      },
+      "patch": {
+        "operationId": "OrgController_updateClinic",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/clinics/{id}/display-token": {
+      "post": {
+        "operationId": "OrgController_displayToken",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/legal-entities": {
+      "get": {
+        "operationId": "OrgController_legalEntities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      },
+      "post": {
+        "operationId": "OrgController_createLegalEntity",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/legal-entities/{id}/healthpay": {
+      "put": {
+        "operationId": "OrgController_setHealthPay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Org"
+        ]
+      }
+    },
+    "/v1/services": {
+      "get": {
+        "operationId": "CatalogueController_services",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "CatalogueController_createService",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
+    "/v1/services/{id}": {
+      "patch": {
+        "operationId": "CatalogueController_updateService",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
+    "/v1/prices": {
+      "get": {
+        "operationId": "CatalogueController_prices",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "CatalogueController_setPrice",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
+    "/v1/packages": {
+      "get": {
+        "operationId": "CatalogueController_packages",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "CatalogueController_createPackage",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
+    "/v1/doctors/{id}/services": {
+      "put": {
+        "operationId": "CatalogueController_setDoctorServices",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
+    "/v1/custom-fields": {
+      "get": {
+        "operationId": "CatalogueController_customFields",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "CatalogueController_createCustomField",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
+    "/v1/staff": {
+      "get": {
+        "operationId": "StaffController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/staff/invite": {
+      "post": {
+        "operationId": "StaffController_invite",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/staff/{id}/memberships": {
+      "put": {
+        "operationId": "StaffController_memberships",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/staff/{id}/deactivate": {
+      "post": {
+        "operationId": "StaffController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/doctors": {
+      "get": {
+        "operationId": "StaffController_doctors",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/doctors/{id}/profile": {
+      "put": {
+        "operationId": "StaffController_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/doctors/{id}/images/{kind}": {
+      "post": {
+        "operationId": "StaffController_image",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/commission-rules": {
+      "get": {
+        "operationId": "StaffController_rules",
+        "parameters": [
+          {
+            "name": "doctorId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      },
+      "post": {
+        "operationId": "StaffController_createRule",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/commission-statements": {
+      "get": {
+        "operationId": "StaffController_statements",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/commission-statements/generate": {
+      "post": {
+        "operationId": "StaffController_generate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/commission-statements/{id}/approve": {
+      "post": {
+        "operationId": "StaffController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Staff"
+        ]
+      }
+    },
+    "/v1/sessions": {
+      "get": {
+        "operationId": "SchedulesController_sessions",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "doctorId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      },
+      "post": {
+        "operationId": "SchedulesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/v1/sessions/{id}": {
+      "patch": {
+        "operationId": "SchedulesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/v1/schedule-profiles": {
+      "get": {
+        "operationId": "SchedulesController_profiles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      },
+      "post": {
+        "operationId": "SchedulesController_createProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/v1/schedule-exceptions": {
+      "get": {
+        "operationId": "SchedulesController_exceptions",
+        "parameters": [
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      },
+      "post": {
+        "operationId": "SchedulesController_createException",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/v1/schedule-exceptions/{id}": {
+      "delete": {
+        "operationId": "SchedulesController_deleteException",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/v1/availability": {
+      "get": {
+        "operationId": "SchedulesController_availabilityDesk",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Schedules"
+        ]
+      }
+    },
+    "/v1/appointments": {
+      "get": {
+        "operationId": "AppointmentsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      },
+      "post": {
+        "operationId": "AppointmentsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/appointments/{id}": {
+      "get": {
+        "operationId": "AppointmentsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/appointments/walk-in": {
+      "post": {
+        "operationId": "AppointmentsController_walkIn",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/appointments/{id}/transition": {
+      "post": {
+        "operationId": "AppointmentsController_transition",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/appointments/{id}/check-in": {
+      "post": {
+        "operationId": "AppointmentsController_checkIn",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/appointments/{id}/reschedule": {
+      "post": {
+        "operationId": "AppointmentsController_reschedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/follow-ups": {
+      "get": {
+        "operationId": "AppointmentsController_followUps",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/waitlist": {
+      "post": {
+        "operationId": "AppointmentsController_addWaitlist",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/queue": {
+      "get": {
+        "operationId": "AppointmentsController_queue",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "doctorId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/queue/call-next": {
+      "post": {
+        "operationId": "AppointmentsController_callNext",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/queue/{id}": {
+      "patch": {
+        "operationId": "AppointmentsController_updateTicket",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/queue/stream": {
+      "get": {
+        "operationId": "AppointmentsController_stream",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/display/state": {
+      "get": {
+        "operationId": "AppointmentsController_displayState",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/display/stream": {
+      "get": {
+        "operationId": "AppointmentsController_displayStream",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Appointments"
+        ]
+      }
+    },
+    "/v1/patients": {
+      "get": {
+        "operationId": "PatientsController_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      },
+      "post": {
+        "operationId": "PatientsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/duplicates": {
+      "post": {
+        "operationId": "PatientsController_duplicates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}": {
+      "get": {
+        "operationId": "PatientsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      },
+      "patch": {
+        "operationId": "PatientsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/merge": {
+      "post": {
+        "operationId": "PatientsController_merge",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/merges/{mergeId}/unmerge": {
+      "post": {
+        "operationId": "PatientsController_unmerge",
+        "parameters": [
+          {
+            "name": "mergeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/timeline": {
+      "get": {
+        "operationId": "PatientsController_timeline",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/history": {
+      "get": {
+        "operationId": "PatientsController_history",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      },
+      "post": {
+        "operationId": "PatientsController_addHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/history/{itemId}": {
+      "patch": {
+        "operationId": "PatientsController_deactivateHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/consents": {
+      "post": {
+        "operationId": "PatientsController_consents",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/break-glass": {
+      "post": {
+        "operationId": "PatientsController_breakGlass",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/family": {
+      "post": {
+        "operationId": "PatientsController_setGuardian",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{id}/messages": {
+      "get": {
+        "operationId": "PatientsController_messages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/encounters": {
+      "get": {
+        "operationId": "EmrController_list",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounters/{id}": {
+      "get": {
+        "operationId": "EmrController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      },
+      "patch": {
+        "operationId": "EmrController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/vitals": {
+      "post": {
+        "operationId": "EmrController_vitals",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/sign": {
+      "post": {
+        "operationId": "EmrController_sign",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/addenda": {
+      "post": {
+        "operationId": "EmrController_addendum",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/patient-summary": {
+      "post": {
+        "operationId": "EmrController_patientSummary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/summary.pdf": {
+      "get": {
+        "operationId": "EmrController_summaryPdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/orders": {
+      "post": {
+        "operationId": "EmrController_createOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/orders/{id}/request.pdf": {
+      "get": {
+        "operationId": "EmrController_orderPdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/orders/{id}/result": {
+      "post": {
+        "operationId": "EmrController_orderResult",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/orders/{id}/review": {
+      "post": {
+        "operationId": "EmrController_reviewOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/patients/{patientId}/documents": {
+      "post": {
+        "operationId": "EmrController_upload",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      },
+      "get": {
+        "operationId": "EmrController_documents",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/documents/{id}/url": {
+      "get": {
+        "operationId": "EmrController_documentUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/icd10": {
+      "get": {
+        "operationId": "EmrController_icd10",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/lab-tests": {
+      "get": {
+        "operationId": "EmrController_labTests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/encounter-templates": {
+      "get": {
+        "operationId": "EmrController_templates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      },
+      "post": {
+        "operationId": "EmrController_createTemplate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
+    "/v1/drugs": {
+      "get": {
+        "operationId": "PrescriptionsController_drugs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/prescriptions": {
+      "post": {
+        "operationId": "PrescriptionsController_create",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/prescriptions/{id}/issue": {
+      "post": {
+        "operationId": "PrescriptionsController_issue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/prescriptions/{id}/revoke": {
+      "post": {
+        "operationId": "PrescriptionsController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/prescriptions/{id}/pdf": {
+      "get": {
+        "operationId": "PrescriptionsController_pdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/share/rx/{token}": {
+      "get": {
+        "operationId": "PrescriptionsController_shared",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/public/verify/rx/{code}": {
+      "get": {
+        "operationId": "PrescriptionsController_verify",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/prescription-templates": {
+      "get": {
+        "operationId": "PrescriptionsController_templates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      },
+      "post": {
+        "operationId": "PrescriptionsController_createTemplate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/bills": {
+      "get": {
+        "operationId": "BillingController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      },
+      "post": {
+        "operationId": "BillingController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/bills/{id}": {
+      "get": {
+        "operationId": "BillingController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/bills/{id}/issue": {
+      "post": {
+        "operationId": "BillingController_issue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/bills/{id}/payments": {
+      "post": {
+        "operationId": "BillingController_pay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/bills/{id}/void": {
+      "post": {
+        "operationId": "BillingController_void",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/bills/{id}/credit-notes": {
+      "post": {
+        "operationId": "BillingController_credit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/bills/{id}/invoice.pdf": {
+      "get": {
+        "operationId": "BillingController_invoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/refunds": {
+      "get": {
+        "operationId": "BillingController_refunds",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      },
+      "post": {
+        "operationId": "BillingController_requestRefund",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/refunds/{id}/decision": {
+      "post": {
+        "operationId": "BillingController_decide",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/refunds/{id}/execute": {
+      "post": {
+        "operationId": "BillingController_execute",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/approvals": {
+      "get": {
+        "operationId": "BillingController_approvals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/approvals/{id}/decision": {
+      "post": {
+        "operationId": "BillingController_approval",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/shifts": {
+      "get": {
+        "operationId": "BillingController_shifts",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mine",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      },
+      "post": {
+        "operationId": "BillingController_open",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/shifts/current": {
+      "get": {
+        "operationId": "BillingController_current",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/shifts/{id}/close": {
+      "post": {
+        "operationId": "BillingController_close",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/shifts/{id}/report.pdf": {
+      "get": {
+        "operationId": "BillingController_report",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/patients/{id}/packages": {
+      "get": {
+        "operationId": "BillingController_packages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/patients/{id}/statement": {
+      "get": {
+        "operationId": "BillingController_statement",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/reports/outstanding": {
+      "get": {
+        "operationId": "BillingController_outstanding",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Billing"
+        ]
+      }
+    },
+    "/v1/webhooks/healthpay": {
+      "post": {
+        "operationId": "PaymentsController_webhook",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/v1/dev/healthpay/checkout/{providerOrderId}": {
+      "get": {
+        "operationId": "PaymentsController_devCheckout",
+        "parameters": [
+          {
+            "name": "providerOrderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/v1/dev/healthpay/checkout/{providerOrderId}/pay": {
+      "post": {
+        "operationId": "PaymentsController_devPay",
+        "parameters": [
+          {
+            "name": "providerOrderId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payments"
+        ]
+      }
+    },
+    "/v1/message-templates": {
+      "get": {
+        "operationId": "CommsController_templates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Comms"
+        ]
+      }
+    },
+    "/v1/message-templates/{id}": {
+      "patch": {
+        "operationId": "CommsController_updateTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Comms"
+        ]
+      }
+    },
+    "/v1/messages/costs": {
+      "get": {
+        "operationId": "CommsController_costs",
+        "parameters": [
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Comms"
+        ]
+      }
+    },
+    "/v1/messages/events": {
+      "get": {
+        "operationId": "CommsController_events",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Comms"
+        ]
+      }
+    },
+    "/v1/webhooks/cequens": {
+      "post": {
+        "operationId": "CommsController_dlr",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Comms"
+        ]
+      }
+    },
+    "/v1/public/org": {
+      "get": {
+        "operationId": "PublicController_org",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/clinics": {
+      "get": {
+        "operationId": "PublicController_clinics",
+        "parameters": [
+          {
+            "name": "governorate",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/clinics/{slug}": {
+      "get": {
+        "operationId": "PublicController_clinic",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/specialties": {
+      "get": {
+        "operationId": "PublicController_specialties",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/doctors": {
+      "get": {
+        "operationId": "PublicController_doctors",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/doctors/{slug}": {
+      "get": {
+        "operationId": "PublicController_doctor",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/services": {
+      "get": {
+        "operationId": "PublicController_services",
+        "parameters": [
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/packages": {
+      "get": {
+        "operationId": "PublicController_packages",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/slots": {
+      "get": {
+        "operationId": "PublicController_slots",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/articles": {
+      "get": {
+        "operationId": "PublicController_articles",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/articles/{slug}": {
+      "get": {
+        "operationId": "PublicController_article",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/portal/me": {
+      "get": {
+        "operationId": "PortalController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      },
+      "patch": {
+        "operationId": "PortalController_updateMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/patients": {
+      "post": {
+        "operationId": "PortalController_createPatient",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/links/confirm": {
+      "post": {
+        "operationId": "PortalController_confirmLinks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/appointments": {
+      "get": {
+        "operationId": "PortalController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/bookings": {
+      "post": {
+        "operationId": "PortalController_book",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}/cancel": {
+      "post": {
+        "operationId": "PortalController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}/reschedule": {
+      "post": {
+        "operationId": "PortalController_reschedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}/confirm": {
+      "post": {
+        "operationId": "PortalController_confirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}/queue": {
+      "get": {
+        "operationId": "PortalController_queue",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}/calendar.ics": {
+      "get": {
+        "operationId": "PortalController_ics",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/prescriptions": {
+      "get": {
+        "operationId": "PortalController_prescriptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/prescriptions/{id}/pdf": {
+      "get": {
+        "operationId": "PortalController_prescriptionPdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/visits": {
+      "get": {
+        "operationId": "PortalController_visits",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/documents": {
+      "get": {
+        "operationId": "PortalController_documents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      },
+      "post": {
+        "operationId": "PortalController_upload",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/documents/{id}/url": {
+      "get": {
+        "operationId": "PortalController_documentUrl",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/invoices": {
+      "get": {
+        "operationId": "PortalController_invoices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/invoices/{id}/pdf": {
+      "get": {
+        "operationId": "PortalController_invoicePdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/packages": {
+      "get": {
+        "operationId": "PortalController_packages",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/reviews": {
+      "post": {
+        "operationId": "PortalController_review",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/notifications": {
+      "get": {
+        "operationId": "PortalController_notifications",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/preferences/{patientId}": {
+      "get": {
+        "operationId": "PortalController_preferences",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      },
+      "patch": {
+        "operationId": "PortalController_setPreferences",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/consents": {
+      "get": {
+        "operationId": "PortalController_consents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      },
+      "post": {
+        "operationId": "PortalController_giveConsent",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/data-requests": {
+      "post": {
+        "operationId": "PortalController_dataRequest",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/account/delete": {
+      "post": {
+        "operationId": "PortalController_deleteAccount",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/devices": {
+      "post": {
+        "operationId": "PortalController_device",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/reports/dashboard": {
+      "get": {
+        "operationId": "ReportsController_dashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/v1/reports/daily-appointments": {
+      "get": {
+        "operationId": "ReportsController_daily",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/v1/reports/daily-closing": {
+      "get": {
+        "operationId": "ReportsController_closing",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/v1/reports/package-liabilities": {
+      "get": {
+        "operationId": "ReportsController_liabilities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/v1/reports/export": {
+      "get": {
+        "operationId": "ReportsController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/v1/reviews": {
+      "get": {
+        "operationId": "GovernanceController_reviews",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/reviews/{id}/moderate": {
+      "post": {
+        "operationId": "GovernanceController_moderate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/tasks": {
+      "get": {
+        "operationId": "GovernanceController_tasks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/tasks/{id}/done": {
+      "post": {
+        "operationId": "GovernanceController_taskDone",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/patients/{id}/link-account": {
+      "post": {
+        "operationId": "GovernanceController_linkAccount",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/privacy/consent-versions": {
+      "get": {
+        "operationId": "GovernanceController_consentVersions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      },
+      "post": {
+        "operationId": "GovernanceController_publishConsent",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/privacy/data-requests": {
+      "get": {
+        "operationId": "GovernanceController_dataRequests",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/privacy/data-requests/{id}/process": {
+      "post": {
+        "operationId": "GovernanceController_process",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/privacy/breaches": {
+      "get": {
+        "operationId": "GovernanceController_breaches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      },
+      "post": {
+        "operationId": "GovernanceController_createBreach",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/privacy/breaches/{id}": {
+      "patch": {
+        "operationId": "GovernanceController_updateBreach",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/audit": {
+      "get": {
+        "operationId": "GovernanceController_auditLog",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/audit/verify": {
+      "get": {
+        "operationId": "GovernanceController_verify",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/audit/access-review": {
+      "get": {
+        "operationId": "GovernanceController_accessReview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/articles": {
+      "get": {
+        "operationId": "GovernanceController_articles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      },
+      "post": {
+        "operationId": "GovernanceController_createArticle",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/articles/{id}": {
+      "patch": {
+        "operationId": "GovernanceController_updateArticle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Governance"
+        ]
+      }
+    },
+    "/v1/imports/templates/{entity}": {
+      "get": {
+        "operationId": "ImportsController_template",
+        "parameters": [
+          {
+            "name": "entity",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/v1/imports": {
+      "post": {
+        "operationId": "ImportsController_upload",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/v1/imports/{id}": {
+      "get": {
+        "operationId": "ImportsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/v1/imports/{id}/commit": {
+      "post": {
+        "operationId": "ImportsController_commit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/v1/imports/{id}/rollback": {
+      "post": {
+        "operationId": "ImportsController_rollback",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Imports"
+        ]
+      }
+    },
+    "/v1/dev/files": {
+      "get": {
+        "operationId": "DevController_file",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "exp",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sig",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Dev"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "HealthFlow Clinics API",
+    "description": "REST API for the HealthFlow Clinics platform. Staff: Keycloak bearer tokens. Patients: OTP-issued bearer tokens. Public routes require the x-org header.",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "org": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-org"
+      }
+    },
+    "schemas": {}
+  }
+}
