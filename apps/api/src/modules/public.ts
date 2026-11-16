@@ -16,8 +16,12 @@ export class PublicController {
 
   @Get('org')
   @Public()
-  org(@Auth() p: Principal) {
-    return this.tenancy.run(p, (tx) => tx.one(`select id, slug, name_ar, name_en, branding, settings->'booking' as booking, settings->>'digitStyle' as digit_style from organisations where id = app_org()`));
+  async org(@Auth() p: Principal) {
+    return this.tenancy.run(p, async (tx) => {
+      const o = await tx.one<Record<string, unknown>>(`select id, slug, name_ar, name_en, branding, settings->>'digitStyle' as digit_style from organisations where id = app_org()`);
+      // Effective policy (defaults merged with the organisation's overrides).
+      return { ...o, booking: await this.appointments.policy(tx) };
+    });
   }
 
   @Get('clinics')
@@ -37,7 +41,8 @@ export class PublicController {
   @Public()
   async clinic(@Auth() p: Principal, @Param('slug') slug: string) {
     const r = await this.tenancy.run(p, async (tx) => {
-      const c = await tx.maybeOne<{ id: string }>(`select id, slug, name_ar, name_en, governorate, city, address_lines, lat, lng, phones, email, working_hours, colours from clinics where slug = $1`, [slug.slice(0, 80)]);
+      const c = await tx.maybeOne<{ id: string }>(`select id, slug, name_ar, name_en, governorate, city, address_lines, lat, lng, phones, email, working_hours, colours,
+        coalesce((select jsonb_agg(jsonb_build_object('id', s.id, 'slug', s.slug, 'name_ar', s.name_ar, 'name_en', s.name_en)) from clinic_specialties cs join specialties s on s.id = cs.specialty_id where cs.clinic_id = clinics.id), '[]') as specialties from clinics where slug = $1`, [slug.slice(0, 80)]);
       if (!c) return null;
       const doctors = await this.doctorsQuery(tx, { clinicId: c.id });
       const rating = await tx.one(`select round(avg(rating)::numeric, 2) as avg, count(*)::int as count from reviews where clinic_id = $1 and status = 'approved'`, [c.id]);

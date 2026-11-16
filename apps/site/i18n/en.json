@@ -375,5 +375,9 @@
   "account.deleteWord": "DELETE",
   "account.deleteSubmit": "Request account deletion",
   "account.deleted": "Your deletion request was received. You have been signed out.",
-  "site.breadcrumb": "Breadcrumb"
+  "site.breadcrumb": "Breadcrumb",
+  "error.inside_cutoff": "It is too late to change this appointment online. Please call the clinic.",
+  "error.reschedule_limit_reached": "This appointment cannot be rescheduled again.",
+  "error.not_reschedulable": "This appointment can no longer be rescheduled.",
+  "error.slot_not_offered": "This time is no longer available."
 }

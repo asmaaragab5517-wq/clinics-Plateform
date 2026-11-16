@@ -72,3 +72,13 @@ export function osmLink(lat: number, lng: number): string {
 export function paragraphs(body: string | null | undefined): string[] {
   return (body ?? '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
 }
+
+/** List separator: Arabic comma in Arabic. */
+export function listSep(locale: Locale): string {
+  return locale === 'ar' ? '، ' : ', ';
+}
+
+/** Defensive defaults so a partial API payload never crashes a page. */
+export function normDoctor<T extends { specialties?: unknown; clinics?: unknown }>(d: T): T {
+  return { ...d, specialties: Array.isArray(d.specialties) ? d.specialties : [], clinics: Array.isArray(d.clinics) ? d.clinics : [] };
+}

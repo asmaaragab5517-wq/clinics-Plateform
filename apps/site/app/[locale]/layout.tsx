@@ -14,10 +14,6 @@ import { alternates, localeUrl } from '@/lib/seo';
 
 type Props = { children: React.ReactNode; params: Promise<{ locale: string }> };
 
-export function generateStaticParams() {
-  return [];
-}
-
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const locale = asLocale((await params).locale);
   return {

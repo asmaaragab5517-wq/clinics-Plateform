@@ -14,7 +14,7 @@ export async function createTestDatabase(name: string): Promise<{ adminUrl: stri
   const u = new URL(ADMIN_URL);
   u.pathname = `/${name}`;
   const adminUrl = u.toString();
-  await migrate(adminUrl, { appUser: 'hf_api', appPassword: APP_PASSWORD });
+  await migrate(adminUrl, { appUser: 'hf_api_test', appPassword: APP_PASSWORD });
   const box = new SecretBox(devKey());
   const c = new Client({ connectionString: adminUrl });
   await c.connect();
@@ -23,7 +23,7 @@ export async function createTestDatabase(name: string): Promise<{ adminUrl: stri
   const other = await seedDemo(c, box, { slug: 'other', name: 'شبكة أخرى' });
   await c.end();
   const app = new URL(adminUrl);
-  app.username = 'hf_api';
+  app.username = 'hf_api_test';
   app.password = APP_PASSWORD;
   return {
     adminUrl,

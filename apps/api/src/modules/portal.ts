@@ -204,16 +204,16 @@ export class PortalController {
 
   @Get('appointments/:id/calendar.ics')
   @PatientAuth()
-  async ics(@Auth() p: Principal, @Param('id') id: string, @Res() res: Response) {
+  async ics(@Auth() p: Principal, @Param('id') id: string, @Query('locale') locale: string | undefined, @Res() res: Response) {
     const a = await this.tenancy.run(p, (tx) =>
       tx.maybeOne<{ id: string; ref: string; start_at: Date; end_at: Date; doctor: string; clinic: string; address: string }>(
-        'select a.id, a.ref, a.start_at, a.end_at, u.name_ar as doctor, c.name_ar as clinic, c.address_lines as address from appointments a join users u on u.id = a.doctor_id join clinics c on c.id = a.clinic_id where a.id = $1',
+        `select a.id, a.ref, a.start_at, a.end_at, ${locale === 'en' ? "coalesce(nullif(u.name_en, ''), u.name_ar)" : 'u.name_ar'} as doctor, ${locale === 'en' ? "coalesce(nullif(c.name_en, ''), c.name_ar)" : 'c.name_ar'} as clinic, c.address_lines as address from appointments a join users u on u.id = a.doctor_id join clinics c on c.id = a.clinic_id where a.id = $1`,
         [uuid(id)],
       ),
     );
     if (!a) throw notFound('appointment');
     res.setHeader('content-type', 'text/calendar; charset=utf-8').setHeader('content-disposition', `attachment; filename="${a.ref}.ics"`)
-      .send(icsEvent({ uid: `${a.id}@healthflow`, start: new Date(a.start_at), end: new Date(a.end_at), summary: `موعد ${a.doctor}`, location: `${a.clinic} - ${a.address}`, description: `Ref ${a.ref}` }));
+      .send(icsEvent({ uid: `${a.id}@healthflow`, start: new Date(a.start_at), end: new Date(a.end_at), summary: `${locale === 'en' ? 'Appointment:' : 'موعد'} ${a.doctor}`, location: `${a.clinic} - ${a.address}`, description: `Ref ${a.ref}` }));
   }
 
   @Get('prescriptions')
@@ -292,7 +292,7 @@ export class PortalController {
   visits(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) =>
       tx.query(
-        `select e.id, e.patient_id, e.signed_at, e.patient_summary, e.diagnoses, e.follow_up, u.name_ar as doctor_name_ar, c.name_ar as clinic_name_ar
+        `select e.id, e.patient_id, e.signed_at, e.patient_summary, e.diagnoses, e.follow_up, u.name_ar as doctor_name_ar, u.name_en as doctor_name_en, c.name_ar as clinic_name_ar, c.name_en as clinic_name_en
          from encounters e join users u on u.id = e.doctor_id join clinics c on c.id = e.clinic_id where e.status = 'signed' order by e.signed_at desc`,
       ),
     );
@@ -323,7 +323,7 @@ export class PortalController {
     const pt = asPatient(p);
     const patientId = this.own(pt, body?.patientId ?? '');
     return this.tenancy.run(pt, async (tx) => {
-      const d = await storeDocument({ storage: this.storage, av: this.av }, tx, { orgId: pt.orgId, patientId, title: body?.title ?? 'مستند', kind: 'patient_upload', file, patientProvided: true, actorId: null });
+      const d = await storeDocument({ storage: this.storage, av: this.av }, tx, { orgId: pt.orgId, patientId, title: body?.title ?? 'document', kind: 'patient_upload', file, patientProvided: true, actorId: null });
       await this.audit.record(tx, pt, meta, { action: 'document.patient_upload', entity: 'document', entityId: d.id, patientId });
       return d;
     });
@@ -333,7 +333,7 @@ export class PortalController {
   @PatientAuth()
   invoices(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) =>
-      tx.query(`select b.id, b.patient_id, b.number, b.status, b.total, b.paid, b.refunded, b.credited, b.issued_at, c.name_ar as clinic_name_ar from bills b join clinics c on c.id = b.clinic_id where b.status not in ('draft','void') order by b.issued_at desc`),
+      tx.query(`select b.id, b.patient_id, b.number, b.status, b.total, b.paid, b.refunded, b.credited, b.issued_at, c.name_ar as clinic_name_ar, c.name_en as clinic_name_en from bills b join clinics c on c.id = b.clinic_id where b.status not in ('draft','void') order by b.issued_at desc`),
     );
   }
 

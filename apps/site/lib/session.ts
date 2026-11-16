@@ -59,8 +59,9 @@ export function apiHeaders(req: NextRequest, extra: Record<string, string> = {})
   const h: Record<string, string> = { 'x-org': ORG_SLUG, 'x-client': 'site', accept: req.headers.get('accept') ?? 'application/json', ...extra };
   const ua = req.headers.get('user-agent');
   if (ua) h['user-agent'] = ua.slice(0, 200);
-  const xff = req.headers.get('x-forwarded-for');
-  if (xff) h['x-forwarded-for'] = xff.split(',')[0]!.trim();
+  // The API trusts one proxy hop for OTP per-IP limits; pass the client address our own edge recorded (not a client-supplied chain).
+  const ip = req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for')?.split(',').pop()?.trim();
+  if (ip && /^[\d.:a-fA-F]{3,45}$/.test(ip)) h['x-forwarded-for'] = ip;
   const lang = req.headers.get('accept-language');
   if (lang) h['accept-language'] = lang.slice(0, 50);
   return h;

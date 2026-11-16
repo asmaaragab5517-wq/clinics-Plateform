@@ -46,7 +46,7 @@ export class PaymentsService {
     const merchant = await this.billing.merchantFor(tx, a.clinic_id);
     const out = await this.healthpay.createCheckout({
       merchant, orderId: intent.id, amount, description: `Appointment ${a.ref}`, customerPhone: phone,
-      returnUrl: `${this.cfg.PUBLIC_SITE_URL}/book/result?ref=${a.ref}`, idempotencyKey: `intent:${intent.id}`,
+      returnUrl: `${this.cfg.PUBLIC_SITE_URL}/ar/book/result?ref=${a.ref}&appointment=${a.id}`, idempotencyKey: `intent:${intent.id}`,
     });
     return tx.one<{ id: string; checkout_url: string; amount: number; status: string }>(
       `update payment_intents set provider_order_id = $2, checkout_url = $3, status = 'pending' where id = $1 returning id, checkout_url, amount, status`,

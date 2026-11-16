@@ -375,5 +375,9 @@
   "account.deleteWord": "حذف",
   "account.deleteSubmit": "طلب حذف الحساب",
   "account.deleted": "تم استلام طلب الحذف وتم تسجيل خروجك.",
-  "site.breadcrumb": "مسار التنقل"
+  "site.breadcrumb": "مسار التنقل",
+  "error.inside_cutoff": "فات موعد تعديل الحجز أونلاين. برجاء الاتصال بالعيادة.",
+  "error.reschedule_limit_reached": "لا يمكن تغيير موعد هذا الحجز مرة أخرى.",
+  "error.not_reschedulable": "لم يعد ممكنًا تغيير موعد هذا الحجز.",
+  "error.slot_not_offered": "هذا الموعد لم يعد متاحًا."
 }
