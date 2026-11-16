@@ -1,0 +1,23 @@
+{
+  "name": "healthflow-clinics",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:migrate": "pnpm --filter @hf/db migrate",
+    "db:seed": "pnpm --filter @hf/db seed",
+    "lint:rtl": "node scripts/lint-rtl.mjs"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "@types/node": "^22.15.0",
+    "vitest": "^3.2.0",
+    "prettier": "^3.5.0"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@hf/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "migrate": "node dist/migrate-cli.js",
+    "seed": "node dist/seed-cli.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hf/shared": "workspace:*",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": { "@types/pg": "^8.15.0", "vitest": "^3.2.0", "typescript": "^5.8.0" }
+}
