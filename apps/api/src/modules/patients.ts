@@ -170,6 +170,15 @@ export class PatientsController {
     });
   }
 
+  @Get(':id/merges')
+  @Staff('patient:view')
+  merges(@Auth() p: Principal, @Param('id') id: string) {
+    return this.tenancy.run(p, async (tx) => {
+      await visiblePatient(tx, id);
+      return tx.query('select id, source_patient_id, target_patient_id, reason, merged_at, unmerged_at, merged_at > now() - interval \'30 days\' as can_unmerge from patient_merges where target_patient_id = $1 or source_patient_id = $1 order by merged_at desc', [id]);
+    });
+  }
+
   @Post('merges/:mergeId/unmerge')
   @Staff('patient:edit')
   unmerge(@Auth() p: Principal, @Param('mergeId') mergeId: string, @Meta() meta: RequestMeta) {
@@ -207,10 +216,11 @@ export class PatientsController {
   }
 
   @Get(':id/history')
-  @Staff('emr:view')
+  @Staff()
   history(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
     return this.tenancy.run(p, async (tx) => {
       await visiblePatient(tx, id);
+      if (!(await this.svc.canViewEmr(tx, p, id))) throw forbidden('emr_access_denied');
       const rows = await tx.query('select * from medical_history_items where patient_id = $1 order by kind, created_at desc', [id]);
       await this.audit.record(tx, p, meta, { action: 'emr.history_read', entity: 'patient', entityId: id, patientId: id });
       return rows;

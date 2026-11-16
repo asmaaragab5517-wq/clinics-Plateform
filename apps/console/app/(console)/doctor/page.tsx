@@ -151,7 +151,7 @@ function Today() {
                       <Bdi>{a.patient_name}</Bdi>
                     </Link>
                   </td>
-                  <td>{a.services.map((s) => (locale === 'en' ? s.name_en || s.name_ar : s.name_ar)).join('، ')}</td>
+                  <td>{a.services.map((s) => (locale === 'en' ? s.name_en || s.name_ar : s.name_ar)).join(t('common.listSep'))}</td>
                   <td>
                     <StatusBadge status={a.status} locale={locale} />
                   </td>

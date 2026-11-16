@@ -259,7 +259,7 @@ function AppointmentDialog({ a, onClose, onReschedule, error }: { a: Appointment
             <Bdi>{a.doctor_name}</Bdi> · <span className="num">{cairoDate(a.start_at)}</span> <span className="num">{time12(a.start_at, locale)}</span>
           </p>
           <p className="text-muted">
-            {t('cal.ref')} <Bdi className="num">{a.ref}</Bdi> · {a.services.map((s) => (locale === 'en' ? s.name_en || s.name_ar : s.name_ar)).join('، ')}
+            {t('cal.ref')} <Bdi className="num">{a.ref}</Bdi> · {a.services.map((s) => (locale === 'en' ? s.name_en || s.name_ar : s.name_ar)).join(t('common.listSep'))}
           </p>
           {MOVABLE.includes(a.status) && (
             <form

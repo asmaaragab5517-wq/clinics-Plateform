@@ -416,7 +416,7 @@ function Orders({ e, editable, reload }: { e: Encounter; editable: boolean; relo
         {e.orders.map((o) => (
           <div key={o.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-2 text-sm">
             <span>
-              <Badge>{t(`enc.orderKind.${o.kind}`)}</Badge> {o.test_codes.map(name).join('، ')}
+              <Badge>{t(`enc.orderKind.${o.kind}`)}</Badge> {o.test_codes.map(name).join(t('common.listSep'))}
             </span>
             <span className="flex flex-wrap items-center gap-2">
               <Badge tone={o.status === 'reviewed' ? 'success' : o.status === 'result_received' ? 'warning' : 'neutral'}>{t(`enc.orderStatus.${o.status}`)}</Badge>

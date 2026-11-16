@@ -66,7 +66,7 @@ function Sessions() {
   const { active: services } = useServices();
   const [f, setF] = useState({ doctorId: '', weekdays: [6, 0, 1, 2, 3] as number[], startTime: '16:00', endTime: '21:00', slotMinutes: 15, capacityPerSlot: 1, walkInReserved: 0, effectiveFrom: todayCairo(), effectiveTo: '', profileId: '', serviceIds: [] as string[] });
   const a = useAction();
-  const days = (w: number[]) => WEEK_ORDER.filter((d) => w.includes(d)).map((d) => (locale === 'ar' ? ARABIC_WEEKDAYS[d] : EN_WEEKDAYS[d])).join('، ');
+  const days = (w: number[]) => WEEK_ORDER.filter((d) => w.includes(d)).map((d) => (locale === 'ar' ? ARABIC_WEEKDAYS[d] : EN_WEEKDAYS[d])).join(t('common.listSep'));
   return (
     <div className="grid gap-4 xl:grid-cols-3">
       <Section title={t('sch.sessions')} className="xl:col-span-2">

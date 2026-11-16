@@ -277,14 +277,18 @@ export class AppointmentsService {
   }
 
   /** Walk-in: registered and checked in immediately, outside slot capacity (FR-APT-5). */
-  async walkIn(tx: Tx, actor: Principal, meta: RequestMeta | null, b: { patientId: string; clinicId: string; doctorId: string; serviceIds: string[]; priority: QueuePriority }) {
+  async walkIn(tx: Tx, actor: Principal, meta: RequestMeta | null, b: { patientId: string; clinicId: string; doctorId: string; serviceIds: string[]; priority: QueuePriority; idempotencyKey?: string }) {
+    if (b.idempotencyKey) {
+      const prior = await tx.maybeOne<ApptRow>('select * from appointments where idempotency_key = $1', [b.idempotencyKey]);
+      if (prior) return { appointment: prior, ticket: await tx.maybeOne('select * from queue_tickets where appointment_id = $1', [prior.id]), replayed: true };
+    }
     const svc = await tx.query<{ duration_minutes: number }>('select duration_minutes from services where id = any($1::uuid[])', [b.serviceIds]);
     if (svc.length !== b.serviceIds.length) throw badRequest('invalid_service');
     const start = new Date();
     const end = new Date(start.getTime() + Math.max(...svc.map((s) => s.duration_minutes)) * 60000);
     const row = await tx.one<ApptRow>(
-      `insert into appointments (organisation_id, clinic_id, doctor_id, patient_id, ref, start_at, end_at, status, channel, is_walk_in, created_by) values (app_org(), $1,$2,$3,$4,$5,$6,'booked','walk_in',true,$7) returning *`,
-      [b.clinicId, b.doctorId, b.patientId, newRef(), start, end, actor.kind === 'staff' ? actor.userId : null],
+      `insert into appointments (organisation_id, clinic_id, doctor_id, patient_id, ref, start_at, end_at, status, channel, is_walk_in, created_by, idempotency_key) values (app_org(), $1,$2,$3,$4,$5,$6,'booked','walk_in',true,$7,$8) returning *`,
+      [b.clinicId, b.doctorId, b.patientId, newRef(), start, end, actor.kind === 'staff' ? actor.userId : null, b.idempotencyKey ?? null],
     );
     for (const s of b.serviceIds) await tx.query('insert into appointment_services (organisation_id, appointment_id, service_id) values (app_org(), $1, $2)', [row.id, s]);
     await this.event(tx, row, null, 'booked', actor, 'walk_in');
@@ -296,7 +300,7 @@ export class AppointmentsService {
     const rows = await tx.query<{
       id: string; ticket_number: number; priority: QueuePriority; status: 'waiting' | 'called' | 'serving' | 'done' | 'skipped'; checked_in_at: Date; doctor_id: string; doctor_name: string; patient_name: string | null; appointment_id: string; patient_id: string;
     }>(
-      `select q.id, q.ticket_number, q.priority, q.status, q.checked_in_at, q.doctor_id, u.name_ar as doctor_name, q.appointment_id, q.patient_id,
+      `select q.id, q.ticket_number, q.priority, q.status, q.checked_in_at, q.doctor_id, u.name_ar as doctor_name, q.appointment_id, q.patient_id, (select e.id from encounters e where e.appointment_id = q.appointment_id) as encounter_id,
               ${withNames ? `p.first_name_ar || ' ' || p.father_name_ar` : 'null'} as patient_name
        from queue_tickets q join users u on u.id = q.doctor_id left join patients p on p.id = q.patient_id
        where q.clinic_id = $1 and q.queue_date = $2 and ($3::uuid is null or q.doctor_id = $3)

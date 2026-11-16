@@ -34,7 +34,8 @@ export class AppointmentsController {
         `select a.id, a.ref, a.clinic_id, a.doctor_id, a.patient_id, a.start_at, a.end_at, a.status, a.channel, a.payment_mode, a.is_walk_in, a.notes,
                 p.first_name_ar || ' ' || p.father_name_ar || ' ' || p.family_name_ar as patient_name, p.mrn, u.name_ar as doctor_name,
                 coalesce((select jsonb_agg(jsonb_build_object('id', s.id, 'name_ar', s.name_ar, 'name_en', s.name_en)) from appointment_services x join services s on s.id = x.service_id where x.appointment_id = a.id), '[]') as services,
-                (select ticket_number from queue_tickets q where q.appointment_id = a.id) as ticket_number
+                (select ticket_number from queue_tickets q where q.appointment_id = a.id) as ticket_number,
+                (select e.id from encounters e where e.appointment_id = a.id) as encounter_id
          from appointments a join patients p on p.id = a.patient_id join users u on u.id = a.doctor_id
          where a.start_at >= $1 and a.start_at < $2 and ($3::uuid is null or a.clinic_id = $3) and ($4::uuid is null or a.doctor_id = $4)
            and ($5::uuid is null or a.patient_id = $5) and ($6::text is null or a.status = any(string_to_array($6, ','))) and ($7::text is null or a.ref = upper($7))
@@ -68,9 +69,10 @@ export class AppointmentsController {
 
   @Post('appointments/walk-in')
   @Staff('queue:create')
-  walkIn(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
+  walkIn(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta, @Req() req: Request) {
     const b = parse(z.object({ patientId: z.string().uuid(), clinicId: z.string().uuid(), doctorId: z.string().uuid(), serviceIds: z.array(z.string().uuid()).min(1), priority: z.enum(QUEUE_PRIORITIES).default('normal') }), body);
-    return this.tenancy.run(p, (tx) => this.svc.walkIn(tx, p, meta, b));
+    const idem = (req.headers['idempotency-key'] as string | undefined)?.slice(0, 100);
+    return this.tenancy.run(p, (tx) => this.svc.walkIn(tx, p, meta, { ...b, idempotencyKey: idem ? `walkin:${p.kind === 'staff' ? p.userId : ''}:${idem}` : undefined }));
   }
 
   @Post('appointments/:id/transition')

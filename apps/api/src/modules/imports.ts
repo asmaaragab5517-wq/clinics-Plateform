@@ -162,6 +162,12 @@ export class ImportsController {
     return errs;
   }
 
+  @Get()
+  @Staff('import:view')
+  list(@Auth() p: Principal) {
+    return this.tenancy.run(p, (tx) => tx.query('select id, entity, status, row_count, error_count, committed_at, created_at from import_batches order by created_at desc limit 100'));
+  }
+
   @Get(':id')
   @Staff('import:view')
   async get(@Auth() p: Principal, @Param('id') id: string) {

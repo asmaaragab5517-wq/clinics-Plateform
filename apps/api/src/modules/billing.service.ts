@@ -114,8 +114,15 @@ export class BillingService {
   }
 
   /** FR-BIL-4 payments. Cash requires the cashier's open shift (FR-BIL-6). */
-  async pay(tx: Tx, actor: StaffPrincipal | null, meta: RequestMeta | null, billId: string, p: { method: PaymentMethod; amount: number; reference?: string; cardLast4?: string; packageBalanceId?: string; providerTransactionId?: string }) {
+  async pay(tx: Tx, actor: StaffPrincipal | null, meta: RequestMeta | null, billId: string, p: { method: PaymentMethod; amount: number; reference?: string; cardLast4?: string; packageBalanceId?: string; providerTransactionId?: string; idempotencyKey?: string }) {
     const b = await this.get(tx, billId, true);
+    if (p.idempotencyKey) {
+      const prior = await tx.maybeOne<{ id: string; amount: number; receipt_number: string; bill_id: string }>('select * from payments where idempotency_key = $1', [p.idempotencyKey]);
+      if (prior) {
+        if (prior.bill_id !== billId) throw badRequest('idempotency_key_reused');
+        return { ...prior, billStatus: b.status as ReturnType<typeof billPaymentStatus>, replayed: true };
+      }
+    }
     if (!['issued', 'partially_paid'].includes(b.status)) throw new DomainError('bill_not_payable', HttpStatus.CONFLICT);
     const balance = b.total - b.credited - (b.paid - b.refunded);
     if (p.amount > balance) throw new DomainError('amount_exceeds_balance', HttpStatus.UNPROCESSABLE_ENTITY, { balance });
@@ -145,9 +152,9 @@ export class BillingService {
     const n = await tx.one<{ n: number }>('select next_number($1) as n', [`receipt:${b.clinic_id}`]);
     const receipt = `${c.receipt_prefix}-${String(n.n).padStart(7, '0')}`;
     const pay = await tx.one<{ id: string; amount: number; receipt_number: string }>(
-      `insert into payments (organisation_id, clinic_id, bill_id, patient_id, shift_id, method, amount, reference, card_last4, package_balance_id, receipt_number, provider_transaction_id, created_by)
-       values (app_org(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning *`,
-      [b.clinic_id, b.id, b.patient_id, shiftId, p.method, p.amount, p.reference ?? null, p.cardLast4 ?? null, p.packageBalanceId ?? null, receipt, p.providerTransactionId ?? null, actor?.userId ?? null],
+      `insert into payments (organisation_id, clinic_id, bill_id, patient_id, shift_id, method, amount, reference, card_last4, package_balance_id, receipt_number, provider_transaction_id, created_by, idempotency_key)
+       values (app_org(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning *`,
+      [b.clinic_id, b.id, b.patient_id, shiftId, p.method, p.amount, p.reference ?? null, p.cardLast4 ?? null, p.packageBalanceId ?? null, receipt, p.providerTransactionId ?? null, actor?.userId ?? null, p.idempotencyKey ?? null],
     );
     const paid = b.paid + p.amount;
     const status = billPaymentStatus(b.total - b.credited, paid, b.refunded);

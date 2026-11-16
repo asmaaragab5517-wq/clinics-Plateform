@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { toWesternDigits } from '@hf/shared';
 import { Alert, Bdi, Button, Dialog, Input, OnlineIndicator, Select, cx } from '@hf/ui';
 import { ApiError, get, logout, markActivity, msSinceActivity, post, readCookie, writeCookie } from '@/lib/api';
 import { CLINIC_COOKIE, LOCALE_COOKIE } from '@/lib/i18n';
@@ -216,7 +217,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <div className={cx('flex min-h-screen', locked && 'invisible')} inert={locked}>
             <aside
               className={cx(
-                'fixed inset-y-0 start-0 z-30 w-56 shrink-0 overflow-y-auto border-e border-border bg-surface p-3 transition-transform lg:static lg:translate-x-0',
+                'fixed inset-y-0 start-0 z-30 w-56 shrink-0 overflow-y-auto border-e border-border bg-surface p-3 transition-transform lg:static lg:translate-x-0 lg:ltr:translate-x-0 lg:rtl:translate-x-0',
                 navOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full',
               )}
               aria-label={t('shell.navigation')}
@@ -351,7 +352,7 @@ function LockScreen({ name, onUnlock }: { name: string; onUnlock: () => void }) 
           setBusy(true);
           setError(null);
           try {
-            await post('/auth/pin/verify', { pin: pin.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))) });
+            await post('/auth/pin/verify', { pin: toWesternDigits(pin) });
             markActivity();
             setPin('');
             onUnlock();
@@ -373,7 +374,7 @@ function LockScreen({ name, onUnlock }: { name: string; onUnlock: () => void }) 
         )}
         <label className="flex flex-col gap-1 text-sm">
           {t('lock.pin')}
-          <Input ref={ref} type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} pattern="[0-9٠-٩]{4,8}" required dir="ltr" />
+          <Input ref={ref} type="password" inputMode="numeric" autoComplete="off" value={pin} onChange={(e) => setPin(e.target.value)} pattern="[0-9\u0660-\u0669]{4,8}" required dir="ltr" />
         </label>
         {error && (
           <p role="alert" className="text-sm text-danger">

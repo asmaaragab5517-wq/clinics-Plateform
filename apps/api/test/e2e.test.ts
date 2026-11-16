@@ -199,7 +199,10 @@ describe('R1 acceptance: reception, doctor, cashier (SRS §11.2-11.3)', () => {
     expect(fail.body.error).toBe('no_open_shift');
     const shift = await h.http().post('/v1/shifts').set(auth(h.staff.reception)).send({ clinicId: ctx.nc, openingFloat: 50000 });
     expect(shift.status).toBe(201);
-    const pay = await h.http().post(`/v1/bills/${ctx.bill}/payments`).set(auth(h.staff.reception)).send({ method: 'cash', amount: 40000 });
+    const pay = await h.http().post(`/v1/bills/${ctx.bill}/payments`).set(auth(h.staff.reception)).set('idempotency-key', 'pay-1').send({ method: 'cash', amount: 40000 });
+    // A replay after a lost response returns the same payment instead of charging twice.
+    const replay = await h.http().post(`/v1/bills/${ctx.bill}/payments`).set(auth(h.staff.reception)).set('idempotency-key', 'pay-1').send({ method: 'cash', amount: 40000 });
+    expect(replay.body.id).toBe(pay.body.id);
     expect(pay.status, JSON.stringify(pay.body)).toBe(201);
     expect(pay.body.billStatus).toBe('paid');
     expect(pay.body.receipt_number).toMatch(/^NC-\d{7}$/);

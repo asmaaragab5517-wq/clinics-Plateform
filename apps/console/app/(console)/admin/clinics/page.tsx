@@ -119,7 +119,7 @@ export default function ClinicsAdminPage() {
                 governorate: gov?.ar ?? f.governorate,
                 city: f.city,
                 addressLines: f.addressLines,
-                phones: f.phones.split(/[,،]/).map((x) => x.trim()).filter(Boolean),
+                phones: f.phones.split(/[,\u060C]/).map((x) => x.trim()).filter(Boolean),
                 email: f.email || undefined,
                 workingHours: WEEK_ORDER.filter((d) => f.hours[d]?.on).map((d) => ({ weekday: d, open: f.hours[d]!.open, close: f.hours[d]!.close })),
                 colours: { primary: f.primary },

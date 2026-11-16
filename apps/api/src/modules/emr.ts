@@ -74,11 +74,12 @@ export class EmrController {
   }
 
   @Get('patients/:patientId/encounters')
-  @Staff('emr:view')
+  @Staff()
   list(@Auth() p: Principal, @Param('patientId') patientId: string, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
     return this.tenancy.run(s, async (tx) => {
       await visiblePatient(tx, patientId);
+      if (!(await this.patients.canViewEmr(tx, s, patientId))) throw forbidden('emr_access_denied');
       const rows = await tx.query(
         `select e.id, e.appointment_id, e.clinic_id, c.name_ar as clinic_name, e.doctor_id, u.name_ar as doctor_name, e.status, e.chief_complaint, e.diagnoses, e.created_at, e.signed_at
          from encounters e join users u on u.id = e.doctor_id join clinics c on c.id = e.clinic_id where e.patient_id = $1 order by e.created_at desc`,
@@ -298,10 +299,11 @@ export class EmrController {
   }
 
   @Get('patients/:patientId/documents')
-  @Staff('emr:view')
+  @Staff()
   documents(@Auth() p: Principal, @Param('patientId') patientId: string, @Meta() meta: RequestMeta) {
     return this.tenancy.run(p, async (tx) => {
       await visiblePatient(tx, patientId);
+      if (!(await this.patients.canViewEmr(tx, p, patientId))) throw forbidden('emr_access_denied');
       const rows = await tx.query('select id, title, kind, mime, size_bytes, patient_provided, encounter_id, order_id, created_at from documents where patient_id = $1 order by created_at desc', [patientId]);
       await this.audit.record(tx, p, meta, { action: 'document.list', entity: 'patient', entityId: patientId, patientId });
       return rows;

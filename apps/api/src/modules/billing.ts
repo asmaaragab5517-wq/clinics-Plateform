@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { closeShiftSchema, countCash, createBillSchema, openShiftSchema, paymentSchema, refundRequestSchema, summariseShift } from '@hf/shared';
 import { invoiceHtml, renderPdf, shiftReportHtml } from '@hf/documents';
@@ -74,11 +74,12 @@ export class BillingController {
 
   @Post('bills/:id/payments')
   @Staff('payment:create')
-  pay(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+  pay(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta, @Req() req: Request) {
     const s = asStaff(p);
     const b = parse(paymentSchema, body);
     if (b.method === 'healthpay') throw badRequest('healthpay_payments_come_from_webhook');
-    return this.tenancy.run(s, (tx) => this.svc.pay(tx, s, meta, uuid(id), b));
+    const idem = (req.headers['idempotency-key'] as string | undefined)?.slice(0, 100);
+    return this.tenancy.run(s, (tx) => this.svc.pay(tx, s, meta, uuid(id), { ...b, idempotencyKey: idem ? `${s.userId}:${idem}` : undefined }));
   }
 
   @Post('bills/:id/void')

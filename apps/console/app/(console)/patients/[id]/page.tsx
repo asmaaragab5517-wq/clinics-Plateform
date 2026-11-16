@@ -158,7 +158,7 @@ function Overview({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
             className="flex flex-col gap-3"
             onSubmit={async (e) => {
               e.preventDefault();
-              const phones = f.phones.split(/[,،]/).map((x) => x.trim()).filter(Boolean);
+              const phones = f.phones.split(/[,\u060C]/).map((x) => x.trim()).filter(Boolean);
               const ok = await a.run(() =>
                 patch(`/patients/${pt.id}`, {
                   email: f.email.trim() || undefined,

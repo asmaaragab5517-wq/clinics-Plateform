@@ -54,7 +54,7 @@ export default function SettingsPage() {
           className="flex flex-col gap-4"
           onSubmit={async (e) => {
             e.preventDefault();
-            const hours = reminders.split(/[,،]/).map((x) => Number(x.trim())).filter((x) => Number.isInteger(x) && x > 0);
+            const hours = reminders.split(/[,\u060C]/).map((x) => Number(x.trim())).filter((x) => Number.isInteger(x) && x > 0);
             const body = {
               defaultLocale: s.defaultLocale,
               digitStyle: s.digitStyle,
