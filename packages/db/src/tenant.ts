@@ -1,4 +1,9 @@
-import { Pool, type PoolClient, type QueryResultRow } from 'pg';
+import { Pool, types, type PoolClient, type QueryResultRow } from 'pg';
+
+// Keep calendar dates as YYYY-MM-DD strings (no timezone shifts), parse counts and numerics as numbers.
+types.setTypeParser(1082, (v) => v);
+types.setTypeParser(20, (v) => Number(v));
+types.setTypeParser(1700, (v) => Number(v));
 
 export type TenantMode = 'staff' | 'patient' | 'public' | 'system';
 

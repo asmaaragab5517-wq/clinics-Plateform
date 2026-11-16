@@ -37,6 +37,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     'message:view',
   ],
   doctor: [
+    'clinic:view',
     'schedule:view',
     'appointment:view',
     'appointment:create',
@@ -51,6 +52,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     'review:view',
   ],
   nurse: [
+    'clinic:view',
     'schedule:view',
     'appointment:view',
     ...all('queue', ['view', 'create', 'edit']),
@@ -59,6 +61,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     'emr:create',
   ],
   receptionist: [
+    'clinic:view',
     'schedule:view',
     ...all('appointment', ['view', 'create', 'edit']),
     ...all('queue', ['view', 'create', 'edit']),
@@ -69,6 +72,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     ...all('shift', ['view', 'create', 'edit']),
   ],
   accountant: [
+    'clinic:view',
     ...all('bill', ['view', 'approve', 'export']),
     ...all('payment', ['view', 'export']),
     ...all('refund', ['view', 'approve', 'export']),
