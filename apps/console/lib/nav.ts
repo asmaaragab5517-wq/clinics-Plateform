@@ -25,6 +25,7 @@ export const NAV: NavGroup[] = [
     label: 'nav.group.clinical',
     items: [
       { href: '/doctor', label: 'nav.doctor', roles: ['doctor'] },
+      { href: '/doctor/templates', label: 'nav.encTemplates', anyOf: ['emr:edit'], roles: ['doctor'] },
       { href: '/nurse', label: 'nav.nurse', anyOf: ['emr:create'], roles: ['nurse', 'doctor', 'clinic_manager'] },
       { href: '/quality/report', label: 'nav.reportIncident', anyOf: ['quality:create'] },
     ],
@@ -64,6 +65,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: '/admin/settings', label: 'nav.settings', anyOf: ['settings:view'] },
       { href: '/admin/privileges', label: 'nav.privileges', anyOf: ['settings:view'] },
+      { href: '/admin/custom-fields', label: 'nav.customFields', anyOf: ['settings:view'] },
       { href: '/admin/entities', label: 'nav.entities', anyOf: ['settings:view'] },
       { href: '/admin/clinics', label: 'nav.clinicsAdmin', anyOf: ['clinic:create', 'clinic:edit'] },
       { href: '/admin/cms', label: 'nav.cms', anyOf: ['org:edit'] },

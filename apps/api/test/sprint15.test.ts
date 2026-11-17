@@ -98,3 +98,23 @@ describe('Next available cache, waitlist, retention, coverages, app return, push
     expect(push.rows[0]).toEqual({ recipient: 'fcm-device-token-0123456789abcdef', data: { path: `/appointments/${w.body.appointment.id}` } });
   });
 });
+
+describe('Custom patient fields (Sprint 16 follow-up)', () => {
+  it('validates values against definitions, supports edit and delete', async () => {
+    const def = await h.http().post('/v1/custom-fields').set(auth(h.staff.owner)).send({ key: 'blood_group', labelAr: 'فصيلة الدم', type: 'select', options: [{ value: 'A+', ar: 'A+', en: 'A+' }, { value: 'O+', ar: 'O+', en: 'O+' }] });
+    expect(def.status).toBe(201);
+    const bad = await h.http().patch(`/v1/patients/${ctx.patient}`).set(auth(h.staff.reception)).send({ customFields: { blood_group: 'Z', nope: 1 } });
+    expect(bad.status).toBe(422);
+    expect(bad.body.error).toBe('invalid_custom_fields');
+    expect(bad.body.details.map((d: { key: string }) => d.key).sort()).toEqual(['blood_group', 'nope']);
+    await h.http().patch(`/v1/patients/${ctx.patient}`).set(auth(h.staff.reception)).send({ customFields: { blood_group: 'O+' } }).expect(200);
+    await h.http().patch(`/v1/custom-fields/${def.body.id}`).set(auth(h.staff.owner)).send({ required: true }).expect(200);
+    const missing = await h.http().post('/v1/patients').set(auth(h.staff.reception)).send({ patient: { nameAr: { first: 'منى', family: 'سالم' }, dateOfBirth: '1990-01-01', gender: 'female', nationalId: nationalIdFor('1990-01-01', 'female', 72), phones: [{ number: '01088880072', primary: true }] } });
+    expect(missing.status).toBe(422);
+    expect(missing.body.details).toEqual([{ key: 'blood_group', error: 'required' }]);
+    await h.http().patch(`/v1/custom-fields/${def.body.id}`).set(auth(h.staff.reception)).send({ required: false }).expect(403);
+    await h.http().delete(`/v1/custom-fields/${def.body.id}`).set(auth(h.staff.owner)).expect(200);
+    const list = await h.http().get('/v1/custom-fields').set(auth(h.staff.reception));
+    expect(list.body.find((d: { key: string }) => d.key === 'blood_group')).toBeUndefined();
+  });
+});

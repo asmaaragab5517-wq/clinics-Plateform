@@ -4,6 +4,7 @@ import { ageInYears, decodeNationalId, nameSimilarity, normaliseArabic, type Pat
 import { BOX } from '../common/services';
 import { DomainError, badRequest } from '../common/errors';
 import type { Principal } from '../common/principal';
+import { validateCustomFields } from './custom-fields';
 
 /** Tables whose rows follow a patient through merge/un-merge. */
 const PATIENT_TABLES = [
@@ -67,6 +68,7 @@ export class PatientsService {
       if (dups.length) throw new DomainError('possible_duplicate', HttpStatus.CONFLICT, dups);
     }
     if (ageInYears(input.dateOfBirth) < 18 && !input.guardianPatientId && !opts.allowMinorWithoutGuardian) throw badRequest('guardian_required_for_minor');
+    await validateCustomFields(tx, input.customFields as Record<string, unknown> | undefined, actor.kind === 'staff' ? 'create' : 'update');
     const org = await tx.one<{ settings: { mrnFormat?: string } }>('select settings from organisations where id = app_org()');
     const n = await tx.one<{ n: number }>(`select next_number('mrn') as n`);
     const mrn = (org.settings.mrnFormat ?? 'HF-{n:6}').replace(/\{n:(\d)\}/, (_, w: string) => String(n.n).padStart(Number(w), '0'));

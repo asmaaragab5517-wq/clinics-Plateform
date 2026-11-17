@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Security headers with a per-request CSP nonce (SEC-6): no inline scripts, frame-ancestors 'none', HSTS.
  * Also gates console pages behind the BFF session cookie and seeds the double-submit CSRF cookie.
  */
-const PUBLIC_PREFIXES = ['/login', '/display', '/api/auth/', '/api/display/', '/api/platform/', '/platform/login'];
+const PUBLIC_PREFIXES = ['/login', '/display', '/offline', '/api/auth/', '/api/display/', '/api/platform/', '/platform/login'];
 
 function nonce(): string {
   const b = new Uint8Array(16);
@@ -30,6 +30,7 @@ function csp(n: string): string {
     `form-action 'self'`,
     `frame-ancestors 'none'`,
     `frame-src 'none'`,
+    // NFR-7 shell service worker (/sw.js) is same-origin.
     `worker-src 'self' blob:`,
     `manifest-src 'self'`,
     ...(dev ? [] : ['upgrade-insecure-requests']),
@@ -82,5 +83,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [{ source: '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg).*)' }],
+  // Static PWA files (manifest, icons, service worker) are served as-is, without a session.
+  matcher: [{ source: '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|icon.svg|icons/|sw.js).*)' }],
 };

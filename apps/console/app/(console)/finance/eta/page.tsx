@@ -9,6 +9,7 @@ import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
 import { post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
+import { biName } from '@/lib/format';
 
 const STATUSES = ['queued', 'submitted', 'valid', 'invalid', 'failed'] as const;
 type Status = (typeof STATUSES)[number];
@@ -45,6 +46,7 @@ export default function EtaPage() {
   const q = useApi<{ summary: { status: Status; n: number }[]; receipts: Receipt[] }>(`/eta/receipts${qs({ status })}`);
   const a = useAction();
   const count = (s: Status) => q.data?.summary.find((x) => x.status === s)?.n ?? 0;
+  const entities = useApi<{ id: string; name_ar: string; name_en: string; tax_registration_number: string | null; eta_mode: 'preprod' | 'prod' | null; eta_configured: boolean }[]>(can('settings:view') ? '/legal-entities' : null);
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -58,6 +60,29 @@ export default function EtaPage() {
           )
         }
       />
+      {can('settings:view') && (
+        <Section title={t('eta.entities')}>
+          <DataState loading={entities.loading} error={entities.error} data={entities.data} empty={(d) => d.length === 0}>
+            {(rows) => (
+              <ul className="flex flex-col gap-2 text-sm">
+                {rows.map((e) => (
+                  <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border p-2">
+                    <span>
+                      {biName(e, locale)} {e.tax_registration_number && <Bdi className="num text-xs text-muted">{e.tax_registration_number}</Bdi>}
+                    </span>
+                    {e.eta_configured ? (
+                      <Badge tone={e.eta_mode === 'prod' ? 'success' : 'warning'}>{t(`etaCfg.mode.${e.eta_mode ?? 'preprod'}`)}</Badge>
+                    ) : (
+                      <Badge tone="danger">{t('eta.notConfigured')}</Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </DataState>
+          {entities.data?.some((e) => !e.eta_configured) && <p className="mt-2 text-xs text-warning">{t('eta.notConfiguredHint')}</p>}
+        </Section>
+      )}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {STATUSES.map((s) => (
           <Stat key={s} label={t(`eta.status.${s}`)} value={count(s)} />

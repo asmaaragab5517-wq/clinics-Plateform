@@ -8,6 +8,7 @@ import { ApiError, post } from '@/lib/api';
 import { ageFrom, isoDate, patientName } from '@/lib/format';
 import type { PatientRow } from '@/lib/types';
 import { Check, SelectField, TextField } from './common';
+import { CustomFieldInputs, customFieldsPayload, useCustomFields, validateCustomFields, type CustomValues } from './custom-fields';
 import { useI18n } from './i18n';
 import { PatientSearch } from './patient-search';
 
@@ -47,6 +48,9 @@ export function RegisterPatientDialog({ open, onClose, onCreated, onUseExisting 
   const [dups, setDups] = useState<Duplicate[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const { defs: cfDefs } = useCustomFields();
+  const [custom, setCustom] = useState<CustomValues>({});
+  const [cfErrors, setCfErrors] = useState<Record<string, string>>({});
   const set = (k: keyof typeof EMPTY, v: string) => setF((x) => ({ ...x, [k]: v }));
   const age = ageFrom(f.dob);
   const minor = age !== null && age < 18;
@@ -83,7 +87,10 @@ export function RegisterPatientDialog({ open, onClose, onCreated, onUseExisting 
     }
     if (minor && !guardian) e.guardian = t('err.guardian_required_for_minor');
     setErrors(e);
-    if (Object.values(e).some(Boolean)) return;
+    // Files can only be attached once the patient exists (they are stored as patient documents).
+    const ce = validateCustomFields(cfDefs, custom, t, { skipFiles: true });
+    setCfErrors(ce);
+    if (Object.values(e).some(Boolean) || Object.keys(ce).length) return;
     setBusy(true);
     setFormError(null);
     try {
@@ -103,9 +110,11 @@ export function RegisterPatientDialog({ open, onClose, onCreated, onUseExisting 
           city: f.city.trim() || undefined,
           address: f.address.trim() || undefined,
           guardianPatientId: minor ? guardian?.id : undefined,
+          customFields: customFieldsPayload(cfDefs.filter((d) => d.type !== 'file'), custom, { dropEmpty: true }),
         },
       });
       setF(EMPTY);
+      setCustom({});
       setGuardian(null);
       setDups(null);
       setNidInfo(null);
@@ -189,6 +198,7 @@ export function RegisterPatientDialog({ open, onClose, onCreated, onUseExisting 
               )}
             </div>
           )}
+          <CustomFieldInputs defs={cfDefs} values={custom} onChange={setCustom} errors={cfErrors} />
           <fieldset className="flex flex-col gap-2 rounded-xl border border-border p-3">
             <legend className="px-1 text-sm font-medium">{t('pat.consents')}</legend>
             <Check label={t('privacy.consent')} hint={t('pat.consentHealthHint')} checked={consents.healthData} onChange={(v) => setConsents({ ...consents, healthData: v })} />

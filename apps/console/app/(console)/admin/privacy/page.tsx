@@ -3,14 +3,15 @@
 import { useState } from 'react';
 import { CONSENT_TYPES } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, DateText, Input, PageHeader, Table, Tabs } from '@hf/ui';
-import { DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
+import { Check, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
+import { Dialog } from '@/components/dialog';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
-import { patch, post } from '@/lib/api';
+import { ApiError, patch, post } from '@/lib/api';
 import { useApi, useInterval } from '@/lib/hooks';
 
-type Tab = 'consents' | 'requests' | 'breaches';
+type Tab = 'consents' | 'requests' | 'breaches' | 'retention';
 
 /** FR-PRV-1/4/5: consent versions, data subject requests with SLA, breach register with the 72-hour deadline. */
 export default function PrivacyPage() {
@@ -26,11 +27,13 @@ export default function PrivacyPage() {
           { value: 'requests', label: t('prv.requests') },
           { value: 'consents', label: t('prv.versions') },
           { value: 'breaches', label: t('prv.breaches') },
+          { value: 'retention', label: t('ret.tab') },
         ]}
       />
       {tab === 'consents' && <Versions />}
       {tab === 'requests' && <Requests />}
       {tab === 'breaches' && <Breaches />}
+      {tab === 'retention' && <Retention />}
     </div>
   );
 }
@@ -281,5 +284,115 @@ function Breaches() {
         </Section>
       )}
     </div>
+  );
+}
+
+interface RetentionRow {
+  id: string;
+  mrn: string;
+  last_activity: string;
+}
+
+/** D12: records with no activity for the organisation's retention period; anonymised only on an explicit decision. */
+function Retention() {
+  const { t, locale, err } = useI18n();
+  const { can } = useSession();
+  const toast = useToast();
+  const q = useApi<RetentionRow[]>('/privacy/retention-review');
+  const org = useApi<{ settings: { retentionYears?: number } }>('/org');
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [confirming, setConfirming] = useState(false);
+  const [understood, setUnderstood] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const rows = q.data ?? [];
+  const all = rows.length > 0 && rows.every((r) => sel.has(r.id));
+  const toggle = (id: string, on: boolean) => setSel((cur) => {
+    const n = new Set(cur);
+    if (on) n.add(id);
+    else n.delete(id);
+    return n;
+  });
+  const approve = can('privacy:approve');
+  async function anonymise() {
+    setBusy(true);
+    setError(null);
+    const ids = [...sel].slice(0, 200);
+    try {
+      const r = await post<{ anonymised: number }>('/privacy/retention-review/anonymise', { patientIds: ids, confirm: true });
+      toast(t('ret.done', { n: r.anonymised }));
+      setSel(new Set());
+      setConfirming(false);
+      setUnderstood(false);
+      q.reload();
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'not_past_retention') {
+        const bad = new Set(((e.details as { patientIds?: string[] } | undefined)?.patientIds ?? []) as string[]);
+        const mrns = rows.filter((r) => bad.has(r.id)).map((r) => r.mrn);
+        setSel((cur) => new Set([...cur].filter((id) => !bad.has(id))));
+        setError(t('ret.notPast', { n: bad.size, mrns: mrns.join(t('common.listSep')) || '—' }));
+        q.reload();
+      } else setError(err(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Section
+      title={t('ret.title')}
+      actions={
+        approve && (
+          <Button variant="danger" size="sm" disabled={!sel.size} onClick={() => (setError(null), setUnderstood(false), setConfirming(true))}>
+            {t('ret.anonymiseN', { n: sel.size })}
+          </Button>
+        )
+      }
+    >
+      <p className="mb-3 text-sm text-muted">{t('ret.intro', { years: org.data?.settings?.retentionYears ?? 10 })}</p>
+      {error && !confirming && <Alert tone="danger">{error}</Alert>}
+      <DataState loading={q.loading} error={q.error} data={q.data} empty={(d) => d.length === 0}>
+        {(list) => (
+          <Table>
+            <thead>
+              <tr>
+                <th>{approve && <input type="checkbox" aria-label={t('ret.selectAll')} checked={all} onChange={(e) => setSel(e.target.checked ? new Set(list.slice(0, 200).map((r) => r.id)) : new Set())} />}</th>
+                <th>{t('patient.mrn')}</th>
+                <th>{t('ret.lastActivity')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <tr key={r.id}>
+                  <td>{approve && <input type="checkbox" aria-label={`${t('ret.select')} ${r.mrn}`} checked={sel.has(r.id)} onChange={(e) => toggle(r.id, e.target.checked)} />}</td>
+                  <td>
+                    <Bdi className="num">{r.mrn}</Bdi>
+                  </td>
+                  <td>
+                    <DateText value={r.last_activity} locale={locale} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </DataState>
+      {rows.length >= 500 && <p className="mt-2 text-xs text-muted">{t('ret.capped')}</p>}
+      <Dialog open={confirming} onClose={() => setConfirming(false)} title={t('ret.confirmTitle')}>
+        <div className="flex flex-col gap-3">
+          <Alert tone="warning">{t('ret.confirmBody', { n: Math.min(sel.size, 200) })}</Alert>
+          {sel.size > 200 && <p className="text-xs text-muted">{t('ret.batchLimit')}</p>}
+          <Check label={t('ret.understand')} checked={understood} onChange={setUnderstood} />
+          {error && <Alert tone="danger">{error}</Alert>}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setConfirming(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button variant="danger" disabled={!understood || busy || !sel.size} onClick={() => void anonymise()}>
+              {t('ret.confirm')}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </Section>
   );
 }

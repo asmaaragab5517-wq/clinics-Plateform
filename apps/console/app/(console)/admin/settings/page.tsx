@@ -21,6 +21,7 @@ interface Settings {
   shiftVarianceThreshold?: number;
   queueNotifyPositions?: number;
   mrnFormat?: string;
+  retentionYears?: number;
   messaging?: { disabledEvents?: string[] };
 }
 
@@ -65,6 +66,7 @@ export default function SettingsPage() {
               shiftVarianceThreshold: parseEgp(fees.variance) ?? undefined,
               queueNotifyPositions: s.queueNotifyPositions,
               mrnFormat: s.mrnFormat || undefined,
+              retentionYears: s.retentionYears,
               messaging: { disabledEvents: disabled },
             };
             const r = await a.run(() => patch('/org/settings', body));
@@ -101,6 +103,7 @@ export default function SettingsPage() {
                 <TextField label={t('set.varianceThreshold')} value={fees.variance} onChange={(e) => setFees({ ...fees, variance: e.target.value })} dir="ltr" />
                 <TextField label={t('set.queueNotify')} type="number" min={1} max={20} value={s.queueNotifyPositions ?? 3} onChange={(e) => setS({ ...s, queueNotifyPositions: Number(e.target.value) })} />
                 <TextField label={t('set.reminders')} value={reminders} onChange={(e) => setReminders(e.target.value)} dir="ltr" hint={t('set.remindersHint')} />
+                <TextField label={t('set.retentionYears')} type="number" min={5} max={50} value={s.retentionYears ?? 10} onChange={(e) => setS({ ...s, retentionYears: e.target.value === '' ? undefined : Number(e.target.value) })} hint={t('set.retentionHint')} />
               </div>
             </Section>
             <Section title={t('set.messaging')}>

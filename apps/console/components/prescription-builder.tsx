@@ -5,9 +5,10 @@ import { AiRxWording, useAiEnabled, type RxLineWording } from './ai';
 import { Alert, Badge, Bdi, Button, Input, Select } from '@hf/ui';
 import { Dialog } from './dialog';
 import { ApiError, post, qs, reauthenticate } from '@/lib/api';
+import { DateText } from '@hf/ui';
 import { useApi, useDebounced } from '@/lib/hooks';
 import { translate } from '@/lib/i18n';
-import { Check, FileLink, Section, TextField, useAction } from './common';
+import { Check, DataState, FileLink, ReasonDialog, Section, TextField, useAction } from './common';
 import { useI18n } from './i18n';
 import { useToast } from './toast';
 
@@ -102,7 +103,7 @@ function DrugPicker({ onPick }: { onPick: (d: Drug) => void }) {
   );
 }
 
-export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, editable, returnTo }: { encounterId: string; prescriptions: RxSummary[]; onChanged: () => void; editable: boolean; returnTo: string }) {
+export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, editable, canRevoke = false, returnTo }: { encounterId: string; prescriptions: RxSummary[]; onChanged: () => void; editable: boolean; canRevoke?: boolean; returnTo: string }) {
   const { t, locale, err } = useI18n();
   const toast = useToast();
   const [lines, setLines] = useState<Line[]>([blank()]);
@@ -114,6 +115,8 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
   const [reauth, setReauth] = useState<null | (() => Promise<void>)>(null);
   const [tplName, setTplName] = useState('');
   const templates = useApi<{ id: string; name: string; lines: Line[] }[]>(editable ? '/prescription-templates' : null);
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<string | null>(null);
   const a = useAction();
 
   const setLine = (i: number, patch: Partial<Line>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
@@ -159,11 +162,19 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
                   <Badge tone={p.status === 'issued' ? 'success' : p.status === 'revoked' ? 'danger' : 'warning'}>{t(`rx.status.${p.status}`)}</Badge>
                   <Bdi className="num text-xs text-muted">{p.verify_code.slice(0, 8)}</Bdi>
                 </span>
-                <span className="flex gap-2">
+                <span className="flex flex-wrap gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setViewing(p.id)}>
+                    {t('rx.view')}
+                  </Button>
                   {p.status === 'issued' && (
                     <>
                       <FileLink href={`/prescriptions/${p.id}/pdf?size=A5`}>{t('rx.printA5')}</FileLink>
                       <FileLink href={`/prescriptions/${p.id}/pdf?size=A4`}>{t('rx.printA4')}</FileLink>
+                      {canRevoke && (
+                        <Button size="sm" variant="danger" onClick={() => setRevoking(p.id)}>
+                          {t('rx.revoke')}
+                        </Button>
+                      )}
                     </>
                   )}
                   {p.status === 'draft' && editable && aiEnabled && p.id !== draft?.id && <AiRxWording prescriptionId={p.id} lines={null} onApplied={onChanged} />}
@@ -328,7 +339,77 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
         <p className="text-xs text-muted">{t('rx.interactionsNote', { locale })}</p>
       </div>
       <ReauthDialog action={reauth} onClose={() => setReauth(null)} />
+      <PrescriptionDetailDialog id={viewing} onClose={() => setViewing(null)} />
+      <ReasonDialog
+        open={!!revoking}
+        title={t('rx.revokeTitle')}
+        confirmLabel={t('rx.revoke')}
+        onClose={() => setRevoking(null)}
+        onSubmit={async (reason) => {
+          if (!revoking) return;
+          await post(`/prescriptions/${revoking}/revoke`, { reason });
+          toast(t('rx.revoked'));
+          onChanged();
+        }}
+      />
     </Section>
+  );
+}
+
+interface RxDetail {
+  id: string;
+  status: RxSummary['status'];
+  notes: string | null;
+  issued_at: string | null;
+  verify_code: string;
+  created_at: string;
+  lines: { position: number; drug: string | null; strength: string | null; dose: string; route: string; frequency: string; duration_days: number | null; quantity: string | null; instructions_ar: string; instructions_en: string; warnings: unknown }[];
+}
+
+/** Prescription detail from `GET /v1/prescriptions/:id` (audited read). */
+export function PrescriptionDetailDialog({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const { t, locale } = useI18n();
+  const q = useApi<RxDetail>(id ? `/prescriptions/${id}` : null);
+  return (
+    <Dialog open={!!id} onClose={onClose} title={t('rx.detailTitle')} wide>
+      <DataState loading={q.loading} error={q.error} data={id ? q.data : undefined}>
+        {(rx) => (
+          <div className="flex flex-col gap-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge tone={rx.status === 'issued' ? 'success' : rx.status === 'revoked' ? 'danger' : 'warning'}>{t(`rx.status.${rx.status}`)}</Badge>
+              <span className="text-muted">
+                {t('rx.issuedAt')}: {rx.issued_at ? <DateText value={rx.issued_at} locale={locale} withTime /> : '—'}
+              </span>
+              <span className="text-muted">
+                {t('rx.verifyCode')}: <Bdi className="num">{rx.verify_code}</Bdi>
+              </span>
+            </div>
+            <ol className="flex flex-col gap-2">
+              {rx.lines.map((l) => (
+                <li key={l.position} className="rounded-lg border border-border p-2">
+                  <p className="font-medium">
+                    <Bdi>{`${l.drug ?? ''} ${l.strength ?? ''}`.trim()}</Bdi>
+                  </p>
+                  <p className="text-muted">
+                    <span dir="auto">{[l.dose, t(`rx.routes.${l.route}`), l.frequency].filter(Boolean).join(' · ')}</span>
+                    {l.duration_days ? ` · ${t('rx.days', { n: l.duration_days })}` : ''}
+                    {l.quantity ? ` · ${l.quantity}` : ''}
+                  </p>
+                  {(locale === 'ar' ? l.instructions_ar || l.instructions_en : l.instructions_en || l.instructions_ar) && (
+                    <p dir="auto">{locale === 'ar' ? l.instructions_ar || l.instructions_en : l.instructions_en || l.instructions_ar}</p>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {rx.notes && (
+              <p dir="auto" className="whitespace-pre-wrap">
+                {rx.notes}
+              </p>
+            )}
+          </div>
+        )}
+      </DataState>
+    </Dialog>
   );
 }
 

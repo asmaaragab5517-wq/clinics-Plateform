@@ -19,6 +19,8 @@ interface Entity {
   address: string | null;
   healthpay_mode: string | null;
   healthpay_configured: boolean;
+  eta_mode: 'preprod' | 'prod' | null;
+  eta_configured: boolean;
 }
 
 /** D3 legal entities with tax IDs, and HealthPay merchant configuration (credentials are write-only, FR-HP-1). */
@@ -45,6 +47,7 @@ export default function EntitiesPage() {
                     <th>{t('ent.tax')}</th>
                     <th>{t('ent.cr')}</th>
                     <th>{t('ent.healthpay')}</th>
+                    <th>{t('ent.eta')}</th>
                     <th />
                   </tr>
                 </thead>
@@ -55,6 +58,7 @@ export default function EntitiesPage() {
                       <td className="num">{e.tax_registration_number ?? '—'}</td>
                       <td className="num">{e.commercial_register ?? '—'}</td>
                       <td>{e.healthpay_configured ? <Badge tone="success">{t(`ent.mode.${e.healthpay_mode ?? 'sandbox'}`)}</Badge> : <Badge tone="warning">{t('ent.notConfigured')}</Badge>}</td>
+                      <td>{e.eta_configured ? <Badge tone={e.eta_mode === 'prod' ? 'success' : 'warning'}>{t(`etaCfg.mode.${e.eta_mode ?? 'preprod'}`)}</Badge> : <Badge tone="warning">{t('ent.notConfigured')}</Badge>}</td>
                       <td>
                         {can('settings:edit') && (
                           <div className="flex flex-wrap gap-1">
@@ -203,7 +207,6 @@ function EtaDialog({ entity, onClose }: { entity: Entity | null; onClose: () => 
           <TextField label={t('etaCfg.street')} value={f.street} onChange={set('street')} required />
           <TextField label={t('etaCfg.building')} value={f.buildingNumber} onChange={set('buildingNumber')} required dir="ltr" />
         </fieldset>
-        <p className="text-xs text-muted">{t('etaCfg.statusGap')}</p>
         {a.error && <Alert tone="danger">{a.error}</Alert>}
         <Button type="submit" disabled={a.busy}>
           {t('common.save')}

@@ -30,7 +30,7 @@ function useDoctorServices(doctorId: string) {
 }
 
 /** Quick booking from reception (FR-APT-1): doctor → service → free slot from the desk availability engine. */
-export function QuickBookingDialog({ open, onClose, patient, onBooked }: { open: boolean; onClose: () => void; patient: PatientRef | null; onBooked: () => void }) {
+export function QuickBookingDialog({ open, onClose, patient, onBooked, preset }: { open: boolean; onClose: () => void; patient: PatientRef | null; onBooked: () => void; preset?: { doctorId?: string; serviceId?: string | null; from?: string } }) {
   const { t, locale, err } = useI18n();
   const { clinicId } = useSession();
   const toast = useToast();
@@ -44,6 +44,14 @@ export function QuickBookingDialog({ open, onClose, patient, onBooked }: { open:
   const [error, setError] = useState<string | null>(null);
   const [idem, setIdem] = useState(newKey());
   const { doctors, services } = useDoctorServices(doctorId);
+  // Waitlist "book now" opens the dialog on the requested doctor, service and earliest date.
+  useEffect(() => {
+    if (!open || !preset) return;
+    if (preset.doctorId) setDoctorId(preset.doctorId);
+    if (preset.serviceId) setServiceId(preset.serviceId);
+    if (preset.from) setFrom(preset.from < todayCairo() ? todayCairo() : preset.from);
+    setSlot(null);
+  }, [open, preset?.doctorId, preset?.serviceId, preset?.from]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!doctorId && doctors[0]) setDoctorId(doctors[0].id);
   }, [doctors, doctorId]);
@@ -91,7 +99,13 @@ export function QuickBookingDialog({ open, onClose, patient, onBooked }: { open:
           </p>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <SelectField label={t('book.doctor')} value={doctorId} onChange={(e) => setDoctorId(e.target.value)} options={doctors.map((d) => ({ value: d.id, label: d.name }))} placeholder={doctors.length ? undefined : t('book.noDoctors')} />
+          <SelectField
+            label={t('book.doctor')}
+            value={doctorId}
+            onChange={(e) => setDoctorId(e.target.value)}
+            options={[...doctors.map((d) => ({ value: d.id, label: d.name })), ...(doctorId && !doctors.some((d) => d.id === doctorId) ? [{ value: doctorId, label: t('book.otherDoctor') }] : [])]}
+            placeholder={doctors.length ? undefined : t('book.noDoctors')}
+          />
           <SelectField label={t('book.service')} value={serviceId} onChange={(e) => setServiceId(e.target.value)} options={services.map((s) => ({ value: s.id, label: biName(s, locale) }))} />
           <TextField label={t('book.from')} type="date" value={from} min={todayCairo()} onChange={(e) => setFrom(e.target.value)} />
           <SelectField

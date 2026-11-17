@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { addDays, formatMoney } from '@hf/shared';
+import { formatMoney } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, DateText, PageHeader, Table } from '@hf/ui';
 import { DataState, FileLink, Section, SelectField, TextField, useAction } from '@/components/common';
 import { Dialog } from '@/components/dialog';
@@ -9,10 +9,9 @@ import { useI18n } from '@/components/i18n';
 import type { Payer } from '@/components/insurance';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
-import { ApiError, get, post, qs } from '@/lib/api';
+import { get, post } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { biName, egpInput, isoDate, num, parseEgp, todayCairo } from '@/lib/format';
-import type { BillRow } from '@/lib/types';
 
 interface Batch {
   id: string;
@@ -29,82 +28,28 @@ interface Batch {
   items: number;
 }
 
+interface ClaimItem {
+  id: string;
+  bill_id: string;
+  invoice: string | null;
+  patient_id: string;
+  mrn: string;
+  amount: number;
+  paid: number;
+  status: 'claimed' | 'paid' | 'partially_paid' | 'rejected';
+  rejection_reason: string | null;
+  approval_number: string | null;
+  member_number: string | null;
+}
+
 interface ClaimLine {
-  billId: string | null;
-  invoice: string;
-  date: string;
-  patient: string;
-  member: string;
-  claimed: number;
+  item: ClaimItem;
+  outstanding: number;
   paid: string;
   reason: string;
 }
 
-/** Minimal RFC 4180 reader for the claim export (UTF-8 BOM, CRLF, quoted cells). */
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let quoted = false;
-  const s = text.replace(/^﻿/, '');
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i]!;
-    if (quoted) {
-      if (c === '"' && s[i + 1] === '"') {
-        cell += '"';
-        i++;
-      } else if (c === '"') quoted = false;
-      else cell += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ',') {
-      row.push(cell);
-      cell = '';
-    } else if (c === '\n' || c === '\r') {
-      if (c === '\r' && s[i + 1] === '\n') i++;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = '';
-    } else cell += c;
-  }
-  if (cell || row.length) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows.filter((r) => r.some((x) => x !== ''));
-}
-
-const unquote = (v: string) => (v.startsWith("'") && /^'[=+\-@]/.test(v) ? v.slice(1) : v);
-
-/**
- * The API has no "items of a batch" endpoint, so the settlement form reads the batch's own CSV export
- * (invoice number and claimed amount per bill) and resolves invoice numbers to bill ids through the bills list.
- */
-async function loadClaimLines(b: Batch): Promise<ClaimLine[]> {
-  const r = await fetch(`/api/v1/insurance/claim-batches/${b.id}/export.csv`, { credentials: 'same-origin', cache: 'no-store' });
-  if (!r.ok) {
-    const j = (await r.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(r.status, j.error ?? `http_${r.status}`);
-  }
-  const [header, ...rows] = parseCsv(await r.text());
-  const col = (name: string) => header!.indexOf(name);
-  const bills = await get<BillRow[]>(`/bills${qs({ status: 'issued,partially_paid,paid', from: addDays(isoDate(b.period_from), -60), to: isoDate(b.period_to) })}`);
-  const byNumber = new Map(bills.filter((x) => x.number).map((x) => [x.number!, x.id]));
-  return rows.map((cells) => {
-    const invoice = unquote(cells[col('invoice')] ?? '');
-    const claimed = parseEgp(cells[col('claimed_egp')] ?? '0') ?? 0;
-    return {
-      billId: byNumber.get(invoice) ?? null,
-      invoice,
-      date: cells[col('date')] ?? '',
-      patient: unquote(cells[col('patient')] ?? ''),
-      member: unquote(cells[col('member_number')] ?? ''),
-      claimed,
-      paid: egpInput(claimed),
-      reason: '',
-    };
-  });
-}
+const ITEM_TONE: Record<ClaimItem['status'], 'neutral' | 'success' | 'warning' | 'danger'> = { claimed: 'neutral', paid: 'success', partially_paid: 'warning', rejected: 'danger' };
 
 const STATUS_TONE: Record<Batch['status'], 'neutral' | 'primary' | 'warning' | 'success'> = { draft: 'neutral', submitted: 'primary', partially_paid: 'warning', paid: 'success' };
 
@@ -236,8 +181,15 @@ function SettleDialog({ batch, onClose, onDone }: { batch: Batch | null; onClose
     setLines(null);
     setLoadErr(null);
     setReference('');
-    loadClaimLines(batch).then(
-      (l) => live && setLines(l),
+    get<ClaimItem[]>(`/insurance/claim-batches/${batch.id}/items`).then(
+      (items) =>
+        live &&
+        setLines(
+          items.map((item) => {
+            const outstanding = Math.max(0, num(item.amount) - num(item.paid));
+            return { item, outstanding, paid: item.status === 'claimed' ? egpInput(outstanding) : '', reason: '' };
+          }),
+        ),
       (e: unknown) => live && setLoadErr(err(e)),
     );
     return () => {
@@ -245,16 +197,11 @@ function SettleDialog({ batch, onClose, onDone }: { batch: Batch | null; onClose
     };
   }, [batch?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (i: number, p: Partial<ClaimLine>) => setLines((ls) => ls?.map((l, j) => (j === i ? { ...l, ...p } : l)) ?? null);
-  const unresolved = lines?.filter((l) => !l.billId).length ?? 0;
-  const totalPaid = (lines ?? []).reduce((s, l) => s + (parseEgp(l.paid) ?? 0), 0);
+  const open = (l: ClaimLine) => l.outstanding > 0 && l.item.status !== 'rejected';
+  const totalPaid = (lines ?? []).reduce((s, l) => s + (open(l) ? parseEgp(l.paid) ?? 0 : 0), 0);
 
   return (
-    <Dialog
-      open={!!batch}
-      onClose={onClose}
-      title={batch ? t('claims.settleTitle', { n: batch.number }) : ''}
-      wide
-    >
+    <Dialog open={!!batch} onClose={onClose} title={batch ? t('claims.settleTitle', { n: batch.number }) : ''} wide>
       {loadErr && <Alert tone="danger">{loadErr}</Alert>}
       {!lines && !loadErr && <p className="text-sm text-muted">{t('common.loading')}</p>}
       {lines && batch && (
@@ -264,10 +211,12 @@ function SettleDialog({ batch, onClose, onDone }: { batch: Batch | null; onClose
             e.preventDefault();
             const items: { billId: string; paidAmount: number; rejectionReason?: string }[] = [];
             for (const l of lines) {
-              if (!l.billId) continue;
+              if (!open(l)) continue;
+              const reason = l.reason.trim();
+              if (!l.paid.trim() && !reason) continue; // left for a later remittance
               const p = parseEgp(l.paid || '0');
-              if (p === null || p > l.claimed) return a.setError(t('claims.paidRule', { invoice: l.invoice }));
-              items.push({ billId: l.billId, paidAmount: p, rejectionReason: l.reason.trim() || undefined });
+              if (p === null || p > l.outstanding) return a.setError(t('claims.paidRule', { invoice: l.item.invoice ?? l.item.mrn }));
+              items.push({ billId: l.item.bill_id, paidAmount: p, rejectionReason: reason || undefined });
             }
             if (!items.length) return a.setError(t('claims.noItems'));
             const r = await a.run(() => post(`/insurance/claim-batches/${batch.id}/settle`, { reference: reference.trim(), items }));
@@ -279,35 +228,45 @@ function SettleDialog({ batch, onClose, onDone }: { batch: Batch | null; onClose
           }}
         >
           <TextField label={t('claims.reference')} value={reference} onChange={(e) => setReference(e.target.value)} required maxLength={100} dir="ltr" hint={t('claims.referenceHint')} />
-          {unresolved > 0 && <Alert tone="warning">{t('claims.unresolved', { n: unresolved })}</Alert>}
           <div className="max-h-[50vh] overflow-y-auto">
             <Table>
               <thead>
                 <tr>
                   <th>{t('bill.number')}</th>
-                  <th>{t('rec.patient')}</th>
+                  <th>{t('patient.mrn')}</th>
                   <th>{t('claims.claimed')}</th>
+                  <th>{t('claims.alreadyPaid')}</th>
                   <th>{t('claims.paidAmount')}</th>
                   <th>{t('claims.rejection')}</th>
                 </tr>
               </thead>
               <tbody>
                 {lines.map((l, i) => (
-                  <tr key={`${l.invoice}-${i}`}>
+                  <tr key={l.item.id}>
                     <td>
-                      <Bdi className="num">{l.invoice}</Bdi>
-                      <span className="num block text-xs text-muted">{l.date}</span>
+                      <Bdi className="num">{l.item.invoice ?? '—'}</Bdi>
+                      <span className="block">
+                        <Badge tone={ITEM_TONE[l.item.status]}>{t(`claims.item.${l.item.status}`)}</Badge>
+                      </span>
+                      {l.item.approval_number && <Bdi className="num block text-xs text-muted">{l.item.approval_number}</Bdi>}
                     </td>
                     <td>
-                      <Bdi>{l.patient}</Bdi>
-                      <Bdi className="num block text-xs text-muted">{l.member}</Bdi>
+                      <Bdi className="num">{l.item.mrn}</Bdi>
+                      {l.item.member_number && <Bdi className="num block text-xs text-muted">{l.item.member_number}</Bdi>}
                     </td>
-                    <td className="num">{formatMoney(l.claimed, locale)}</td>
+                    <td className="num">{formatMoney(num(l.item.amount), locale)}</td>
+                    <td className="num">{formatMoney(num(l.item.paid), locale)}</td>
                     <td>
-                      <input className="h-8 w-28 rounded-lg border border-border bg-surface px-2 text-sm" value={l.paid} disabled={!l.billId} onChange={(e) => set(i, { paid: e.target.value })} inputMode="decimal" dir="ltr" aria-label={`${t('claims.paidAmount')} ${l.invoice}`} />
+                      <input className="h-8 w-28 rounded-lg border border-border bg-surface px-2 text-sm" value={l.paid} disabled={!open(l)} onChange={(e) => set(i, { paid: e.target.value })} inputMode="decimal" dir="ltr" aria-label={`${t('claims.paidAmount')} ${l.item.invoice ?? ''}`} />
                     </td>
                     <td>
-                      <input className="h-8 w-40 rounded-lg border border-border bg-surface px-2 text-sm" value={l.reason} disabled={!l.billId} onChange={(e) => set(i, { reason: e.target.value })} maxLength={300} dir="auto" aria-label={`${t('claims.rejection')} ${l.invoice}`} placeholder={t('claims.rejectionPh')} />
+                      {open(l) ? (
+                        <input className="h-8 w-40 rounded-lg border border-border bg-surface px-2 text-sm" value={l.reason} onChange={(e) => set(i, { reason: e.target.value })} maxLength={300} dir="auto" aria-label={`${t('claims.rejection')} ${l.item.invoice ?? ''}`} placeholder={t('claims.rejectionPh')} />
+                      ) : (
+                        <span className="text-xs text-muted" dir="auto">
+                          {l.item.rejection_reason ?? '—'}
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

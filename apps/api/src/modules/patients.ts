@@ -10,6 +10,7 @@ import { badRequest, forbidden, notFound } from '../common/errors';
 import { parse, uuid } from '../common/zod';
 import { PatientsService } from './patients.service';
 import { MessagingService } from './messaging.service';
+import { validateCustomFields } from './custom-fields';
 
 /** 404 unless the patient row is visible under the caller's RLS context. */
 export async function visiblePatient(tx: import('@hf/db').Tx, id: string) {
@@ -138,10 +139,11 @@ export class PatientsController {
       body,
     );
     return this.tenancy.run(p, async (tx) => {
+      if (b.customFields) await validateCustomFields(tx, b.customFields, 'update');
       const r = await tx.maybeOne(
         `update patients set email = coalesce($2, email), governorate = coalesce($3, governorate), city = coalesce($4, city), address = coalesce($5, address),
            marital_status = coalesce($6, marital_status), occupation = coalesce($7, occupation), name_en = coalesce($8, name_en),
-           emergency_contact = coalesce($9, emergency_contact), custom_fields = custom_fields || coalesce($10, '{}'::jsonb) where id = $1 and anonymised_at is null returning id`,
+           emergency_contact = coalesce($9, emergency_contact), custom_fields = jsonb_strip_nulls(custom_fields || coalesce($10, '{}'::jsonb)) where id = $1 and anonymised_at is null returning id`,
         [uuid(id), b.email ?? null, b.governorate ?? null, b.city ?? null, b.address ?? null, b.maritalStatus ?? null, b.occupation ?? null, b.nameEn ?? null,
           b.emergencyContact ? JSON.stringify(b.emergencyContact) : null, b.customFields ? JSON.stringify(b.customFields) : null],
       );

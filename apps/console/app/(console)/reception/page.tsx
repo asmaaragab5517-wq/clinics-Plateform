@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { QUEUE_PRIORITIES, formatDate, type QueuePriority } from '@hf/shared';
-import { Alert, Bdi, Button, PageHeader, Select, StatusBadge, Table, cx } from '@hf/ui';
+import { Alert, Bdi, Button, PageHeader, Select, StatusBadge, Table, Tabs, cx } from '@hf/ui';
 import { Dialog } from '@/components/dialog';
 import { QuickBookingDialog, WalkInDialog } from '@/components/booking';
 import { DataState, KeyHint, ReasonDialog, Section, SelectField, TextField } from '@/components/common';
@@ -13,6 +13,7 @@ import { PatientSearch } from '@/components/patient-search';
 import { QueueBoard } from '@/components/queue-board';
 import { RegisterPatientDialog } from '@/components/register-patient';
 import { useSession, useShortcuts } from '@/components/session';
+import { WaitlistPanel } from '@/components/waitlist';
 import { useToast } from '@/components/toast';
 import { post, qs } from '@/lib/api';
 import { useApi, useInterval } from '@/lib/hooks';
@@ -36,6 +37,7 @@ export default function ReceptionPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [priority, setPriority] = useState<QueuePriority>('normal');
   const [cancelling, setCancelling] = useState<AppointmentRow | null>(null);
+  const [view, setView] = useState<'today' | 'waitlist'>('today');
   const today = todayCairo();
   const range = dayRange(today);
   const appts = useApi<AppointmentRow[]>(clinicId ? `/appointments${qs({ clinicId, from: range.from, to: range.to })}` : null);
@@ -158,6 +160,22 @@ export default function ReceptionPage() {
           )}
         </div>
         <div className="flex flex-col gap-4 xl:col-span-8">
+          {can('appointment:view') && (
+            <Tabs<'today' | 'waitlist'>
+              value={view}
+              onChange={setView}
+              items={[
+                { value: 'today', label: t('rec.today') },
+                { value: 'waitlist', label: t('wl.title') },
+              ]}
+            />
+          )}
+          {view === 'waitlist' && (
+            <Section title={t('wl.title')}>
+              <WaitlistPanel patient={patient} onBooked={appts.reload} />
+            </Section>
+          )}
+          {view === 'today' && (
           <Section
             title={t('rec.today')}
             actions={
@@ -256,6 +274,7 @@ export default function ReceptionPage() {
             </DataState>
             <p className="mt-2 text-xs text-muted">{t('rec.keysHint')}</p>
           </Section>
+          )}
           <Section title={t('rec.queue')}>
             <QueueBoard />
           </Section>

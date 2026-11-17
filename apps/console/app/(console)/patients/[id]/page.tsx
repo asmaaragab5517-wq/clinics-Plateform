@@ -5,6 +5,8 @@ import { use, useState } from 'react';
 import { CONSENT_TYPES, formatMoney, type AppointmentStatus } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, DateText, Money, PageHeader, StatusBadge, Table, Tabs } from '@hf/ui';
 import { Check, DataState, ErrorAlert, Loading, ReasonDialog, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
+import { CustomFieldInputs, CustomFieldValue, customFieldsPayload, fieldLabel, useCustomFields, validateCustomFields, type CustomValues } from '@/components/custom-fields';
+import { PatientDentalTab } from '@/components/dental-chart';
 import { useI18n } from '@/components/i18n';
 import { PatientCoverages } from '@/components/insurance';
 import { PatientSearch } from '@/components/patient-search';
@@ -41,9 +43,10 @@ interface PatientDetail {
   allergies: { id: string; text: string; severity: string | null; ingredient: string | null }[];
   guardian: PatientRow | null;
   consents: { type: string; granted: boolean; created_at: string; version_id: string }[];
+  custom_fields: Record<string, unknown> | null;
 }
 
-type Tab = 'overview' | 'timeline' | 'encounters' | 'history' | 'documents' | 'consents' | 'insurance' | 'messages' | 'billing' | 'merge';
+type Tab = 'overview' | 'timeline' | 'encounters' | 'history' | 'dental' | 'documents' | 'consents' | 'insurance' | 'messages' | 'billing' | 'merge';
 
 export default function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -56,6 +59,7 @@ export default function PatientPage({ params }: { params: Promise<{ id: string }
     { value: 'timeline', label: t('pat.tab.timeline'), show: true },
     { value: 'encounters', label: t('pat.tab.encounters'), show: true },
     { value: 'history', label: t('pat.tab.history'), show: can('emr:view') },
+    { value: 'dental', label: t('pat.tab.dental'), show: can('emr:view') },
     { value: 'documents', label: t('pat.tab.documents'), show: can('emr:view') },
     { value: 'consents', label: t('pat.tab.consents'), show: true },
     { value: 'insurance', label: t('pat.tab.insurance'), show: true },
@@ -109,6 +113,7 @@ export default function PatientPage({ params }: { params: Promise<{ id: string }
           {tab === 'timeline' && <Timeline id={id} />}
           {tab === 'encounters' && <Encounters id={id} />}
           {tab === 'history' && <History id={id} />}
+          {tab === 'dental' && <PatientDentalTab patientId={id} />}
           {tab === 'documents' && <Documents id={id} />}
           {tab === 'consents' && <Consents pt={pt} onSaved={p.reload} />}
           {tab === 'insurance' && <PatientCoverages patientId={pt.id} />}
@@ -137,6 +142,9 @@ function Overview({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
   const [edit, setEdit] = useState(false);
   const [f, setF] = useState({ email: pt.email ?? '', address: pt.address ?? '', occupation: pt.occupation ?? '', nameEn: pt.name_en ?? '', phones: pt.contacts.map((c) => c.phone).join(', '), maritalStatus: pt.marital_status ?? '', ecName: pt.emergency_contact?.name ?? '', ecPhone: pt.emergency_contact?.phone ?? '', ecRelation: pt.emergency_contact?.relation ?? '' });
   const a = useAction();
+  const { defs: cfDefs } = useCustomFields();
+  const [custom, setCustom] = useState<CustomValues>(pt.custom_fields ?? {});
+  const [cfErrors, setCfErrors] = useState<Record<string, string>>({});
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Section title={t('pat.demographics')} actions={can('patient:edit') && !pt.anonymised_at ? <Button size="sm" variant="secondary" onClick={() => setEdit((x) => !x)}>{edit ? t('common.cancel') : t('common.edit')}</Button> : null}>
@@ -156,6 +164,9 @@ function Overview({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
             <Row k={t('pat.occupation')} v={pt.occupation} />
             <Row k={t('pat.emergency')} v={pt.emergency_contact && <Bdi>{`${pt.emergency_contact.name} · ${pt.emergency_contact.phone} · ${pt.emergency_contact.relation}`}</Bdi>} />
             <Row k={t('family.guardian')} v={pt.guardian && <Link className="underline" href={`/patients/${pt.guardian.id}`}><Bdi>{patientName(pt.guardian, locale)}</Bdi></Link>} />
+            {cfDefs.map((d) => (
+              <Row key={d.id} k={fieldLabel(d, locale)} v={<CustomFieldValue def={d} value={pt.custom_fields?.[d.key]} />} />
+            ))}
           </dl>
         ) : (
           <form
@@ -163,6 +174,10 @@ function Overview({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
             onSubmit={async (e) => {
               e.preventDefault();
               const phones = f.phones.split(/[,\u060C]/).map((x) => x.trim()).filter(Boolean);
+              const ce = validateCustomFields(cfDefs, custom, t);
+              setCfErrors(ce);
+              if (Object.keys(ce).length) return;
+              const customFields = customFieldsPayload(cfDefs, custom);
               const ok = await a.run(() =>
                 patch(`/patients/${pt.id}`, {
                   email: f.email.trim() || undefined,
@@ -172,6 +187,7 @@ function Overview({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
                   maritalStatus: f.maritalStatus || undefined,
                   phones: phones.length ? phones.map((n, i) => ({ number: n, primary: i === 0 })) : undefined,
                   emergencyContact: f.ecName && f.ecPhone ? { name: f.ecName, phone: f.ecPhone, relation: f.ecRelation } : undefined,
+                  customFields: Object.keys(customFields).length ? customFields : undefined,
                 }),
               );
               if (ok) {
@@ -192,6 +208,7 @@ function Overview({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
               <TextField label={t('pat.ecPhone')} value={f.ecPhone} onChange={(e) => setF({ ...f, ecPhone: e.target.value })} dir="ltr" />
               <TextField label={t('pat.ecRelation')} value={f.ecRelation} onChange={(e) => setF({ ...f, ecRelation: e.target.value })} />
             </div>
+            <CustomFieldInputs defs={cfDefs} values={custom} onChange={setCustom} errors={cfErrors} patientId={pt.id} />
             {a.error && <Alert tone="danger">{a.error}</Alert>}
             <Button type="submit" disabled={a.busy}>
               {t('common.save')}

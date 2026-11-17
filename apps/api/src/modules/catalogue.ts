@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Get, Delete, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { packageSchema, priceSchema, serviceSchema } from '@hf/shared';
 import { Auth, Meta, Staff } from '../common/decorators';
@@ -115,7 +115,49 @@ export class CatalogueController {
   @Get('custom-fields')
   @Staff('patient:view')
   customFields(@Auth() p: Principal) {
-    return this.tenancy.run(p, (tx) => tx.query('select * from custom_field_defs order by key'));
+    // Definitions with visible_roles are shown only to those roles (empty = everyone with patient:view).
+    return this.tenancy.run(p, (tx) =>
+      tx.query(`select * from custom_field_defs where cardinality(visible_roles) = 0 or visible_roles && $1::text[] order by key`, [p.kind === 'staff' ? p.roles : []]),
+    );
+  }
+
+  @Patch('custom-fields/:id')
+  @Staff('settings:edit')
+  updateCustomField(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const b = parse(
+      z.object({
+        labelAr: z.string().min(1).optional(),
+        labelEn: z.string().optional(),
+        options: z.array(z.object({ value: z.string(), ar: z.string(), en: z.string() })).optional(),
+        required: z.boolean().optional(),
+        validation: z.object({ min: z.number().optional(), max: z.number().optional(), pattern: z.string().max(200).optional() }).optional(),
+        visibleRoles: z.array(z.string()).optional(),
+      }),
+      body,
+    );
+    return this.tenancy.run(p, async (tx) => {
+      const r = await tx.maybeOne(
+        `update custom_field_defs set label_ar = coalesce($2, label_ar), label_en = coalesce($3, label_en), options = coalesce($4, options),
+           required = coalesce($5, required), validation = coalesce($6, validation), visible_roles = coalesce($7, visible_roles) where id = $1 returning *`,
+        [uuid(id), b.labelAr ?? null, b.labelEn ?? null, b.options ? JSON.stringify(b.options) : null, b.required ?? null,
+          b.validation ? JSON.stringify(b.validation) : null, b.visibleRoles ?? null],
+      );
+      if (!r) throw notFound('custom_field');
+      await this.audit.record(tx, p, meta, { action: 'custom_field.update', entity: 'custom_field_def', entityId: id });
+      return r;
+    });
+  }
+
+  /** Removes the definition; values already stored on patients are kept (they stop being shown or validated). */
+  @Delete('custom-fields/:id')
+  @Staff('settings:edit')
+  deleteCustomField(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
+    return this.tenancy.run(p, async (tx) => {
+      const r = await tx.maybeOne('delete from custom_field_defs where id = $1 returning id', [uuid(id)]);
+      if (!r) throw notFound('custom_field');
+      await this.audit.record(tx, p, meta, { action: 'custom_field.delete', entity: 'custom_field_def', entityId: id });
+      return { deleted: true };
+    });
   }
 
   @Post('custom-fields')

@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { use, useEffect, useMemo, useRef, useState } from 'react';
+import { dentalChartSchema, mergeDentalCharts, type DentalChart } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, DateText, Input, PageHeader, Select, Textarea } from '@hf/ui';
+import { DentalChartEditor, EMPTY_CHART, isCharted, type PatientDentalChart } from '@/components/dental-chart';
+import { IcdSearch } from '@/components/icd-search';
 import { AiSummaryDraft, ScribePanel, useAiEnabled, type EncounterApplied } from '@/components/ai';
 import { BODY_IMAGE, BodyChart, bodyChartPng, type Marker } from '@/components/body-chart';
 import { Check, DataState, FileLink, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
@@ -10,9 +13,10 @@ import { useI18n } from '@/components/i18n';
 import { PrescriptionBuilder, ReauthDialog, type RxSummary } from '@/components/prescription-builder';
 import { useSession, useShortcuts } from '@/components/session';
 import { useToast } from '@/components/toast';
-import { ApiError, get, patch, post, qs, reauthenticate, upload } from '@/lib/api';
+import { ApiError, get, patch, post, reauthenticate, upload } from '@/lib/api';
+import { ENCOUNTER_SECTIONS, type EncounterTemplate } from '@/lib/encounters';
 import { useServices } from '@/lib/data';
-import { useApi, useDebounced, useLocalState } from '@/lib/hooks';
+import { useApi, useLocalState } from '@/lib/hooks';
 import { biName } from '@/lib/format';
 import { VitalsFields, vitalsPayload } from '@/components/vitals';
 
@@ -32,6 +36,7 @@ interface Encounter {
   problems: { text: string; status: 'active' | 'resolved' }[];
   observations: { name: string; value: string }[];
   body_chart: { image: string; shapes: Marker[]; pngKey?: string } | null;
+  dental_chart: DentalChart | null;
   follow_up: { date: string; serviceId?: string; note?: string } | null;
   patient_summary: string | null;
   created_at: string;
@@ -43,45 +48,7 @@ interface Encounter {
   allergies: { text: string; severity: string | null; ingredient: string | null }[];
 }
 
-interface Template {
-  id: string;
-  name_ar: string;
-  name_en: string;
-  sections: string[];
-  defaults: Record<string, string>;
-  common_diagnoses: string[];
-}
-
-const ALL_SECTIONS = ['vitals', 'chiefComplaint', 'hpi', 'examination', 'diagnoses', 'problems', 'observations', 'notes', 'bodyChart', 'orders', 'prescriptions', 'followUp'];
-function IcdSearch({ onAdd }: { onAdd: (code: string, title: string) => void }) {
-  const { t, locale } = useI18n();
-  const [q, setQ] = useState('');
-  const term = useDebounced(q.trim(), 250);
-  const r = useApi<{ code: string; title_en: string; title_ar: string | null }[]>(term.length >= 2 ? `/icd10${qs({ q: term })}` : null);
-  return (
-    <div className="relative">
-      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('enc.icdSearch')} aria-label={t('enc.icdSearch')} dir="auto" />
-      {term.length >= 2 && (r.data?.length ?? 0) > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-border bg-surface shadow-lg" role="listbox">
-          {r.data!.map((c) => (
-            <li key={c.code} role="option" aria-selected={false}>
-              <button
-                type="button"
-                className="w-full px-3 py-2 text-start text-sm hover:bg-bg"
-                onClick={() => {
-                  onAdd(c.code, (locale === 'ar' ? c.title_ar : c.title_en) ?? c.title_en);
-                  setQ('');
-                }}
-              >
-                <Bdi className="num font-medium">{c.code}</Bdi> <span>{(locale === 'ar' ? c.title_ar : null) ?? c.title_en}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+const ALL_SECTIONS: readonly string[] = ENCOUNTER_SECTIONS;
 
 export default function EncounterPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -99,7 +66,7 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
   const toast = useToast();
   const mine = e.doctor_id === me.userId;
   const editable = mine && e.status === 'open' && can('emr:edit');
-  const templates = useApi<Template[]>('/encounter-templates');
+  const templates = useApi<EncounterTemplate[]>('/encounter-templates');
   const [tplId, setTplId] = useLocalState<string>(`hf_tpl_${me.userId}`, '');
   const tpl = templates.data?.find((x) => x.id === tplId);
   const sections = tpl?.sections?.length ? tpl.sections : ALL_SECTIONS;
@@ -126,6 +93,23 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
   // Last body chart sent to the API: the rendered PNG is only re-uploaded when the markers change.
   const savedChart = useRef(JSON.stringify((e.body_chart?.shapes ?? []).filter((x) => x.type === 'marker')));
   const [hasPng, setHasPng] = useState(!!e.body_chart?.pngKey);
+
+  // FR-EMR-3 dental chart: shown for dentistry templates or dentists, or switched on by the doctor for this visit.
+  const doctors = useApi<{ id: string; specialty_ids: string[] }[]>(can('schedule:view') ? '/doctors' : null);
+  const specialties = useApi<{ id: string; slug: string }[]>('/specialties');
+  const dentistryId = specialties.data?.find((x) => x.slug === 'dentistry')?.id;
+  const isDentist = !!dentistryId && !!doctors.data?.find((d) => d.id === e.doctor_id)?.specialty_ids?.includes(dentistryId);
+  const [dentalOn, setDentalOn] = useState(false);
+  const showDental = has('dentalChart') || tpl?.specialty_slug === 'dentistry' || isDentist || !!e.dental_chart || dentalOn;
+  const patientDental = useApi<PatientDentalChart>(showDental ? `/patients/${e.patient_id}/dental-chart` : null);
+  const [dental, setDental] = useState<DentalChart | null>(null);
+  const [dentalTouched, setDentalTouched] = useState(false);
+  useEffect(() => {
+    // Pre-fill the visit chart from the patient's merged chart (teeth not charted this visit keep their last state).
+    if (dental || !showDental || patientDental.loading) return;
+    const merged = patientDental.data?.chart ?? null;
+    setDental(e.dental_chart ? (e.status === 'open' ? mergeDentalCharts(merged, e.dental_chart) : e.dental_chart) : merged ?? EMPTY_CHART);
+  }, [showDental, patientDental.loading, patientDental.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => setDirty(true), [vitals, cc, hpi, exam, notes, dx, problems, obs, markers, fu]);
   useEffect(() => setDirty(false), []);
@@ -170,9 +154,21 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
     // An unchanged chart is left out: re-sending it without a PNG would drop the stored image reference.
     const { bodyChart, ...rest } = body;
     const payload = !chartChanged ? rest : pngDataUrl ? { ...rest, bodyChart: { ...bodyChart, pngDataUrl } } : body;
-    const r = await save.run(() => patch(`/encounters/${e.id}`, payload));
+    let dentalChart: DentalChart | undefined;
+    if (dental && dentalTouched) {
+      const parsed = dentalChartSchema.safeParse({ ...dental, teeth: dental.teeth.filter(isCharted) });
+      if (!parsed.success) {
+        const m = parsed.error.issues[0]?.message ?? '';
+        const key = `dental.err.${m.replace(/_\d+$/, '')}`;
+        save.setError(`${t('dental.invalid')} ${t(key) === key ? '' : t(key)}`.trim());
+        return false;
+      }
+      dentalChart = parsed.data;
+    }
+    const r = await save.run(() => patch(`/encounters/${e.id}`, dentalChart ? { ...payload, dentalChart } : payload));
     if (r) {
       setDirty(false);
+      if (dentalChart) setDentalTouched(false);
       if (chartChanged) {
         savedChart.current = chartJson;
         setHasPng(!!pngDataUrl);
@@ -257,6 +253,7 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
       {!mine && <Alert tone="info">{t('enc.notYours')}</Alert>}
       {save.error && <Alert tone="danger">{save.error}</Alert>}
       {editable && (
+        <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-sm">
           {t('enc.template')}
           <Select className="h-8 w-64" value={tplId} onChange={(ev) => setTplId(ev.target.value)}>
@@ -264,10 +261,20 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
             {(templates.data ?? []).map((x) => (
               <option key={x.id} value={x.id}>
                 {biName(x, locale)}
+                {x.doctor_id ? ` · ${t('tpl.personal')}` : ''}
               </option>
             ))}
           </Select>
         </label>
+          <Link href="/doctor/templates" className="text-xs underline">
+            {t('tpl.manage')}
+          </Link>
+          {!showDental && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => setDentalOn(true)}>
+              {t('dental.enable')}
+            </Button>
+          )}
+        </div>
       )}
       {editable && aiEnabled && can('emr:approve') && (
         <Section title={t('ai.scribeTitle')}>
@@ -383,8 +390,28 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
           <BodyChart markers={markers} onChange={setMarkers} readOnly={!editable} svgRef={chartRef} />
         </Section>
       )}
+      {showDental && (
+        <Section title={t('dental.title')} actions={dentalTouched ? <Badge tone="warning">{t('dental.unsaved')}</Badge> : undefined}>
+          {patientDental.error ? (
+            <Alert tone="danger">{err(patientDental.error)}</Alert>
+          ) : !dental ? (
+            <p className="text-sm text-muted">{t('common.loading')}</p>
+          ) : (
+            <DentalChartEditor
+              value={dental}
+              readOnly={!editable}
+              onChange={(c) => {
+                setDental(c);
+                setDentalTouched(true);
+                setDirty(true);
+              }}
+            />
+          )}
+          {(patientDental.data?.treatmentPlan.length ?? 0) > 0 && <p className="mt-2 text-xs text-muted">{t('dental.planFromHistory', { n: patientDental.data!.treatmentPlan.length })}</p>}
+        </Section>
+      )}
       {has('orders') && <Orders e={e} editable={mine && can('emr:create')} reload={reload} />}
-      {has('prescriptions') && <PrescriptionBuilder encounterId={e.id} prescriptions={e.prescriptions} onChanged={reload} editable={mine && can('prescription:create')} returnTo={`/doctor/encounters/${e.id}`} />}
+      {has('prescriptions') && <PrescriptionBuilder encounterId={e.id} prescriptions={e.prescriptions} onChanged={reload} editable={mine && can('prescription:create')} canRevoke={mine && can('prescription:approve')} returnTo={`/doctor/encounters/${e.id}`} />}
       {has('followUp') && (
         <Section title={t('enc.followUp')}>
           <div className="grid gap-3 md:grid-cols-3">

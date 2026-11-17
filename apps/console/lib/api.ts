@@ -127,6 +127,12 @@ export async function reauthenticate(returnTo: string): Promise<boolean> {
 }
 
 export async function logout() {
+  // Drop the offline shell cache (NFR-7) so a shared PC keeps nothing from this session.
+  try {
+    navigator.serviceWorker?.controller?.postMessage({ type: 'hf:clear' });
+  } catch {
+    /* no worker */
+  }
   const r = await fetch('/api/auth/logout', { method: 'POST', headers: csrfHeaders() }).catch(() => null);
   const j = r ? ((await r.json().catch(() => ({}))) as { redirect?: string }) : {};
   try {

@@ -40,9 +40,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const online = useOnline();
   const offline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const [meAttempt, setMeAttempt] = useState(0);
 
   // Identity, privileges and clinics.
   useEffect(() => {
+    setLoadError(null);
     get<Me>('/auth/me')
       .then((m) => {
         setMe(m);
@@ -63,7 +65,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [meAttempt]);
+
+  // NFR-7: the shell may open from the service-worker cache without a connection; retry once it is back.
+  const startedOffline = loadError instanceof ApiError && (loadError.code === 'network_error' || loadError.code === 'api_unreachable');
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current && startedOffline) setMeAttempt((n) => n + 1);
+    wasOnline.current = online;
+  }, [online, startedOffline]);
 
   useEffect(() => {
     const onUnauthorized = () => window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
@@ -189,6 +199,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
     router.refresh();
   };
 
+  if (loadError && startedOffline) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col gap-4 p-8" role="status">
+        <Alert tone="warning">{t('pwa.shellOffline')}</Alert>
+        {offline.pending.length > 0 && <p className="text-sm text-warning">{t('offline.pending', { n: offline.pending.length })}</p>}
+        <Button className="self-start" onClick={() => setMeAttempt((n) => n + 1)}>
+          {t('common.retry')}
+        </Button>
+      </div>
+    );
+  }
+
   if (loadError) {
     return (
       <div className="mx-auto max-w-lg p-8">
@@ -208,6 +230,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => allowed(i, session.privileges, me!.roles)) })).filter((g) => g.items.length);
+  // Highlight the most specific matching entry only (e.g. /doctor/templates, not also /doctor).
+  const activeHref = groups
+    .flatMap((g) => g.items.map((i) => i.href))
+    .filter((h) => pathname === h || pathname.startsWith(`${h}/`))
+    .sort((x, y) => y.length - x.length)[0];
 
   return (
     <SessionCtx.Provider value={session}>
@@ -238,7 +265,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     <p className="mb-1 px-2 text-xs font-semibold uppercase text-muted">{t(g.label)}</p>
                     <ul className="flex flex-col gap-0.5">
                       {g.items.map((i) => {
-                        const active = pathname === i.href || (i.href !== '/cashier' && pathname.startsWith(`${i.href}/`)) || (i.href === '/cashier' && pathname.startsWith('/cashier/bills'));
+                        const active = i.href === activeHref;
                         return (
                           <li key={i.href}>
                             <Link
