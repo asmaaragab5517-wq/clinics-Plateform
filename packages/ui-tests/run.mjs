@@ -12,6 +12,13 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { AxeBuilder } from '@axe-core/playwright';
 
+/** Load a page, then give it up to 8 s to settle. Some pages never go network-idle (map tiles, live queue streams). */
+async function open(page, url) {
+  const res = await page.goto(url, { waitUntil: 'load', timeout: 45000 });
+  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+  return res;
+}
+
 const SITE = process.env.SITE_URL ?? 'http://localhost:3000';
 const CONSOLE = process.env.CONSOLE_URL ?? 'http://localhost:3001';
 const OUT = process.env.OUT ?? 'ui-report';
@@ -49,7 +56,7 @@ try {
     const page = await ctx.newPage();
     for (const locale of ['ar', 'en']) {
       for (const p of sitePages) {
-        const res = await page.goto(`${SITE}/${locale}${p}`, { waitUntil: 'networkidle' });
+        const res = await open(page, `${SITE}/${locale}${p}`);
         if (!res || res.status() >= 400) failures.push(`site ${locale}${p}: HTTP ${res?.status()}`);
         await check(page, { app: 'site', path: p, locale, viewport: vp });
       }
@@ -59,14 +66,14 @@ try {
   // Staff console (dev login), desktop only - reception PCs (NFR-6)
   const ctx = await browser.newContext({ viewport: viewports.desktop });
   const page = await ctx.newPage();
-  await page.goto(`${CONSOLE}/login`, { waitUntil: 'networkidle' });
+  await open(page, `${CONSOLE}/login`);
   await page.selectOption('#dev-user', 'owner@demo.healthflow.eg');
   await page.locator('form button').last().click();
   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 20000 });
   for (const locale of ['ar', 'en']) {
     await ctx.addCookies([{ name: 'hf_locale', value: locale, url: CONSOLE }]);
     for (const p of consolePages) {
-      const res = await page.goto(`${CONSOLE}${p}`, { waitUntil: 'networkidle' });
+      const res = await open(page, `${CONSOLE}${p}`);
       if (!res || res.status() >= 400) failures.push(`console ${p}: HTTP ${res?.status()}`);
       await check(page, { app: 'console', path: p, locale, viewport: 'desktop' });
     }
