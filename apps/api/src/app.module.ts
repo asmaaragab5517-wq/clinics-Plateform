@@ -34,11 +34,14 @@ import { PublicController } from './modules/public';
 import { ReportsController } from './modules/reports';
 import { SchedulesController } from './modules/schedules';
 import { StaffController } from './modules/staff';
+import { CalendarSyncService, GoogleTokenStore, TelemedicineController, TelemedicineService } from './modules/telemedicine';
+import { FakeVideoProvider, GoogleMeetProvider, VIDEO, ZoomProvider } from './integrations/video';
+import { FakeGoogleClient, GOOGLE, HttpGoogleClient } from './integrations/google';
 
 export const CONTROLLERS = [
   HealthController, AuthController, OrgController, CatalogueController, StaffController, SchedulesController, AppointmentsController, PatientsController,
   EmrController, PrescriptionsController, BillingController, PaymentsController, CommsController, PublicController, PortalController, ReportsController,
-  GovernanceController, ImportsController, DevController,
+  GovernanceController, ImportsController, TelemedicineController, DevController,
 ];
 
 /** Domain services shared by the API and the worker. */
@@ -63,6 +66,11 @@ export function coreProviders(cfg: Config): Provider[] {
         return { sms: cequens, whatsapp: cequens, email: cfg.SMTP_URL ? new SmtpProvider(cfg) : fake, push: cfg.FCM_SERVICE_ACCOUNT_JSON ? new FcmProvider(cfg) : fake };
       },
     },
+    { provide: VIDEO, useClass: cfg.TELEMED_PROVIDER === 'zoom' ? ZoomProvider : cfg.TELEMED_PROVIDER === 'google_meet' ? GoogleMeetProvider : FakeVideoProvider },
+    { provide: GOOGLE, useClass: cfg.GOOGLE_MODE === 'http' ? HttpGoogleClient : FakeGoogleClient },
+    GoogleTokenStore,
+    TelemedicineService,
+    CalendarSyncService,
     MessagingService,
     AvailabilityService,
     AppointmentsService,

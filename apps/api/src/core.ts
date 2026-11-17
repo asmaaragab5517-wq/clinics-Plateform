@@ -8,3 +8,4 @@ export { AvailabilityService } from './modules/availability.service';
 export { PaymentsService } from './modules/payments';
 export { ReportsController } from './modules/reports';
 export { generateCommissionStatements } from './modules/staff';
+export { TelemedicineService, CalendarSyncService } from './modules/telemedicine';

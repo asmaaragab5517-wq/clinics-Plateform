@@ -87,7 +87,7 @@ function fill(path: string, ids: Record<string, string>): { url: string; foreign
     if (!s.startsWith(':')) return s;
     const name = s.slice(1);
     if (FIXED[name]) return FIXED[name];
-    const kind = name === 'patientId' ? 'patient' : name === 'mergeId' ? 'merge' : name === 'itemId' ? 'history' : ENTITY_BY_SEGMENT[segs[i - 1]!];
+    const kind = name === 'patientId' ? 'patient' : name === 'appointmentId' ? 'appointment' : name === 'mergeId' ? 'merge' : name === 'itemId' ? 'history' : ENTITY_BY_SEGMENT[segs[i - 1]!];
     if (!kind || !ids[kind]) throw new Error(`no foreign id mapping for ${path} (${name})`);
     foreignParam = true;
     return ids[kind];

@@ -25,6 +25,8 @@ async function main() {
     retention: () => jobs.retention(c),
     'director-summary': () => jobs.directorSummary(c),
     commissions: () => jobs.commissions(c),
+    telemedicine: () => jobs.prepareTelemedicine(c),
+    'calendar-sync': () => jobs.syncCalendars(c),
   };
   const running = new Set<string>();
   const exec = async (name: string) => {

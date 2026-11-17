@@ -108,6 +108,9 @@ export class AppointmentsService {
     if (!works) throw badRequest('doctor_not_available_at_clinic');
     const services = await tx.query<{ id: string; duration_minutes: number }>('select id, duration_minutes from services where id = any($1::uuid[]) and is_active', [b.serviceIds]);
     if (services.length !== b.serviceIds.length) throw badRequest('invalid_service');
+    // FR-TEL-1: video consultations are prepaid only.
+    const tele = await tx.maybeOne(`select 1 from services where id = any($1::uuid[]) and type = 'telemedicine'`, [b.serviceIds]);
+    if (tele && b.paymentMode !== 'online') throw badRequest('telemedicine_requires_online_payment');
     const offered = await tx.query<{ service_id: string }>('select service_id from doctor_services where doctor_id = $1', [b.doctorId]);
     if (offered.length && b.serviceIds.some((s) => !offered.some((o) => o.service_id === s))) throw badRequest('service_not_offered_by_doctor');
 

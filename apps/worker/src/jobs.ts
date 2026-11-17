@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 import {
-  AppointmentsService, AuditService, AvailabilityService, MessagingService, PaymentsService, ReportsController, Tenancy, generateCommissionStatements,
+  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, Tenancy, generateCommissionStatements,
 } from '@hf/api/dist/core';
 import { addDays, formatDate, formatMoney, formatTime12, localDate } from '@hf/shared';
 
@@ -14,6 +14,8 @@ export interface JobContext {
   payments: PaymentsService;
   reports: ReportsController;
   availability: AvailabilityService;
+  telemedicine: TelemedicineService;
+  calendar: CalendarSyncService;
 }
 
 export function jobContext(app: INestApplicationContext): JobContext {
@@ -26,6 +28,8 @@ export function jobContext(app: INestApplicationContext): JobContext {
     appointments: app.get(AppointmentsService),
     payments: app.get(PaymentsService),
     reports: new ReportsController(tenancy, app.get(AuditService), availability),
+    telemedicine: app.get(TelemedicineService),
+    calendar: app.get(CalendarSyncService),
   };
 }
 
@@ -215,4 +219,36 @@ export async function commissions(c: JobContext, now = new Date()) {
   const prev = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 2, 1)).toISOString().slice(0, 10);
   await forEachOrg(c, 'commissions', (org) => c.tenancy.system(org, (tx) => generateCommissionStatements(tx, prev)));
   return prev;
+}
+
+/** FR-TEL-2: create meetings for the next 24 h of video consultations; cancel meetings of cancelled visits. */
+export async function prepareTelemedicine(c: JobContext) {
+  let created = 0;
+  await forEachOrg(c, 'telemedicine', async (org) => {
+    await c.tenancy.system(org, async (tx) => {
+      const due = await tx.query<import('@hf/api/dist/modules/appointments.service').ApptRow>(
+        `select a.* from appointments a where a.status in ('booked','confirmed') and a.start_at < now() + interval '24 hours' and a.start_at > now() - interval '1 hour'
+           and not exists (select 1 from telemedicine_sessions t where t.appointment_id = a.id)
+           and exists (select 1 from appointment_services x join services s on s.id = x.service_id where x.appointment_id = a.id and s.type = 'telemedicine')`,
+      );
+      for (const a of due) {
+        await c.telemedicine.ensureSession(tx, a);
+        created++;
+      }
+      const stale = await tx.query<Parameters<TelemedicineService['cancel']>[1]>(
+        `select t.* from telemedicine_sessions t join appointments a on a.id = t.appointment_id where a.status in ('cancelled','no_show') and t.status in ('scheduled','patient_waiting')`,
+      );
+      for (const s of stale) await c.telemedicine.cancel(tx, s);
+    });
+  });
+  return created;
+}
+
+/** FR-INT-2 Google Calendar one-way sync for connected doctors. */
+export async function syncCalendars(c: JobContext) {
+  let n = 0;
+  await forEachOrg(c, 'calendar-sync', async (org) => {
+    n += await c.tenancy.system(org, (tx) => c.calendar.syncOrg(tx));
+  });
+  return n;
 }

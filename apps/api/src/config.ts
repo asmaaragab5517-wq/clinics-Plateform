@@ -47,6 +47,14 @@ const schema = z.object({
   CLAMD_HOST: z.string().default('localhost'),
   CLAMD_PORT: z.coerce.number().default(3310),
   CHROMIUM_PATH: z.string().optional(),
+  TELEMED_PROVIDER: z.enum(['fake', 'zoom', 'google_meet']).default('fake'),
+  ZOOM_ACCOUNT_ID: z.string().optional(),
+  ZOOM_CLIENT_ID: z.string().optional(),
+  ZOOM_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_MODE: z.enum(['fake', 'http']).default('fake'),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  OAUTH_STATE_SECRET: z.string().default('dev-oauth-state-secret'),
   RATE_LIMIT_PUBLIC_PER_MIN: z.coerce.number().int().positive().default(240),
   RATE_LIMIT_PATIENT_PER_MIN: z.coerce.number().int().positive().default(300),
 });
@@ -60,7 +68,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const missing = (['FIELD_ENCRYPTION_KEY', 'KEYCLOAK_ISSUER', 'REDIS_URL'] as const).filter((k) => !c[k]);
     if (missing.length) throw new Error(`Missing production configuration: ${missing.join(', ')}`);
     if (c.AUTH_DEV_SECRET || c.OTP_DEV_ECHO) throw new Error('Dev auth options must not be enabled in production');
-    if (c.PATIENT_JWT_SECRET.startsWith('dev-') || c.HEALTHPAY_MODE === 'fake' || c.CEQUENS_MODE === 'fake' || c.STORAGE_MODE === 'memory' || c.AV_MODE === 'disabled') {
+    if (c.PATIENT_JWT_SECRET.startsWith('dev-') || c.HEALTHPAY_MODE === 'fake' || c.CEQUENS_MODE === 'fake' || c.STORAGE_MODE === 'memory' || c.AV_MODE === 'disabled' || c.OAUTH_STATE_SECRET.startsWith('dev-')) {
       throw new Error('Production requires real secrets, HealthPay, Cequens, S3 storage and antivirus');
     }
   }
