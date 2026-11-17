@@ -1,5 +1,13 @@
 # Deploy runbook
 
+## One-time setup (GitHub)
+Until these exist, `deploy.yml` builds and pushes the image, then **skips** staging and production instead of failing.
+- Repository variables: `STAGING_APP_ID`, `PRODUCTION_APP_ID` (DigitalOcean App Platform app IDs, from Terraform output).
+- Environments `staging` and `production`, each with the secret `DO_TOKEN` (DigitalOcean API token scoped to the app).
+- On `production`, add required reviewers so promotion waits for approval.
+
+## Each release
+
 1. Merge to `main` → CI (`.github/workflows/ci.yml`) must be green: RTL lint, typecheck, unit, RLS, documents, API
    acceptance, **MT-5 isolation suite**, worker, web builds, gitleaks, Semgrep, dependency audit.
 2. `deploy.yml` builds `ghcr.io/<owner>/clinics-plateform-api:<sha>` and rolls it to **staging**; the App Platform

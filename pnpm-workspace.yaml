@@ -6,3 +6,8 @@ onlyBuiltDependencies:
   - esbuild
   - sharp
   - "@nestjs/core"
+# Supply chain (SEC-9): wait 7 days before installing newly published versions, refuse transitive
+# dependencies from git/tarball sources, and refuse updates that weaken a package's publishing trust.
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+trustPolicy: no-downgrade

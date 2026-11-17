@@ -25,7 +25,7 @@ export class SecretBox {
 
   decrypt(box: Buffer, aad = ''): string {
     if (box[0] !== 1) throw new Error('Unknown SecretBox version');
-    const d = createDecipheriv('aes-256-gcm', this.key, box.subarray(1, 13));
+    const d = createDecipheriv('aes-256-gcm', this.key, box.subarray(1, 13), { authTagLength: 16 });
     if (aad) d.setAAD(Buffer.from(aad));
     d.setAuthTag(box.subarray(13, 29));
     return Buffer.concat([d.update(box.subarray(29)), d.final()]).toString('utf8');

@@ -33,7 +33,7 @@ export function unseal<T>(sealed: string | undefined | null): T | null {
   try {
     const raw = Buffer.from(sealed, 'base64url');
     if (raw.length < 29) return null;
-    const d = createDecipheriv('aes-256-gcm', key(), raw.subarray(0, 12));
+    const d = createDecipheriv('aes-256-gcm', key(), raw.subarray(0, 12), { authTagLength: 16 });
     d.setAuthTag(raw.subarray(12, 28));
     const pt = Buffer.concat([d.update(raw.subarray(28)), d.final()]);
     return JSON.parse(pt.toString('utf8')) as T;

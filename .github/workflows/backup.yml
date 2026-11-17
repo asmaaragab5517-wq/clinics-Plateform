@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client-16 age || sudo apt-get install -y postgresql-client age
       - run: infra/backup/backup.sh
         env:
@@ -32,7 +32,7 @@ jobs:
         env: { POSTGRES_PASSWORD: postgres }
         ports: ["5432:5432"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: sudo apt-get update && sudo apt-get install -y postgresql-client age
       - run: echo "${{ secrets.BACKUP_AGE_IDENTITY }}" > /tmp/age.key && infra/backup/restore-drill.sh | tee drill.log
         env:
@@ -42,5 +42,5 @@ jobs:
           DRILL_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
           AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: restore-drill-evidence, path: drill.log, retention-days: 400 }
