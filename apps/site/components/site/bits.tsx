@@ -47,9 +47,9 @@ export function Stars({ value, count, locale }: { value: number | null; count?: 
 export function NextAvailable({ iso, locale }: { iso: string | null | undefined; locale: Locale }) {
   if (iso === undefined) return null;
   return iso ? (
-    <Badge tone="success">
+    <Badge tone="success" className="gap-1">
       <span className="sr-only">{t(locale, 'doctor.nextAvailable')}: </span>
-      <span aria-hidden>{t(locale, 'doctor.nextAvailableShort')} </span>
+      <span aria-hidden>{t(locale, 'doctor.nextAvailableShort')}</span>
       <span className="num">{nextAvailableText(iso, locale)}</span>
     </Badge>
   ) : (

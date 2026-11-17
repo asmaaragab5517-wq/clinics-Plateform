@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
   }
   if (access) {
-    // "This device" = this browser's refresh-token family. Never send an empty body: the API reads that as "all devices".
+    // "This device" = this browser's refresh-token family; signing out everywhere must be requested explicitly.
     const payload = allDevices ? { allDevices: true } : refresh ? { refreshToken: refresh } : null;
     if (payload)
       await fetch(`${API_URL}/v1/auth/logout`, {

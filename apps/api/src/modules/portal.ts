@@ -252,7 +252,8 @@ export class PortalController {
   async prescriptionLink(@Auth() p: Principal, @Param('id') id: string) {
     const rx = await this.tenancy.run(p, (tx) => tx.maybeOne(`select id from prescriptions where id = $1 and status = 'issued'`, [uuid(id)]));
     if (!rx) throw notFound('prescription');
-    return { url: `${this.cfg.API_PUBLIC_URL}/v1/share/rx/${this.tokens.signShareLink('rx', id, 600)}`, expiresInSeconds: 600 };
+    const token = this.tokens.signShareLink('rx', id, 600);
+    return { url: `${this.cfg.API_PUBLIC_URL}/v1/share/rx/${token}`, path: `/v1/share/rx/${token}`, token, expiresInSeconds: 600 };
   }
 
   @Get('invoices/:id/link')
@@ -260,7 +261,8 @@ export class PortalController {
   async invoiceLink(@Auth() p: Principal, @Param('id') id: string) {
     const b = await this.tenancy.run(p, (tx) => tx.maybeOne(`select id from bills where id = $1 and status not in ('draft','void')`, [uuid(id)]));
     if (!b) throw notFound('bill');
-    return { url: `${this.cfg.API_PUBLIC_URL}/v1/share/invoice/${this.tokens.signShareLink('invoice', `${p.orgId}:${id}`, 600)}`, expiresInSeconds: 600 };
+    const token = this.tokens.signShareLink('invoice', `${p.orgId}:${id}`, 600);
+    return { url: `${this.cfg.API_PUBLIC_URL}/v1/share/invoice/${token}`, path: `/v1/share/invoice/${token}`, token, expiresInSeconds: 600 };
   }
 
   @Get('appointments/:id')

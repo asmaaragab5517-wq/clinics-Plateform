@@ -183,8 +183,9 @@ export class AuthController {
   @HttpCode(200)
   logout(@Auth() p: Principal, @Body() body: unknown) {
     const pt = asPatient(p);
-    const b = parse(z.object({ refreshToken: z.string().optional(), allDevices: z.boolean().default(false) }), body ?? {});
-    return this.svc.logout(pt.orgId, pt.accountId, b.allDevices ? undefined : b.refreshToken);
+    // Signing out everywhere must be explicit; otherwise the caller's own refresh token identifies this device.
+    const b = parse(z.union([z.object({ allDevices: z.literal(true) }), z.object({ refreshToken: z.string().min(20) })]), body ?? {});
+    return this.svc.logout(pt.orgId, pt.accountId, 'allDevices' in b ? undefined : b.refreshToken);
   }
 
   @Get('me')
