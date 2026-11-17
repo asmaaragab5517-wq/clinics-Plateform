@@ -2,17 +2,17 @@
 
 import { useState } from 'react';
 import { Alert, Badge, Bdi, Button, PageHeader } from '@hf/ui';
-import { Check, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
+import { Check, ConfirmDialog, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { IcdSearch } from '@/components/icd-search';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
-import { post } from '@/lib/api';
+import { del, patch, post } from '@/lib/api';
 import { TEMPLATE_DEFAULT_FIELDS, TEMPLATE_SECTIONS, type EncounterTemplate } from '@/lib/encounters';
 import { useApi } from '@/lib/hooks';
 import { biName } from '@/lib/format';
 
-const blank = () => ({ nameAr: '', nameEn: '', specialtyId: '', sections: ['chiefComplaint', 'hpi', 'examination', 'diagnoses', 'notes', 'prescriptions', 'followUp'] as string[], defaults: {} as Record<string, string>, dx: [] as { code: string; title: string }[] });
+const blank = () => ({ editId: null as string | null,  nameAr: '', nameEn: '', specialtyId: '', sections: ['chiefComplaint', 'hpi', 'examination', 'diagnoses', 'notes', 'prescriptions', 'followUp'] as string[], defaults: {} as Record<string, string>, dx: [] as { code: string; title: string }[] });
 
 /** FR-EMR-3: the doctor's personal encounter templates (sections shown, default texts, common diagnoses). */
 export default function EncounterTemplatesPage() {
@@ -22,7 +22,15 @@ export default function EncounterTemplatesPage() {
   const q = useApi<EncounterTemplate[]>('/encounter-templates');
   const specialties = useApi<{ id: string; name_ar: string; name_en: string }[]>('/specialties');
   const [f, setF] = useState(blank);
+  const [deleting, setDeleting] = useState<EncounterTemplate | null>(null);
   const a = useAction();
+  // Personal templates belong to their doctor; organisation templates need settings:edit (API: not_template_owner).
+  const canManage = (x: EncounterTemplate) => can('emr:edit') && (x.doctor_id ? x.doctor_id === me.userId : can('settings:edit'));
+  const startEdit = (x: EncounterTemplate) => {
+    a.setError(null);
+    setF({ editId: x.id, nameAr: x.name_ar, nameEn: x.name_en ?? '', specialtyId: x.specialty_id ?? '', sections: [...x.sections], defaults: { ...(x.defaults ?? {}) }, dx: x.common_diagnoses.map((code) => ({ code, title: '' })) });
+  };
+  const editing = q.data?.find((x) => x.id === f.editId);
   const toggle = (s: string, on: boolean) => setF({ ...f, sections: on ? [...f.sections, s] : f.sections.filter((x) => x !== s) });
   return (
     <div className="flex flex-col gap-4">
@@ -46,23 +54,35 @@ export default function EncounterTemplatesPage() {
                       </p>
                     )}
                     {Object.keys(x.defaults ?? {}).length > 0 && <p className="mt-1 text-xs text-muted">{t('tpl.defaultsFor', { fields: Object.keys(x.defaults).map((k) => t(`enc.section.${k}`)).join(t('common.listSep')) })}</p>}
+                    {canManage(x) && (
+                      <div className="mt-2 flex gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => startEdit(x)} aria-label={`${t('common.edit')} ${biName(x, locale)}`}>
+                          {t('common.edit')}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleting(x)} aria-label={`${t('common.delete')} ${biName(x, locale)}`}>
+                          {t('common.delete')}
+                        </Button>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </DataState>
-          <p className="mt-2 text-xs text-muted">{t('tpl.noEditGap')}</p>
         </Section>
         {can('emr:edit') && (
-          <Section title={t('tpl.new')} className="xl:col-span-3">
+          <Section title={editing ? t('tpl.editTitle', { name: biName(editing, locale) }) : t('tpl.new')} className="xl:col-span-3">
             <form
               className="flex flex-col gap-3"
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (!f.sections.length) return a.setError(t('tpl.sectionsRequired'));
                 const defaults = Object.fromEntries(Object.entries(f.defaults).filter(([k, v]) => v.trim() && f.sections.includes(k)));
+                const fields = { nameAr: f.nameAr.trim(), nameEn: f.nameEn.trim(), sections: f.sections, defaults, commonDiagnoses: f.dx.map((d) => d.code) };
                 const r = await a.run(() =>
-                  post('/encounter-templates', { nameAr: f.nameAr.trim(), nameEn: f.nameEn.trim(), specialtyId: f.specialtyId || undefined, sections: f.sections, defaults, commonDiagnoses: f.dx.map((d) => d.code), personal: true }),
+                  f.editId
+                    ? patch(`/encounter-templates/${f.editId}`, { ...fields, specialtyId: f.specialtyId || null })
+                    : post('/encounter-templates', { ...fields, specialtyId: f.specialtyId || undefined, personal: true }),
                 );
                 if (r) {
                   toast(t('common.saved'));
@@ -107,13 +127,33 @@ export default function EncounterTemplatesPage() {
                 </ul>
               </fieldset>
               {a.error && <Alert tone="danger">{a.error}</Alert>}
-              <Button type="submit" className="self-start" disabled={a.busy}>
-                {t('tpl.create')}
-              </Button>
+              <div className="flex gap-2">
+                <Button type="submit" disabled={a.busy}>
+                  {f.editId ? t('common.save') : t('tpl.create')}
+                </Button>
+                {f.editId && (
+                  <Button type="button" variant="secondary" onClick={() => (a.setError(null), setF(blank()))}>
+                    {t('common.cancel')}
+                  </Button>
+                )}
+              </div>
             </form>
           </Section>
         )}
       </div>
+      <ConfirmDialog
+        open={!!deleting}
+        title={t('tpl.deleteTitle')}
+        message={deleting ? t('tpl.deleteConfirm', { name: biName(deleting, locale) }) : ''}
+        onClose={() => setDeleting(null)}
+        onConfirm={async () => {
+          if (!deleting) return;
+          await del(`/encounter-templates/${deleting.id}`);
+          if (f.editId === deleting.id) setF(blank());
+          toast(t('tpl.deleted'));
+          q.reload();
+        }}
+      />
     </div>
   );
 }

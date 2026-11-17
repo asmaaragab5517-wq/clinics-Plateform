@@ -9,7 +9,7 @@ import type { PatientRow } from '@/lib/types';
 import { ErrorAlert, Loading } from './common';
 import { useI18n } from './i18n';
 
-/** Search by phone, National ID, MRN or name (FR-PAT, LOC-8: the API normalises Arabic). */
+/** Search by phone, National ID, MRN (full, or a prefix such as "HF-0001") or name (FR-PAT, LOC-8: the API normalises Arabic). */
 export const PatientSearch = forwardRef<HTMLInputElement, { onSelect: (p: PatientRow) => void; selectedId?: string | null; id?: string; compact?: boolean }>(function PatientSearch({ onSelect, selectedId, id = 'patient-search', compact }, ref) {
   const { t, locale } = useI18n();
   const [q, setQ] = useState('');

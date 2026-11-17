@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Alert, Badge, Bdi, Button, Table } from '@hf/ui';
 import { patch, post } from '@/lib/api';
@@ -50,10 +51,18 @@ export interface Coverage {
   requires_approval: boolean;
   payer_name_ar: string;
   payer_name_en: string;
+  /** Who added it: staff, or the patient in the portal (needs verification before billing uses it). */
+  source?: 'staff' | 'patient';
+  verified_at?: string | null;
+}
+
+/** Billing ignores cover that staff have not verified yet. */
+export function coverageVerified(c: Coverage): boolean {
+  return c.verified_at !== null;
 }
 
 export function coverageValidOn(c: Coverage, date = todayCairo()): boolean {
-  return c.is_active && isoDate(c.valid_from) <= date && (!c.valid_to || isoDate(c.valid_to) >= date);
+  return c.is_active && coverageVerified(c) && isoDate(c.valid_from) <= date && (!c.valid_to || isoDate(c.valid_to) >= date);
 }
 
 export function coverageLabel(c: Coverage, locale: 'ar' | 'en'): string {
@@ -101,8 +110,24 @@ export function PatientCoverages({ patientId }: { patientId: string }) {
                     <td className="num text-xs">
                       {isoDate(c.valid_from)} → {c.valid_to ? isoDate(c.valid_to) : t('ins.openEnded')}
                     </td>
-                    <td>{coverageValidOn(c, today) ? <Badge tone="success">{t('common.active')}</Badge> : <Badge>{c.is_active ? t('ins.outOfPeriod') : t('common.inactive')}</Badge>}</td>
                     <td>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {!coverageVerified(c) && c.is_active ? (
+                          <Badge tone="warning">{t('insVerify.awaiting')}</Badge>
+                        ) : coverageValidOn(c, today) ? (
+                          <Badge tone="success">{t('common.active')}</Badge>
+                        ) : (
+                          <Badge>{c.is_active ? t('ins.outOfPeriod') : t('common.inactive')}</Badge>
+                        )}
+                        {c.source === 'patient' && <span className="text-xs text-muted">{t('insVerify.fromPortal')}</span>}
+                      </div>
+                    </td>
+                    <td>
+                      {can('patient:edit') && c.is_active && !coverageVerified(c) && (
+                        <Link href="/finance/insurance#pending-verification" className="me-2 text-xs underline">
+                          {t('insVerify.verifyLink')}
+                        </Link>
+                      )}
                       {can('patient:edit') && c.is_active && (
                         <Button
                           size="sm"

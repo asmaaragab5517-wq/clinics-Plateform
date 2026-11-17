@@ -32,8 +32,11 @@ interface ClaimItem {
   id: string;
   bill_id: string;
   invoice: string | null;
+  bill_date: string | null;
   patient_id: string;
   mrn: string;
+  patient_name_ar: string;
+  patient_name_en: string | null;
   amount: number;
   paid: number;
   status: 'claimed' | 'paid' | 'partially_paid' | 'rejected';
@@ -233,7 +236,8 @@ function SettleDialog({ batch, onClose, onDone }: { batch: Batch | null; onClose
               <thead>
                 <tr>
                   <th>{t('bill.number')}</th>
-                  <th>{t('patient.mrn')}</th>
+                  <th>{t('claims.billDate')}</th>
+                  <th>{t('claims.patient')}</th>
                   <th>{t('claims.claimed')}</th>
                   <th>{t('claims.alreadyPaid')}</th>
                   <th>{t('claims.paidAmount')}</th>
@@ -250,9 +254,11 @@ function SettleDialog({ batch, onClose, onDone }: { batch: Batch | null; onClose
                       </span>
                       {l.item.approval_number && <Bdi className="num block text-xs text-muted">{l.item.approval_number}</Bdi>}
                     </td>
+                    <td className="num text-xs">{l.item.bill_date ? <DateText value={l.item.bill_date} locale={locale} /> : '—'}</td>
                     <td>
-                      <Bdi className="num">{l.item.mrn}</Bdi>
-                      {l.item.member_number && <Bdi className="num block text-xs text-muted">{l.item.member_number}</Bdi>}
+                      <span className="block">{biName({ name_ar: l.item.patient_name_ar, name_en: l.item.patient_name_en }, locale)}</span>
+                      <Bdi className="num block text-xs text-muted">{l.item.mrn}</Bdi>
+                      {l.item.member_number && <Bdi className="num block text-xs text-muted">{t('claims.memberShort', { n: l.item.member_number })}</Bdi>}
                     </td>
                     <td className="num">{formatMoney(num(l.item.amount), locale)}</td>
                     <td className="num">{formatMoney(num(l.item.paid), locale)}</td>

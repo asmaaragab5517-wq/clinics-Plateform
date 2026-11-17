@@ -10,6 +10,8 @@ export interface Me {
   clinics: Clinic[];
   privileges: string[];
   authTime: number | null;
+  /** The signed-in doctor's own specialties (empty for non-doctors). */
+  specialties?: { id: string; slug: string; name_ar: string; name_en: string }[];
 }
 
 export interface Clinic {

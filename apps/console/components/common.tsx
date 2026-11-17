@@ -127,6 +127,50 @@ export function ReasonDialog({ open, title, minLength = 3, onClose, onSubmit, co
   );
 }
 
+/** Confirm a destructive action (delete, remove). Errors from `onConfirm` stay in the dialog. */
+export function ConfirmDialog({ open, title, message, confirmLabel, onClose, onConfirm, children }: { open: boolean; title: string; message: string; confirmLabel?: string; onClose: () => void; onConfirm: () => Promise<unknown> | void; children?: React.ReactNode }) {
+  const { t, err } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const close = () => {
+    setError(null);
+    onClose();
+  };
+  return (
+    <Dialog open={open} onClose={close} title={title}>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm">{message}</p>
+        {children}
+        <InlineError text={error} />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={close}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError(null);
+              try {
+                await onConfirm();
+                onClose();
+              } catch (x) {
+                setError(err(x));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {confirmLabel ?? t('common.delete')}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Link to a PDF/CSV/XLSX streamed through the BFF. */
 export function FileLink({ href, children, variant = 'secondary' }: { href: string; children: React.ReactNode; variant?: 'secondary' | 'ghost' | 'primary' }) {
   return (

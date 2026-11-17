@@ -9,7 +9,7 @@ import { post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 
 /** Where to act on tasks raised by other modules. */
-const TASK_LINKS: Record<string, string> = { complaint: '/quality/complaints', incident: '/quality/incidents', support_access: '/admin/support' };
+const TASK_LINKS: Record<string, string> = { complaint: '/quality/complaints', incident: '/quality/incidents', support_access: '/admin/support', coverage_verify: '/finance/insurance#pending-verification' };
 
 /** Service-recovery tasks (low ratings), break-glass notices and shift variances for the manager. */
 export default function TasksPage() {

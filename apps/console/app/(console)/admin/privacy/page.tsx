@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CONSENT_TYPES } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, DateText, Input, PageHeader, Table, Tabs } from '@hf/ui';
-import { Check, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
+import { Check, DataState, ErrorAlert, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { Dialog } from '@/components/dialog';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
-import { ApiError, patch, post } from '@/lib/api';
+import { ApiError, get, patch, post, qs } from '@/lib/api';
+import { biName, isoDate } from '@/lib/format';
 import { useApi, useInterval } from '@/lib/hooks';
 
 type Tab = 'consents' | 'requests' | 'breaches' | 'retention';
@@ -290,7 +291,41 @@ function Breaches() {
 interface RetentionRow {
   id: string;
   mrn: string;
+  name_ar: string;
+  name_en: string | null;
+  date_of_birth: string | null;
   last_activity: string;
+}
+
+const RETENTION_PAGE = 200;
+
+/** Pages through `GET /privacy/retention-review` (oldest activity first); `reset` starts again from the first page. */
+function useRetentionPages() {
+  const [rows, setRows] = useState<RetentionRow[] | undefined>(undefined);
+  const [more, setMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const load = useCallback(async (offset: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const page = await get<RetentionRow[]>(`/privacy/retention-review${qs({ offset, limit: RETENTION_PAGE })}`);
+      setRows((cur) => {
+        const base = offset === 0 ? [] : (cur ?? []);
+        const seen = new Set(base.map((r) => r.id));
+        return [...base, ...page.filter((r) => !seen.has(r.id))];
+      });
+      setMore(page.length === RETENTION_PAGE);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void load(0);
+  }, [load]);
+  return { data: rows, loading, error, more, reset: () => void load(0), loadMore: () => void load(rows?.length ?? 0) };
 }
 
 /** D12: records with no activity for the organisation's retention period; anonymised only on an explicit decision. */
@@ -298,7 +333,7 @@ function Retention() {
   const { t, locale, err } = useI18n();
   const { can } = useSession();
   const toast = useToast();
-  const q = useApi<RetentionRow[]>('/privacy/retention-review');
+  const q = useRetentionPages();
   const org = useApi<{ settings: { retentionYears?: number } }>('/org');
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
@@ -324,14 +359,14 @@ function Retention() {
       setSel(new Set());
       setConfirming(false);
       setUnderstood(false);
-      q.reload();
+      q.reset();
     } catch (e) {
       if (e instanceof ApiError && e.code === 'not_past_retention') {
         const bad = new Set(((e.details as { patientIds?: string[] } | undefined)?.patientIds ?? []) as string[]);
         const mrns = rows.filter((r) => bad.has(r.id)).map((r) => r.mrn);
         setSel((cur) => new Set([...cur].filter((id) => !bad.has(id))));
         setError(t('ret.notPast', { n: bad.size, mrns: mrns.join(t('common.listSep')) || '—' }));
-        q.reload();
+        q.reset();
       } else setError(err(e));
     } finally {
       setBusy(false);
@@ -350,13 +385,15 @@ function Retention() {
     >
       <p className="mb-3 text-sm text-muted">{t('ret.intro', { years: org.data?.settings?.retentionYears ?? 10 })}</p>
       {error && !confirming && <Alert tone="danger">{error}</Alert>}
-      <DataState loading={q.loading} error={q.error} data={q.data} empty={(d) => d.length === 0}>
+      <DataState loading={q.loading} error={q.data ? null : q.error} data={q.data} empty={(d) => d.length === 0}>
         {(list) => (
           <Table>
             <thead>
               <tr>
                 <th>{approve && <input type="checkbox" aria-label={t('ret.selectAll')} checked={all} onChange={(e) => setSel(e.target.checked ? new Set(list.slice(0, 200).map((r) => r.id)) : new Set())} />}</th>
                 <th>{t('patient.mrn')}</th>
+                <th>{t('ret.name')}</th>
+                <th>{t('patient.dob')}</th>
                 <th>{t('ret.lastActivity')}</th>
               </tr>
             </thead>
@@ -368,6 +405,10 @@ function Retention() {
                     <Bdi className="num">{r.mrn}</Bdi>
                   </td>
                   <td>
+                    <Bdi>{biName(r, locale)}</Bdi>
+                  </td>
+                  <td className="num">{r.date_of_birth ? isoDate(r.date_of_birth) : '—'}</td>
+                  <td>
                     <DateText value={r.last_activity} locale={locale} />
                   </td>
                 </tr>
@@ -376,7 +417,17 @@ function Retention() {
           </Table>
         )}
       </DataState>
-      {rows.length >= 500 && <p className="mt-2 text-xs text-muted">{t('ret.capped')}</p>}
+      {q.data && q.error ? <div className="mt-2"><ErrorAlert error={q.error} /></div> : null}
+      {q.data && q.data.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted">{t('ret.shown', { n: rows.length })}</span>
+          {q.more && (
+            <Button size="sm" variant="secondary" disabled={q.loading} onClick={q.loadMore}>
+              {q.loading ? t('common.loading') : t('ret.loadMore')}
+            </Button>
+          )}
+        </div>
+      )}
       <Dialog open={confirming} onClose={() => setConfirming(false)} title={t('ret.confirmTitle')}>
         <div className="flex flex-col gap-3">
           <Alert tone="warning">{t('ret.confirmBody', { n: Math.min(sel.size, 200) })}</Alert>

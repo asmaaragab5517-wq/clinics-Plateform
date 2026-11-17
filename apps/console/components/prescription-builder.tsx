@@ -10,6 +10,7 @@ import { useApi, useDebounced } from '@/lib/hooks';
 import { translate } from '@/lib/i18n';
 import { Check, DataState, FileLink, ReasonDialog, Section, TextField, useAction } from './common';
 import { useI18n } from './i18n';
+import { useSession } from './session';
 import { useToast } from './toast';
 
 interface Drug {
@@ -363,13 +364,20 @@ interface RxDetail {
   issued_at: string | null;
   verify_code: string;
   created_at: string;
+  doctor_id: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  revoked_by: string | null;
   lines: { position: number; drug: string | null; strength: string | null; dose: string; route: string; frequency: string; duration_days: number | null; quantity: string | null; instructions_ar: string; instructions_en: string; warnings: unknown }[];
 }
 
 /** Prescription detail from `GET /v1/prescriptions/:id` (audited read). */
 export function PrescriptionDetailDialog({ id, onClose }: { id: string | null; onClose: () => void }) {
   const { t, locale } = useI18n();
+  const { me } = useSession();
   const q = useApi<RxDetail>(id ? `/prescriptions/${id}` : null);
+  // The API returns the revoking user's id only; only the prescriber can revoke, so name them by role.
+  const revokedBy = (rx: RxDetail) => (!rx.revoked_by ? '—' : rx.revoked_by === me.userId ? t('rx.revokedByYou') : rx.revoked_by === rx.doctor_id ? t('rx.revokedByPrescriber') : t('rx.revokedByOther'));
   return (
     <Dialog open={!!id} onClose={onClose} title={t('rx.detailTitle')} wide>
       <DataState loading={q.loading} error={q.error} data={id ? q.data : undefined}>
@@ -384,6 +392,20 @@ export function PrescriptionDetailDialog({ id, onClose }: { id: string | null; o
                 {t('rx.verifyCode')}: <Bdi className="num">{rx.verify_code}</Bdi>
               </span>
             </div>
+            {rx.status === 'revoked' && (
+              <Alert tone="danger">
+                <dl className="grid gap-1 sm:grid-cols-[auto_1fr] sm:gap-x-3">
+                  <dt className="font-medium">{t('rx.revokedAt')}</dt>
+                  <dd>{rx.revoked_at ? <DateText value={rx.revoked_at} locale={locale} withTime /> : '—'}</dd>
+                  <dt className="font-medium">{t('rx.revokedBy')}</dt>
+                  <dd>{revokedBy(rx)}</dd>
+                  <dt className="font-medium">{t('rx.revokedReason')}</dt>
+                  <dd dir="auto" className="whitespace-pre-wrap">
+                    {rx.revoked_reason || '—'}
+                  </dd>
+                </dl>
+              </Alert>
+            )}
             <ol className="flex flex-col gap-2">
               {rx.lines.map((l) => (
                 <li key={l.position} className="rounded-lg border border-border p-2">

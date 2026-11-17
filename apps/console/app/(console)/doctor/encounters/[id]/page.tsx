@@ -8,7 +8,7 @@ import { DentalChartEditor, EMPTY_CHART, isCharted, type PatientDentalChart } fr
 import { IcdSearch } from '@/components/icd-search';
 import { AiSummaryDraft, ScribePanel, useAiEnabled, type EncounterApplied } from '@/components/ai';
 import { BODY_IMAGE, BodyChart, bodyChartPng, type Marker } from '@/components/body-chart';
-import { Check, DataState, FileLink, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
+import { Check, ConfirmDialog, DataState, FileLink, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { PrescriptionBuilder, ReauthDialog, type RxSummary } from '@/components/prescription-builder';
 import { useSession, useShortcuts } from '@/components/session';
@@ -95,12 +95,13 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
   const [hasPng, setHasPng] = useState(!!e.body_chart?.pngKey);
 
   // FR-EMR-3 dental chart: shown for dentistry templates or dentists, or switched on by the doctor for this visit.
-  const doctors = useApi<{ id: string; specialty_ids: string[] }[]>(can('schedule:view') ? '/doctors' : null);
-  const specialties = useApi<{ id: string; slug: string }[]>('/specialties');
-  const dentistryId = specialties.data?.find((x) => x.slug === 'dentistry')?.id;
-  const isDentist = !!dentistryId && !!doctors.data?.find((d) => d.id === e.doctor_id)?.specialty_ids?.includes(dentistryId);
+  // The visit doctor's specialties come from /auth/me (only the visit's own doctor edits it; others see a saved chart).
+  const isDentist = mine && !!me.specialties?.some((x) => x.slug === 'dentistry');
   const [dentalOn, setDentalOn] = useState(false);
-  const showDental = has('dentalChart') || tpl?.specialty_slug === 'dentistry' || isDentist || !!e.dental_chart || dentalOn;
+  // The visit's saved chart; set to null locally once the doctor removes it.
+  const [visitChart, setVisitChart] = useState<DentalChart | null>(e.dental_chart);
+  const [removingDental, setRemovingDental] = useState(false);
+  const showDental = has('dentalChart') || tpl?.specialty_slug === 'dentistry' || isDentist || !!visitChart || dentalOn;
   const patientDental = useApi<PatientDentalChart>(showDental ? `/patients/${e.patient_id}/dental-chart` : null);
   const [dental, setDental] = useState<DentalChart | null>(null);
   const [dentalTouched, setDentalTouched] = useState(false);
@@ -108,7 +109,7 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
     // Pre-fill the visit chart from the patient's merged chart (teeth not charted this visit keep their last state).
     if (dental || !showDental || patientDental.loading) return;
     const merged = patientDental.data?.chart ?? null;
-    setDental(e.dental_chart ? (e.status === 'open' ? mergeDentalCharts(merged, e.dental_chart) : e.dental_chart) : merged ?? EMPTY_CHART);
+    setDental(visitChart ? (e.status === 'open' ? mergeDentalCharts(merged, visitChart) : visitChart) : merged ?? EMPTY_CHART);
   }, [showDental, patientDental.loading, patientDental.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => setDirty(true), [vitals, cc, hpi, exam, notes, dx, problems, obs, markers, fu]);
@@ -168,7 +169,10 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
     const r = await save.run(() => patch(`/encounters/${e.id}`, dentalChart ? { ...payload, dentalChart } : payload));
     if (r) {
       setDirty(false);
-      if (dentalChart) setDentalTouched(false);
+      if (dentalChart) {
+        setDentalTouched(false);
+        setVisitChart(dentalChart);
+      }
       if (chartChanged) {
         savedChart.current = chartJson;
         setHasPng(!!pngDataUrl);
@@ -391,7 +395,21 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
         </Section>
       )}
       {showDental && (
-        <Section title={t('dental.title')} actions={dentalTouched ? <Badge tone="warning">{t('dental.unsaved')}</Badge> : undefined}>
+        <Section
+          title={t('dental.title')}
+          actions={
+            dentalTouched || (editable && visitChart) ? (
+              <>
+                {dentalTouched && <Badge tone="warning">{t('dental.unsaved')}</Badge>}
+                {editable && visitChart && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setRemovingDental(true)}>
+                    {t('dental.remove')}
+                  </Button>
+                )}
+              </>
+            ) : undefined
+          }
+        >
           {patientDental.error ? (
             <Alert tone="danger">{err(patientDental.error)}</Alert>
           ) : !dental ? (
@@ -410,6 +428,24 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
           {(patientDental.data?.treatmentPlan.length ?? 0) > 0 && <p className="mt-2 text-xs text-muted">{t('dental.planFromHistory', { n: patientDental.data!.treatmentPlan.length })}</p>}
         </Section>
       )}
+      <ConfirmDialog
+        open={removingDental}
+        title={t('dental.remove')}
+        message={t('dental.removeConfirm')}
+        confirmLabel={t('dental.remove')}
+        onClose={() => setRemovingDental(false)}
+        onConfirm={async () => {
+          await patch(`/encounters/${e.id}`, { dentalChart: null });
+          // Re-derive the editor from the patient's other visits (the section hides if nothing else asks for it).
+          const fresh = await get<PatientDentalChart>(`/patients/${e.patient_id}/dental-chart`).catch(() => undefined);
+          patientDental.setData(fresh);
+          setDental(fresh?.chart ?? EMPTY_CHART);
+          setVisitChart(null);
+          setDentalOn(false);
+          setDentalTouched(false);
+          toast(t('dental.removed'));
+        }}
+      />
       {has('orders') && <Orders e={e} editable={mine && can('emr:create')} reload={reload} />}
       {has('prescriptions') && <PrescriptionBuilder encounterId={e.id} prescriptions={e.prescriptions} onChanged={reload} editable={mine && can('prescription:create')} canRevoke={mine && can('prescription:approve')} returnTo={`/doctor/encounters/${e.id}`} />}
       {has('followUp') && (

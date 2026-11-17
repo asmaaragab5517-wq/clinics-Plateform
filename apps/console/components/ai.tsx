@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { addDays } from '@hf/shared';
-import { Alert, Badge, Bdi, Button, Select, Textarea } from '@hf/ui';
-import { post, upload } from '@/lib/api';
+import { Alert, Badge, Bdi, Button, DateText, Select, Textarea } from '@hf/ui';
+import { post, qs, upload } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { todayCairo } from '@/lib/format';
 import { Check, TextField, useAction } from './common';
@@ -42,6 +42,50 @@ interface Draft<O, W> {
   output: O;
   warnings: W[];
   transcript?: string;
+}
+
+interface PendingDraftRow<O> {
+  id: string;
+  kind: string;
+  status: string;
+  output: O;
+  warnings: unknown[];
+  encounter_id: string | null;
+  created_at: string;
+}
+
+/** The doctor's own pending drafts of one kind for a visit (the API lists the last 24 hours), to resume a review. */
+function usePendingDrafts<O>(encounterId: string, kind: string) {
+  const q = useApi<PendingDraftRow<O>[]>(`/ai/drafts${qs({ encounterId, status: 'pending' })}`);
+  return { rows: (q.data ?? []).filter((d) => d.kind === kind), reload: q.reload };
+}
+
+/** "Unreviewed drafts" list shown before a new draft is requested. */
+function PendingDrafts<O>({ rows, preview, onOpen }: { rows: PendingDraftRow<O>[]; preview: (o: O) => string; onOpen: (d: PendingDraftRow<O>) => void }) {
+  const { t, locale } = useI18n();
+  if (!rows.length) return null;
+  return (
+    <div className="rounded-xl border border-warning/40 bg-warning/5 p-3 text-sm" role="region" aria-label={t('ai.pendingTitle')}>
+      <p className="font-medium">{t('ai.pendingTitle')}</p>
+      <p className="mb-2 text-xs text-muted">{t('ai.pendingHint')}</p>
+      <ul className="flex flex-col gap-2">
+        {rows.map((d) => (
+          <li key={d.id} className="flex flex-wrap items-center gap-2">
+            <Badge tone="primary">{t('ai.badge')}</Badge>
+            <span className="text-xs text-muted">
+              <DateText value={d.created_at} locale={locale} withTime />
+            </span>
+            <span dir="auto" className="min-w-0 flex-1 truncate">
+              {preview(d.output) || '—'}
+            </span>
+            <Button type="button" size="sm" variant="secondary" onClick={() => onOpen(d)}>
+              {t('ai.reviewDraft')}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /** Reject a draft (audited) and close it; errors are surfaced as a toast. */
@@ -185,6 +229,11 @@ export function ScribePanel({ encounterId, current, onApplied }: { encounterId: 
   const [draft, setDraft] = useState<Draft<EncounterOutput, EncounterWarning> | null>(null);
   const a = useAction();
   const reject = useReject();
+  const pending = usePendingDrafts<EncounterOutput>(encounterId, 'encounter_note');
+  const close = () => {
+    setDraft(null);
+    pending.reload();
+  };
 
   async function send(audio?: Blob) {
     const r = await a.run(() => {
@@ -197,13 +246,24 @@ export function ScribePanel({ encounterId, current, onApplied }: { encounterId: 
       }
       return post<Draft<EncounterOutput, EncounterWarning>>(`/encounters/${encounterId}/ai/dictation`, { text, language });
     });
-    if (r) setDraft(r);
+    if (r) {
+      setDraft(r);
+      pending.reload();
+    }
   }
 
   return (
     <div className="flex flex-col gap-3">
       {!draft && (
         <>
+          <PendingDrafts
+            rows={pending.rows}
+            preview={(o) => [o.chiefComplaint, o.hpi].filter(Boolean).join(' · ')}
+            onOpen={(d) => {
+              a.setError(null);
+              setDraft({ id: d.id, kind: d.kind, status: d.status, output: d.output, warnings: d.warnings as EncounterWarning[] });
+            }}
+          />
           <p className="text-sm text-muted">{t('ai.scribeIntro')}</p>
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1 text-sm font-medium">
@@ -237,7 +297,7 @@ export function ScribePanel({ encounterId, current, onApplied }: { encounterId: 
           draft={draft}
           current={current}
           onDone={(applied) => {
-            setDraft(null);
+            close();
             setText('');
             if (applied) {
               onApplied(applied);
@@ -246,15 +306,16 @@ export function ScribePanel({ encounterId, current, onApplied }: { encounterId: 
           }}
           onReject={async () => {
             await reject(draft.id);
-            setDraft(null);
+            close();
           }}
+          onLater={close}
         />
       )}
     </div>
   );
 }
 
-function EncounterReview({ draft, current, onDone, onReject }: { draft: Draft<EncounterOutput, EncounterWarning>; current: EncounterCurrent; onDone: (applied: EncounterApplied | null) => void; onReject: () => Promise<void> }) {
+function EncounterReview({ draft, current, onDone, onReject, onLater }: { draft: Draft<EncounterOutput, EncounterWarning>; current: EncounterCurrent; onDone: (applied: EncounterApplied | null) => void; onReject: () => Promise<void>; onLater: () => void }) {
   const { t } = useI18n();
   const o = draft.output;
   const [texts, setTexts] = useState<Record<TextFieldKey, string>>({ chiefComplaint: o.chiefComplaint, hpi: o.hpi, examination: o.examination, notes: o.notes });
@@ -420,6 +481,9 @@ function EncounterReview({ draft, current, onDone, onReject }: { draft: Draft<En
         <Button variant="secondary" onClick={() => void onReject()} disabled={a.busy}>
           {t('ai.reject')}
         </Button>
+        <Button variant="ghost" onClick={onLater} disabled={a.busy}>
+          {t('ai.reviewLater')}
+        </Button>
       </div>
     </div>
   );
@@ -437,9 +501,22 @@ export function AiSummaryDraft({ encounterId, current, onApplied }: { encounterI
   const [useEn, setUseEn] = useState(false);
   const a = useAction();
   const reject = useReject();
+  const pending = usePendingDrafts<{ summaryAr: string; summaryEn: string }>(encounterId, 'patient_summary');
+  const open = (r: Draft<{ summaryAr: string; summaryEn: string }, never>) => {
+    setDraft(r);
+    setAr(r.output.summaryAr ?? '');
+    setEn(r.output.summaryEn ?? '');
+    setUseAr(true);
+    setUseEn(locale === 'en');
+  };
+  const close = () => {
+    setDraft(null);
+    pending.reload();
+  };
   if (!draft)
     return (
       <div className="flex flex-col gap-2">
+        <PendingDrafts rows={pending.rows} preview={(o) => (locale === 'en' ? o.summaryEn || o.summaryAr : o.summaryAr || o.summaryEn)} onOpen={(d) => (a.setError(null), open({ id: d.id, kind: d.kind, status: d.status, output: d.output, warnings: [] }))} />
         <Button
           type="button"
           variant="ghost"
@@ -448,11 +525,8 @@ export function AiSummaryDraft({ encounterId, current, onApplied }: { encounterI
           onClick={async () => {
             const r = await a.run(() => post<Draft<{ summaryAr: string; summaryEn: string }, never>>(`/encounters/${encounterId}/ai/patient-summary`));
             if (r) {
-              setDraft(r);
-              setAr(r.output.summaryAr);
-              setEn(r.output.summaryEn);
-              setUseAr(true);
-              setUseEn(locale === 'en');
+              open(r);
+              pending.reload();
             }
           }}
         >
@@ -490,7 +564,7 @@ export function AiSummaryDraft({ encounterId, current, onApplied }: { encounterI
             const r = await a.run(() => post(`/ai/drafts/${draft.id}/approve`, { text }));
             if (r) {
               onApplied(text);
-              setDraft(null);
+              close();
               toast(t('ai.summaryApproved'));
             }
           }}
@@ -502,10 +576,13 @@ export function AiSummaryDraft({ encounterId, current, onApplied }: { encounterI
           disabled={a.busy}
           onClick={async () => {
             await reject(draft.id);
-            setDraft(null);
+            close();
           }}
         >
           {t('ai.reject')}
+        </Button>
+        <Button variant="ghost" disabled={a.busy} onClick={close}>
+          {t('ai.reviewLater')}
         </Button>
       </div>
     </div>

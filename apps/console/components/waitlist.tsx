@@ -25,14 +25,21 @@ export interface WaitlistRow {
   service_id: string | null;
   earliest: string;
   latest: string | null;
-  status: 'waiting' | 'booked' | 'cancelled';
+  status: 'waiting' | 'offered' | 'booked' | 'cancelled' | 'expired';
+  /** Set when a slot was offered (by the desk, or automatically by the worker); cleared when back to waiting. */
+  offered_at: string | null;
   created_at: string;
   patient_name: string;
   mrn: string;
   doctor_name: string;
+  service_name_ar: string | null;
+  service_name_en: string | null;
 }
 
-const STATUSES = ['waiting', 'booked', 'cancelled'] as const;
+/** 'expired' is set by the worker once the wanted window has passed. */
+const STATUSES = ['waiting', 'offered', 'booked', 'cancelled', 'expired'] as const;
+type Settable = 'waiting' | 'offered' | 'booked' | 'cancelled';
+const PENDING: WaitlistRow['status'][] = ['waiting', 'offered'];
 
 export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; name: string } | null; onBooked?: () => void }) {
   const { t, locale } = useI18n();
@@ -44,16 +51,19 @@ export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; na
   const [adding, setAdding] = useState(false);
   const [booking, setBooking] = useState<WaitlistRow | null>(null);
   const a = useAction();
-  const setRowStatus = async (w: WaitlistRow, to: 'booked' | 'cancelled' | 'waiting', quiet = false) => {
+  const setRowStatus = async (w: WaitlistRow, to: Settable, quiet = false) => {
     const r = await a.run(() => patch(`/waitlist/${w.id}`, { status: to }));
     if (r) {
       if (!quiet) toast(t(`wl.marked.${to}`));
       q.reload();
     }
   };
-  const serviceName = (id: string | null) => {
-    if (!id) return '—';
-    const s = services.find((x) => x.id === id);
+  // Names come with the row; the catalogue is a fallback for rows without them.
+  const serviceName = (w: WaitlistRow) => {
+    if (!w.service_id) return t('wl.anyService');
+    const own = biName({ name_ar: w.service_name_ar, name_en: w.service_name_en }, locale);
+    if (own) return own;
+    const s = services.find((x) => x.id === w.service_id);
     return s ? biName(s, locale) : '—';
   };
   return (
@@ -92,6 +102,7 @@ export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; na
                   <th>{t('book.service')}</th>
                   <th>{t('wl.window')}</th>
                   <th>{t('wl.since')}</th>
+                  <th>{t('wl.offeredAt')}</th>
                   <th>{t('common.actions')}</th>
                 </tr>
               </thead>
@@ -107,23 +118,29 @@ export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; na
                     <td>
                       <Bdi>{w.doctor_name}</Bdi>
                     </td>
-                    <td>{serviceName(w.service_id)}</td>
+                    <td>{serviceName(w)}</td>
                     <td className="num text-xs">
                       {isoDate(w.earliest)} → {w.latest ? isoDate(w.latest) : t('wl.open')}
-                      {w.latest && isoDate(w.latest) < todayCairo() && status === 'waiting' && <Badge tone="danger" className="ms-1">{t('wl.expired')}</Badge>}
+                      {w.latest && isoDate(w.latest) < todayCairo() && PENDING.includes(w.status) && <Badge tone="danger" className="ms-1">{t('wl.expired')}</Badge>}
                     </td>
                     <td className="text-xs">
                       <DateText value={w.created_at} locale={locale} />
                     </td>
+                    <td className="text-xs">{w.offered_at ? <DateText value={w.offered_at} locale={locale} withTime /> : '—'}</td>
                     <td>
                       <div className="flex flex-wrap gap-1">
-                        {w.status === 'waiting' && can('appointment:create') && (
+                        {PENDING.includes(w.status) && can('appointment:create') && (
                           <Button size="sm" onClick={() => setBooking(w)}>
                             {t('wl.bookNow')}
                           </Button>
                         )}
-                        {w.status === 'waiting' && can('appointment:edit') && (
+                        {PENDING.includes(w.status) && can('appointment:edit') && (
                           <>
+                            {w.status === 'waiting' && (
+                              <Button size="sm" variant="ghost" disabled={a.busy} onClick={() => void setRowStatus(w, 'offered')}>
+                                {t('wl.markOffered')}
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" disabled={a.busy} onClick={() => void setRowStatus(w, 'booked')}>
                               {t('wl.markBooked')}
                             </Button>

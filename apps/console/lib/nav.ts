@@ -35,7 +35,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: '/cashier', label: 'nav.cashier', anyOf: ['bill:view', 'shift:view'] },
       { href: '/cashier/refunds', label: 'nav.refunds', anyOf: ['refund:view', 'refund:approve'] },
-      { href: '/finance/insurance', label: 'nav.insurance', anyOf: ['bill:approve', 'settings:edit'] },
+      { href: '/finance/insurance', label: 'nav.insurance', anyOf: ['bill:approve', 'settings:edit', 'patient:edit'] },
       { href: '/finance/claims', label: 'nav.claims', anyOf: ['bill:approve', 'bill:export'] },
       { href: '/finance/eta', label: 'nav.eta', anyOf: ['bill:approve', 'bill:export'] },
     ],
