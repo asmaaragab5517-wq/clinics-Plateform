@@ -66,6 +66,8 @@ const schema = z.object({
   PLATFORM_HEALTHPAY_API_KEY: z.string().optional(),
   RATE_LIMIT_APIKEY_PER_MIN: z.coerce.number().int().positive().default(600),
   OAUTH_STATE_SECRET: z.string().default('dev-oauth-state-secret'),
+  DB_POOL_MAX: z.coerce.number().int().min(2).max(200).default(30),
+  PUBLIC_CACHE_SECONDS: z.coerce.number().int().min(0).max(600).default(60),
   RATE_LIMIT_PUBLIC_PER_MIN: z.coerce.number().int().positive().default(240),
   RATE_LIMIT_PATIENT_PER_MIN: z.coerce.number().int().positive().default(300),
 });

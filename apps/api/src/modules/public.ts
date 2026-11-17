@@ -4,6 +4,7 @@ import { STORAGE, type Storage } from '../integrations/storage';
 import { z } from 'zod';
 import { addDays, localDate, zDate, zonedToUtc } from '@hf/shared';
 import { Auth, Public } from '../common/decorators';
+import { PublicCache } from '../common/public-cache';
 import { notFound } from '../common/errors';
 import type { Principal } from '../common/principal';
 import { Tenancy } from '../common/services';
@@ -23,6 +24,7 @@ export class PublicController {
 
   @Get('org')
   @Public()
+  @PublicCache()
   async org(@Auth() p: Principal) {
     return this.tenancy.run(p, async (tx) => {
       const o = await tx.one<Record<string, unknown>>(`select id, slug, name_ar, name_en, branding, settings->>'digitStyle' as digit_style from organisations where id = app_org()`);
@@ -33,6 +35,7 @@ export class PublicController {
 
   @Get('clinics')
   @Public()
+  @PublicCache()
   clinics(@Auth() p: Principal, @Query('governorate') governorate?: string) {
     return this.tenancy.run(p, (tx) =>
       tx.query(
@@ -46,6 +49,7 @@ export class PublicController {
 
   @Get('clinics/:slug')
   @Public()
+  @PublicCache()
   async clinic(@Auth() p: Principal, @Param('slug') slug: string) {
     const r = await this.tenancy.run(p, async (tx) => {
       const c = await tx.maybeOne<{ id: string }>(`select id, slug, name_ar, name_en, governorate, city, address_lines, lat, lng, phones, email, working_hours, colours,
@@ -61,6 +65,7 @@ export class PublicController {
 
   @Get('specialties')
   @Public()
+  @PublicCache()
   specialties(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) =>
       tx.query(`select s.id, s.slug, s.name_ar, s.name_en, count(distinct ds.doctor_id)::int as doctors from specialties s join doctor_specialties ds on ds.specialty_id = s.id join doctor_profiles d on d.user_id = ds.doctor_id and d.is_public group by s.id order by s.name_ar`),
@@ -70,6 +75,7 @@ export class PublicController {
   /** FR-WEB-2 filters: specialty, governorate, clinic, gender, fee range, rating. */
   @Get('doctors')
   @Public()
+  @PublicCache()
   doctors(@Auth() p: Principal, @Query() q: Record<string, string>) {
     const f = parse(
       z.object({ specialty: z.string().optional(), governorate: z.string().optional(), city: z.string().max(80).optional(), clinicId: z.string().uuid().optional(), gender: z.enum(['male', 'female']).optional(), minFee: z.coerce.number().int().optional(), maxFee: z.coerce.number().int().optional(), minRating: z.coerce.number().optional(), q: z.string().max(60).optional(), availableBy: zDate.optional() }),
@@ -156,6 +162,7 @@ export class PublicController {
 
   @Get('doctors/:slug')
   @Public()
+  @PublicCache()
   async doctor(@Auth() p: Principal, @Param('slug') slug: string) {
     const r = await this.tenancy.run(p, async (tx) => {
       const [d] = (await this.doctorsQuery(tx, {})).filter((x) => x.slug === slug);
@@ -178,6 +185,7 @@ export class PublicController {
 
   @Get('services')
   @Public()
+  @PublicCache()
   services(@Auth() p: Principal, @Query('clinicId') clinicId?: string) {
     return this.tenancy.run(p, (tx) =>
       tx.query(
@@ -191,6 +199,7 @@ export class PublicController {
 
   @Get('packages')
   @Public()
+  @PublicCache()
   packages(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) => tx.query('select id, name_ar, name_en, sessions, validity_days, price from packages where is_active order by price'));
   }
@@ -198,6 +207,7 @@ export class PublicController {
   /** Slots for the booking wizard: next 14 days by default (FR-WEB-3). */
   @Get('slots')
   @Public()
+  @PublicCache(5)
   slots(@Auth() p: Principal, @Query() q: Record<string, string>) {
     const b = parse(z.object({ doctorId: z.string().uuid(), clinicId: z.string().uuid().optional(), serviceId: z.string().uuid().optional(), from: zDate.optional(), days: z.coerce.number().int().min(1).max(14).default(14) }), q);
     return this.tenancy.run(p, async (tx) => {
@@ -209,6 +219,7 @@ export class PublicController {
 
   @Get('articles')
   @Public()
+  @PublicCache()
   articles(@Auth() p: Principal, @Query('kind') kind?: string) {
     return this.tenancy.run(p, (tx) =>
       tx.query(`select id, kind, slug, title_ar, title_en, left(body_ar, 300) as excerpt_ar, left(body_en, 300) as excerpt_en, published_at from articles where status = 'published' and ($1::text is null or kind = $1) order by published_at desc limit 50`, [kind ?? null]),
@@ -217,6 +228,7 @@ export class PublicController {
 
   @Get('articles/:slug')
   @Public()
+  @PublicCache()
   async article(@Auth() p: Principal, @Param('slug') slug: string) {
     const a = await this.tenancy.run(p, (tx) => tx.maybeOne(`select id, kind, slug, title_ar, title_en, body_ar, body_en, published_at, updated_at from articles where slug = $1 and status = 'published'`, [slug.slice(0, 120)]));
     if (!a) throw notFound('article');

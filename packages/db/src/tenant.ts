@@ -30,6 +30,7 @@ export class NotFoundError extends Error {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MODES = new Set(['staff', 'patient', 'public', 'system']);
 function uuidList(ids: string[] | undefined): string {
   for (const id of ids ?? []) if (!UUID.test(id)) throw new Error('invalid uuid in tenant context');
   return (ids ?? []).join(',');
@@ -68,12 +69,14 @@ export class Database {
     if (!UUID.test(ctx.orgId)) throw new Error('tenant context requires orgId');
     const client = await this.pool.connect();
     try {
-      await client.query('begin');
+      // One round trip: BEGIN and the RLS session settings. Every interpolated value is validated above
+      // (UUIDs, a fixed set of modes), so no user-controlled text reaches this statement.
+      if (!MODES.has(ctx.mode)) throw new Error('invalid tenant mode');
+      if (ctx.userId && !UUID.test(ctx.userId)) throw new Error('invalid user id in tenant context');
       await client.query(
-        `select set_config('app.org_id', $1, true), set_config('app.mode', $2, true),
-                set_config('app.network', $3, true), set_config('app.clinic_ids', $4, true),
-                set_config('app.patient_ids', $5, true), set_config('app.user_id', $6, true)`,
-        [ctx.orgId, ctx.mode, ctx.network ? 'on' : 'off', uuidList(ctx.clinicIds), uuidList(ctx.patientIds), ctx.userId ?? ''],
+        `begin; select set_config('app.org_id', '${ctx.orgId}', true), set_config('app.mode', '${ctx.mode}', true),
+                set_config('app.network', '${ctx.network ? 'on' : 'off'}', true), set_config('app.clinic_ids', '${uuidList(ctx.clinicIds)}', true),
+                set_config('app.patient_ids', '${uuidList(ctx.patientIds)}', true), set_config('app.user_id', '${ctx.userId ?? ''}', true)`,
       );
       const result = await fn(wrap(client, ctx));
       await client.query('commit');

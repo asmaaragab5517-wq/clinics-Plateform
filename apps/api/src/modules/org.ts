@@ -34,6 +34,7 @@ const settingsSchema = z.object({
   shiftVarianceThreshold: z.number().int().min(0).optional(),
   queueNotifyPositions: z.number().int().min(1).max(20).optional(),
   mrnFormat: z.string().regex(/\{n:\d\}/).optional(),
+  retentionYears: z.number().int().min(5).max(50).optional(), // D12, default 10
   messaging: z.object({ disabledEvents: z.array(z.string()) }).partial().optional(),
 });
 

@@ -8,7 +8,7 @@ export const BOX = Symbol('BOX');
 
 export function dbProviders() {
   return [
-    { provide: DB, inject: [CONFIG], useFactory: (c: Config) => new Database(c.DATABASE_URL) },
+    { provide: DB, inject: [CONFIG], useFactory: (c: Config) => new Database(c.DATABASE_URL, c.DB_POOL_MAX) },
     {
       provide: BOX,
       inject: [CONFIG],
