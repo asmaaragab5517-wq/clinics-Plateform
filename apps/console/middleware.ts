@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Security headers with a per-request CSP nonce (SEC-6): no inline scripts, frame-ancestors 'none', HSTS.
  * Also gates console pages behind the BFF session cookie and seeds the double-submit CSRF cookie.
  */
-const PUBLIC_PREFIXES = ['/login', '/display', '/api/auth/', '/api/display/'];
+const PUBLIC_PREFIXES = ['/login', '/display', '/api/auth/', '/api/display/', '/api/platform/', '/platform/login'];
 
 function nonce(): string {
   const b = new Uint8Array(16);
@@ -40,8 +40,17 @@ export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const isPublic = PUBLIC_PREFIXES.some((p) => pathname === p.replace(/\/$/, '') || pathname.startsWith(p));
   const hasSession = !!(req.cookies.get('hf_at')?.value || req.cookies.get('hf_rt')?.value);
+  const isPlatform = pathname === '/platform' || pathname.startsWith('/platform/');
 
-  if (!isPublic && !hasSession && !pathname.startsWith('/api/')) {
+  // The platform-admin area has its own session cookies and sign-in page, independent of the staff session.
+  if (isPlatform && !isPublic && !(req.cookies.get('hf_pat')?.value || req.cookies.get('hf_prt')?.value)) {
+    const url = req.nextUrl.clone();
+    url.pathname = '/platform/login';
+    url.search = `?next=${encodeURIComponent(pathname + search)}`;
+    return NextResponse.redirect(url);
+  }
+
+  if (!isPublic && !isPlatform && !hasSession && !pathname.startsWith('/api/')) {
     const url = req.nextUrl.clone();
     url.pathname = '/login';
     url.search = `?next=${encodeURIComponent(pathname + search)}`;

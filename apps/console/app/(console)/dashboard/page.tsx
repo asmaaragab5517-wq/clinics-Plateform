@@ -25,6 +25,7 @@ interface Dashboard {
   topServices: { service_id: string | null; name_ar: string | null; name_en: string | null; net: number | string; bills: number }[];
   topDiagnoses: { code: string; title_ar: string | null; title_en: string | null; n: number }[];
   sms: { cost: number; segments: number; messages: number };
+  bookingFunnel?: { started: number; completed: number; completionRate: number; steps: { step: string; sessions: number }[] };
 }
 
 type Preset = 'today' | '7d' | '30d' | 'month' | 'lastMonth' | 'custom';
@@ -146,12 +147,37 @@ export default function DashboardPage() {
                 ]}
               />
               <HBarChart title={t('dash.topServices')} data={d.topServices.map((s) => ({ label: (locale === 'en' ? s.name_en || s.name_ar : s.name_ar) ?? t('dash.other'), value: num(s.net), display: money(s.net) }))} />
+              {d.bookingFunnel && <BookingFunnel f={d.bookingFunnel} />}
               <HBarChart title={t('dash.topDiagnoses')} data={d.topDiagnoses.map((x) => ({ label: `${x.code} ${(locale === 'ar' ? x.title_ar : x.title_en) ?? x.title_en ?? ''}`.trim(), value: num(x.n) }))} />
             </div>
             <p className="text-xs text-muted">{t('dash.sqlNote', { at: localDate(new Date()) })}</p>
           </>
         )}
       </DataState>
+    </div>
+  );
+}
+
+/** Online booking funnel: sessions reaching each wizard step (cumulative), with step-to-step drop-off. */
+function BookingFunnel({ f }: { f: NonNullable<Dashboard['bookingFunnel']> }) {
+  const { t } = useI18n();
+  const pct = (n: number) => (f.started ? Math.round((n / f.started) * 1000) / 10 : 0);
+  return (
+    <div className="flex flex-col gap-2 lg:col-span-2">
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label={t('dash.funnelStarted')} value={num(f.started)} />
+        <Stat label={t('dash.funnelCompleted')} value={num(f.completed)} />
+        <Stat label={t('dash.funnelRate')} value={`${f.completionRate}%`} hint={<Gauge label={t('dash.funnelRate')} percent={f.completionRate} />} />
+      </div>
+      <HBarChart
+        title={t('dash.funnel')}
+        data={f.started ? f.steps.map((s, i) => {
+          const prev = i ? f.steps[i - 1]!.sessions : s.sessions;
+          const drop = prev ? Math.round(((prev - s.sessions) / prev) * 1000) / 10 : 0;
+          return { label: t(`dash.funnelStep.${s.step}`), value: num(s.sessions), display: `${num(s.sessions)} · ${pct(s.sessions)}%${i && drop > 0 ? ` (−${drop}%)` : ''}` };
+        }) : []}
+      />
+      <p className="text-xs text-muted">{t('dash.funnelHint')}</p>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { dismissNotice, expireStale, getServerSnapshot, getSnapshot, replay, sub
 import { useOnline } from '@/lib/hooks';
 import { biName } from '@/lib/format';
 import type { Me } from '@/lib/types';
+import { AnnouncementsBanner } from './announcements';
 import { KeyHint, Loading } from './common';
 import { useI18n } from './i18n';
 import { SessionCtx, ShortcutCtx, type ShortcutMap, type SessionValue } from './session';
@@ -324,6 +325,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   ))}
                 </div>
               )}
+              {!locked && <AnnouncementsBanner />}
               <main id="main" className="min-w-0 flex-1 p-4">
                 {session.clinic || me!.clinics.length === 0 ? children : <Loading />}
               </main>

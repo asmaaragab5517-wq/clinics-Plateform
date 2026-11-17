@@ -262,7 +262,7 @@ function SettleDialog({ batch, onClose, onDone }: { batch: Batch | null; onClose
           className="flex flex-col gap-3"
           onSubmit={async (e) => {
             e.preventDefault();
-            const items = [];
+            const items: { billId: string; paidAmount: number; rejectionReason?: string }[] = [];
             for (const l of lines) {
               if (!l.billId) continue;
               const p = parseEgp(l.paid || '0');

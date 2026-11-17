@@ -29,6 +29,7 @@ export default function EntitiesPage() {
   const q = useApi<Entity[]>('/legal-entities');
   const [f, setF] = useState({ nameAr: '', nameEn: '', taxRegistrationNumber: '', commercialRegister: '', address: '' });
   const [hp, setHp] = useState<Entity | null>(null);
+  const [eta, setEta] = useState<Entity | null>(null);
   const a = useAction();
   return (
     <div className="flex flex-col gap-4">
@@ -56,9 +57,14 @@ export default function EntitiesPage() {
                       <td>{e.healthpay_configured ? <Badge tone="success">{t(`ent.mode.${e.healthpay_mode ?? 'sandbox'}`)}</Badge> : <Badge tone="warning">{t('ent.notConfigured')}</Badge>}</td>
                       <td>
                         {can('settings:edit') && (
-                          <Button size="sm" variant="ghost" onClick={() => setHp(e)}>
-                            {t('ent.configure')}
-                          </Button>
+                          <div className="flex flex-wrap gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => setHp(e)}>
+                              {t('ent.configure')}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEta(e)}>
+                              {t('etaCfg.configure')}
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -95,6 +101,7 @@ export default function EntitiesPage() {
         )}
       </div>
       <HealthPayDialog entity={hp} onClose={() => setHp(null)} onDone={q.reload} />
+      <EtaDialog entity={eta} onClose={() => setEta(null)} />
     </div>
   );
 }
@@ -126,6 +133,77 @@ function HealthPayDialog({ entity, onClose, onDone }: { entity: Entity | null; o
         <TextField label={t('ent.apiKey')} type="password" autoComplete="new-password" value={f.apiKey} onChange={(e) => setF({ ...f, apiKey: e.target.value })} required minLength={8} dir="ltr" />
         <SelectField label={t('ent.modeLabel')} value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })} options={['sandbox', 'live'].map((m) => ({ value: m, label: t(`ent.mode.${m}`) }))} />
         <p className="text-xs text-muted">{t('ent.testGap')}</p>
+        {a.error && <Alert tone="danger">{a.error}</Alert>}
+        <Button type="submit" disabled={a.busy}>
+          {t('common.save')}
+        </Button>
+      </form>
+    </Dialog>
+  );
+}
+
+const ETA_BLANK = {
+  mode: 'preprod',
+  clientId: '',
+  clientSecret: '',
+  posSerial: '',
+  posOsVersion: 'linux',
+  presharedKey: '',
+  rin: '',
+  branchCode: '0',
+  activityCode: '',
+  companyTradeName: '',
+  governate: '',
+  regionCity: '',
+  street: '',
+  buildingNumber: '',
+};
+
+/** ETA e-receipt (B2C) POS credentials per legal entity. Secrets are write-only: the API stores them encrypted and never returns them. */
+function EtaDialog({ entity, onClose }: { entity: Entity | null; onClose: () => void }) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [f, setF] = useState({ ...ETA_BLANK });
+  const a = useAction();
+  const set = (k: keyof typeof ETA_BLANK) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
+  return (
+    <Dialog open={!!entity} onClose={onClose} title={`${t('etaCfg.title')}${entity ? ` · ${entity.name_ar}` : ''}`} wide>
+      <form
+        className="flex flex-col gap-3"
+        autoComplete="off"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!entity) return;
+          const { governate, regionCity, street, buildingNumber, ...rest } = f;
+          const r = await a.run(() => put(`/legal-entities/${entity.id}/eta`, { ...rest, address: { governate, regionCity, street, buildingNumber } }));
+          if (r) {
+            toast(t('etaCfg.saved'));
+            setF({ ...ETA_BLANK, mode: f.mode });
+            onClose();
+          }
+        }}
+      >
+        <Alert tone="info">{t('etaCfg.secretNote')}</Alert>
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label={t('etaCfg.mode')} value={f.mode} onChange={set('mode')} options={['preprod', 'prod'].map((m) => ({ value: m, label: t(`etaCfg.mode.${m}`) }))} />
+          <TextField label={t('etaCfg.tradeName')} value={f.companyTradeName} onChange={set('companyTradeName')} required minLength={2} />
+          <TextField label={t('etaCfg.clientId')} value={f.clientId} onChange={set('clientId')} required minLength={4} dir="ltr" />
+          <TextField label={t('etaCfg.clientSecret')} type="password" autoComplete="new-password" value={f.clientSecret} onChange={set('clientSecret')} required minLength={4} dir="ltr" />
+          <TextField label={t('etaCfg.posSerial')} value={f.posSerial} onChange={set('posSerial')} required dir="ltr" />
+          <TextField label={t('etaCfg.posOs')} value={f.posOsVersion} onChange={set('posOsVersion')} dir="ltr" />
+          <TextField label={t('etaCfg.presharedKey')} type="password" autoComplete="new-password" value={f.presharedKey} onChange={set('presharedKey')} dir="ltr" />
+          <TextField label={t('etaCfg.rin')} hint={t('etaCfg.rinHint')} value={f.rin} onChange={set('rin')} required pattern="\d{9}" inputMode="numeric" dir="ltr" />
+          <TextField label={t('etaCfg.branchCode')} value={f.branchCode} onChange={set('branchCode')} dir="ltr" />
+          <TextField label={t('etaCfg.activityCode')} hint={t('etaCfg.activityHint')} value={f.activityCode} onChange={set('activityCode')} required pattern="\d{4}" inputMode="numeric" dir="ltr" />
+        </div>
+        <fieldset className="grid gap-3 rounded-xl border border-border p-3 md:grid-cols-2">
+          <legend className="px-1 text-sm font-medium">{t('etaCfg.address')}</legend>
+          <TextField label={t('etaCfg.governate')} value={f.governate} onChange={set('governate')} required />
+          <TextField label={t('etaCfg.regionCity')} value={f.regionCity} onChange={set('regionCity')} required />
+          <TextField label={t('etaCfg.street')} value={f.street} onChange={set('street')} required />
+          <TextField label={t('etaCfg.building')} value={f.buildingNumber} onChange={set('buildingNumber')} required dir="ltr" />
+        </fieldset>
+        <p className="text-xs text-muted">{t('etaCfg.statusGap')}</p>
         {a.error && <Alert tone="danger">{a.error}</Alert>}
         <Button type="submit" disabled={a.busy}>
           {t('common.save')}

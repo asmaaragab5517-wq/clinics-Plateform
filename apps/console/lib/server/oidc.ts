@@ -22,6 +22,8 @@ export async function discovery(): Promise<Discovery> {
 }
 
 export const redirectUri = () => `${serverConfig.consoleUrl}/api/auth/callback`;
+/** The platform-admin area signs in through its own callback so its tokens land in the platform cookies. */
+export const platformRedirectUri = () => `${serverConfig.consoleUrl}/api/platform/auth/callback`;
 
 interface TokenResponse {
   access_token: string;
@@ -53,8 +55,8 @@ async function tokenRequest(params: Record<string, string>): Promise<TokenRespon
   return (await r.json()) as TokenResponse;
 }
 
-export async function exchangeCode(code: string, verifier: string, nonce: string): Promise<SessionTokens> {
-  const t = await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirectUri(), code_verifier: verifier });
+export async function exchangeCode(code: string, verifier: string, nonce: string, redirect: string = redirectUri()): Promise<SessionTokens> {
+  const t = await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirect, code_verifier: verifier });
   if (t.id_token) {
     const claims = jwtPayload(t.id_token);
     if (claims.nonce !== nonce) throw new Error('nonce mismatch');
