@@ -37,6 +37,8 @@ import { StaffController } from './modules/staff';
 import { EtaController, EtaService } from './modules/eta';
 import { InsuranceController } from './modules/insurance';
 import { EventsController, EventsService } from './modules/events';
+import { AiController } from './modules/ai';
+import { AI, AnthropicAiClient, FakeAiClient, FakeSttProvider, HttpSttProvider, STT } from './integrations/ai';
 import { ETA, FakeEtaClient, HttpEtaClient } from './integrations/eta';
 import { CalendarSyncService, GoogleTokenStore, TelemedicineController, TelemedicineService } from './modules/telemedicine';
 import { FakeVideoProvider, GoogleMeetProvider, VIDEO, ZoomProvider } from './integrations/video';
@@ -45,7 +47,7 @@ import { FakeGoogleClient, GOOGLE, HttpGoogleClient } from './integrations/googl
 export const CONTROLLERS = [
   HealthController, AuthController, OrgController, CatalogueController, StaffController, SchedulesController, AppointmentsController, PatientsController,
   EmrController, PrescriptionsController, BillingController, PaymentsController, CommsController, PublicController, PortalController, ReportsController,
-  GovernanceController, ImportsController, TelemedicineController, EtaController, InsuranceController, EventsController, DevController,
+  GovernanceController, ImportsController, TelemedicineController, EtaController, InsuranceController, EventsController, AiController, DevController,
 ];
 
 /** Domain services shared by the API and the worker. */
@@ -75,6 +77,8 @@ export function coreProviders(cfg: Config): Provider[] {
     { provide: ETA, useClass: cfg.ETA_MODE === 'http' ? HttpEtaClient : FakeEtaClient },
     EtaService,
     EventsService,
+    { provide: AI, useClass: cfg.AI_MODE === 'anthropic' ? AnthropicAiClient : FakeAiClient },
+    { provide: STT, useClass: cfg.STT_MODE === 'http' ? HttpSttProvider : FakeSttProvider },
     GoogleTokenStore,
     TelemedicineService,
     CalendarSyncService,

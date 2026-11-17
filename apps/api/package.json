@@ -12,6 +12,7 @@
     "openapi": "node dist/openapi-cli.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.9.0",
     "@aws-sdk/client-s3": "^3.800.0",
     "@aws-sdk/s3-request-presigner": "^3.800.0",
     "@hf/db": "workspace:*",

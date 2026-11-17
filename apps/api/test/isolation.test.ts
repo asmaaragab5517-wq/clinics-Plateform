@@ -76,15 +76,16 @@ async function seedForeign(c: Client, org: string, clinic: string, doctor: strin
   const complaint = await q(`insert into complaints (organisation_id, clinic_id, patient_id, channel, category, description) values ($1,$2,$3,'reception','other','xxxxx') returning id`, [org, clinic, patient]);
   const incident = await q(`insert into incidents (organisation_id, clinic_id, category, severity, description, occurred_at) values ($1,$2,'fall','minor','xxxxx',now()) returning id`, [org, clinic]);
   const webhook = await q(`insert into webhook_endpoints (organisation_id, name, url, secret_enc, events) values ($1,'x','https://93.184.215.14/x','\\x00','{ping}') returning id`, [org]);
+  const aiDraft = await q(`insert into ai_drafts (organisation_id, clinic_id, patient_id, doctor_id, encounter_id, kind, source, output, model, prompt_version) values ($1,$2,$3,$4,$5,'encounter_note','text','{}','m','v') returning id`, [org, clinic, patient, doctor, encounter]);
   const etaReceipt = await q(`insert into eta_receipts (organisation_id, legal_entity_id, clinic_id, bill_id, receipt_number, issued_at, payload, status) values ($1,$2,$3,$4,'R',now(),'{}','failed') returning id`, [org, (await c.query('select id from legal_entities where organisation_id = $1 limit 1', [org])).rows[0].id, clinic, bill]);
-  return { patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor, coverage, claimBatch, etaReceipt, payer, plan, complaint, incident, webhook };
+  return { patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor, coverage, claimBatch, etaReceipt, payer, plan, complaint, incident, webhook, aiDraft };
 }
 
 const ENTITY_BY_SEGMENT: Record<string, string> = {
   patients: 'patient', appointments: 'appointment', bills: 'bill', encounters: 'encounter', prescriptions: 'prescription', clinics: 'clinic', staff: 'user', doctors: 'user',
   sessions: 'session', 'schedule-exceptions': 'exception', orders: 'order', documents: 'document', refunds: 'refund', shifts: 'shift', queue: 'ticket', approvals: 'approval',
   reviews: 'review', tasks: 'task', imports: 'importBatch', articles: 'article', 'data-requests': 'dataRequest', breaches: 'breach', services: 'service', 'legal-entities': 'legalEntity',
-  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
+  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', drafts: 'aiDraft', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
 };
 const FIXED: Record<string, string> = { role: 'nurse', kind: 'signature', entity: 'patients', token: 'x.1.y', code: 'nope', slug: 'nasr-city', providerOrderId: 'x' };
 
