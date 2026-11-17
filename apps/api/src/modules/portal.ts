@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
-import { CONSENT_TYPES, patientSchema, publicBookingSchema, reviewSchema } from '@hf/shared';
+import { CONSENT_TYPES, patientSchema, publicBookingSchema, reviewSchema, zDate } from '@hf/shared';
 import { renderPdf, icsEvent } from '@hf/documents';
 import type { Tx } from '@hf/db';
 import { Auth, Meta, PatientAuth } from '../common/decorators';
@@ -298,7 +298,8 @@ export class PortalController {
   coverages(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) =>
       tx.query(
-        `select pc.id, pc.patient_id, pc.member_number, pc.valid_from, pc.valid_to, pc.is_active from patient_coverages pc order by pc.is_active desc, pc.valid_from desc`,
+        `select pc.id, pc.patient_id, pc.member_number, pc.valid_from, pc.valid_to, pc.is_active, pc.source, pc.verified_at is not null as verified
+         from patient_coverages pc order by pc.is_active desc, pc.valid_from desc`,
       ).then(async (rows) => {
         // Plan and payer names come from staff-only tables; read them in system mode for the rows the patient may see.
         if (!rows.length) return rows;
@@ -312,6 +313,64 @@ export class PortalController {
         return rows.map((r) => ({ ...r, ...(names.find((n) => n.id === r.id) ?? {}) }));
       }),
     );
+  }
+
+  /** Active insurers and plans, so a patient can choose theirs when adding cover (names only). */
+  @Get('payers')
+  @PatientAuth()
+  payers(@Auth() p: Principal) {
+    return this.tenancy.system(asPatient(p).orgId, (tx) =>
+      tx.query(
+        `select py.id, py.name_ar, py.name_en, coalesce(jsonb_agg(jsonb_build_object('id', pp.id, 'name', pp.name) order by pp.name) filter (where pp.id is not null), '[]') as plans
+         from payers py left join payer_plans pp on pp.payer_id = py.id and pp.is_active where py.is_active group by py.id order by py.name_ar`,
+      ),
+    );
+  }
+
+  /** Patient-submitted cover is stored unverified; billing ignores it until staff verify the card. */
+  @Post('coverages')
+  @PatientAuth()
+  addCoverage(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const pt = asPatient(p);
+    const b = parse(z.object({ patientId: z.string().uuid(), planId: z.string().uuid(), memberNumber: z.string().trim().min(2).max(60), validFrom: zDate, validTo: zDate.optional() }), body);
+    if (!pt.patientIds.includes(b.patientId)) throw forbidden();
+    if (b.validTo && b.validTo < b.validFrom) throw badRequest('invalid_dates');
+    return this.tenancy.system(pt.orgId, async (tx) => {
+      const plan = await tx.maybeOne('select 1 from payer_plans pp join payers py on py.id = pp.payer_id where pp.id = $1 and pp.is_active and py.is_active', [b.planId]);
+      if (!plan) throw notFound('plan');
+      const pending = await tx.one<{ n: number }>(`select count(*)::int as n from patient_coverages where patient_id = $1 and verified_at is null and is_active`, [b.patientId]);
+      if (pending.n >= 3) throw badRequest('too_many_pending_coverages');
+      const r = await tx.one<{ id: string }>(
+        `insert into patient_coverages (organisation_id, patient_id, plan_id, member_number, valid_from, valid_to, source) values (app_org(), $1,$2,$3,$4,$5,'patient') returning id`,
+        [b.patientId, b.planId, b.memberNumber, b.validFrom, b.validTo ?? null],
+      );
+      // Filed under the patient's most recent clinic (else the first clinic) so that clinic's reception sees it.
+      await tx.query(
+        `insert into tasks (organisation_id, clinic_id, kind, title, entity_id, assignee_role)
+         values (app_org(), coalesce((select clinic_id from appointments where patient_id = $2 order by start_at desc limit 1), (select id from clinics order by created_at limit 1)),
+                 'coverage_verify', 'Verify insurance card submitted by patient', $1, 'reception')`,
+        [r.id, b.patientId],
+      );
+      await this.audit.record(tx, pt, meta, { action: 'insurance.coverage_submit', entity: 'patient_coverage', entityId: r.id, patientId: b.patientId });
+      return { id: r.id, verified: false };
+    });
+  }
+
+  /** A patient may withdraw cover they submitted while it is still unverified. */
+  @Post('coverages/:id/withdraw')
+  @PatientAuth()
+  @HttpCode(200)
+  withdrawCoverage(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
+    const pt = asPatient(p);
+    return this.tenancy.system(pt.orgId, async (tx) => {
+      const r = await tx.maybeOne<{ patient_id: string }>(
+        `update patient_coverages set is_active = false where id = $1 and patient_id = any($2::uuid[]) and source = 'patient' and verified_at is null returning patient_id`,
+        [uuid(id), pt.patientIds],
+      );
+      if (!r) throw notFound('coverage');
+      await this.audit.record(tx, pt, meta, { action: 'insurance.coverage_withdraw', entity: 'patient_coverage', entityId: id, patientId: r.patient_id });
+      return { ok: true };
+    });
   }
 
   @Get('visits')

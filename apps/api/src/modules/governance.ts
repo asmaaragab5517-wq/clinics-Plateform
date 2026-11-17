@@ -182,8 +182,10 @@ export class GovernanceController {
   /** D12: patients with no visit for the retention period (organisation setting, default 10 years). */
   @Get('privacy/retention-review')
   @Staff('privacy:view')
-  retention(@Auth() p: Principal) {
-    return this.tenancy.run(p, (tx) => retentionCandidates(tx, 500));
+  retention(@Auth() p: Principal, @Query('offset') offset?: string, @Query('limit') limit?: string) {
+    const lim = Math.min(Math.max(Number(limit) || 200, 1), 500);
+    const off = Math.max(Number(offset) || 0, 0);
+    return this.tenancy.run(p, (tx) => retentionCandidates(tx, lim, { offset: off }));
   }
 
   /** Anonymise selected patients whose records are past retention (owner/privacy approver decision, audited). */
@@ -194,7 +196,7 @@ export class GovernanceController {
     const s = asStaff(p);
     const b = parse(z.object({ patientIds: z.array(z.string().uuid()).min(1).max(200), confirm: z.literal(true) }), body);
     return this.tenancy.run(s, async (tx) => {
-      const eligible = new Set((await retentionCandidates(tx, 100000)).map((c) => c.id));
+      const eligible = new Set((await retentionCandidates(tx, b.patientIds.length, { ids: b.patientIds })).map((c) => c.id));
       const notEligible = b.patientIds.filter((id) => !eligible.has(id));
       if (notEligible.length) throw new DomainError('not_past_retention', HttpStatus.UNPROCESSABLE_ENTITY, { patientIds: notEligible });
       const ids = b.patientIds;
@@ -330,15 +332,17 @@ export class GovernanceController {
   }
 }
 
-export async function retentionCandidates(tx: Tx, limit: number) {
+/** Patients with no activity for the organisation's retention period, oldest first; `ids` restricts the check to those patients. */
+export async function retentionCandidates(tx: Tx, limit: number, opts: { offset?: number; ids?: string[] } = {}) {
   const o = await tx.one<{ settings: { retentionYears?: number } }>('select settings from organisations where id = app_org()');
   const years = o.settings.retentionYears ?? 10;
-  return tx.query<{ id: string; mrn: string; last_activity: Date }>(
-    `select p.id, p.mrn, greatest(p.created_at, max(a.start_at), max(e.created_at)) as last_activity
+  return tx.query<{ id: string; mrn: string; name_ar: string; name_en: string | null; date_of_birth: string; last_activity: Date }>(
+    `select p.id, p.mrn, p.first_name_ar || ' ' || p.family_name_ar as name_ar, p.name_en, p.date_of_birth,
+            greatest(p.created_at, max(a.start_at), max(e.created_at)) as last_activity
      from patients p left join appointments a on a.patient_id = p.id left join encounters e on e.patient_id = p.id
-     where p.anonymised_at is null and p.merged_into_id is null
+     where p.anonymised_at is null and p.merged_into_id is null and ($4::uuid[] is null or p.id = any($4::uuid[]))
      group by p.id having greatest(p.created_at, max(a.start_at), max(e.created_at)) < now() - make_interval(years => $1)
-     order by 3 limit $2`,
-    [years, limit],
+     order by last_activity, p.id limit $2 offset $3`,
+    [years, limit, opts.offset ?? 0, opts.ids ?? null],
   );
 }

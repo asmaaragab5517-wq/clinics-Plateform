@@ -219,7 +219,7 @@ export const encounterUpdateSchema = z.object({
     .object({ image: z.string().max(50), shapes: z.array(z.record(z.unknown())).max(500), pngDataUrl: z.string().max(400_000).regex(/^data:image\/png;base64,/).optional() })
     .optional(),
   followUp: z.object({ date: zDate, serviceId: zUuid.optional(), note: z.string().max(500).optional() }).nullable().optional(),
-  dentalChart: dentalChartSchema.optional(),
+  dentalChart: dentalChartSchema.nullable().optional(), // null clears the visit's chart
 });
 
 export const prescriptionLineSchema = z.object({

@@ -76,11 +76,45 @@ export class InsuranceController {
     return this.tenancy.run(p, async (tx) => {
       await visiblePatient(tx, patientId);
       const r = await tx.one<{ id: string }>(
-        `insert into patient_coverages (organisation_id, patient_id, plan_id, member_number, valid_from, valid_to) values (app_org(), $1,$2,$3,$4,$5) returning *`,
-        [patientId, b.planId, b.memberNumber, b.validFrom, b.validTo ?? null],
+        `insert into patient_coverages (organisation_id, patient_id, plan_id, member_number, valid_from, valid_to, source, verified_at, verified_by)
+         values (app_org(), $1,$2,$3,$4,$5,'staff',now(),$6) returning *`,
+        [patientId, b.planId, b.memberNumber, b.validFrom, b.validTo ?? null, asStaff(p).userId],
       );
       await this.audit.record(tx, p, meta, { action: 'insurance.coverage_add', entity: 'patient_coverage', entityId: r.id, patientId });
       return r;
+    });
+  }
+
+  /** Cover submitted by patients in the portal waits here until staff check the card with the insurer. */
+  @Get('coverages/unverified')
+  @Staff('patient:edit')
+  unverified(@Auth() p: Principal) {
+    return this.tenancy.run(p, (tx) =>
+      tx.query(
+        `select pc.*, p.mrn, p.first_name_ar || ' ' || p.family_name_ar as patient_name_ar, p.name_en as patient_name_en, pp.name as plan_name, py.name_ar as payer_name_ar, py.name_en as payer_name_en
+         from patient_coverages pc join patients p on p.id = pc.patient_id join payer_plans pp on pp.id = pc.plan_id join payers py on py.id = pp.payer_id
+         where pc.verified_at is null and pc.is_active order by pc.created_at`,
+      ),
+    );
+  }
+
+  @Post('coverages/:id/verify')
+  @Staff('patient:edit')
+  @HttpCode(200)
+  verify(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const b = parse(z.object({ approve: z.boolean(), memberNumber: z.string().min(2).max(60).optional() }), body ?? {});
+    return this.tenancy.run(p, async (tx) => {
+      // Rejected cover is deactivated, not deleted, so the patient sees it was declined.
+      const r = b.approve
+        ? await tx.maybeOne<{ patient_id: string }>(
+            `update patient_coverages set verified_at = now(), verified_by = $2, member_number = coalesce($3, member_number) where id = $1 and verified_at is null returning patient_id`,
+            [uuid(id), asStaff(p).userId, b.memberNumber ?? null],
+          )
+        : await tx.maybeOne<{ patient_id: string }>(`update patient_coverages set is_active = false where id = $1 and verified_at is null returning patient_id`, [uuid(id)]);
+      if (!r) throw notFound('coverage');
+      await tx.query(`update tasks set status = 'done' where kind = 'coverage_verify' and entity_id = $1`, [id]);
+      await this.audit.record(tx, p, meta, { action: b.approve ? 'insurance.coverage_verify' : 'insurance.coverage_reject', entity: 'patient_coverage', entityId: id, patientId: r.patient_id });
+      return { ok: true };
     });
   }
 
@@ -112,7 +146,8 @@ export class InsuranceController {
     return this.tenancy.run(p, async (tx) => {
       if (!(await tx.maybeOne('select 1 from claim_batches where id = $1', [uuid(id)]))) throw notFound('claim_batch');
       return tx.query(
-        `select ci.id, ci.bill_id, b.number as invoice, ci.patient_id, p.mrn, ci.amount, ci.paid, ci.status, ci.rejection_reason, b.approval_number, pc.member_number
+        `select ci.id, ci.bill_id, b.number as invoice, b.issued_at as bill_date, ci.patient_id, p.mrn,
+                p.first_name_ar || ' ' || p.family_name_ar as patient_name_ar, p.name_en as patient_name_en, ci.amount, ci.paid, ci.status, ci.rejection_reason, b.approval_number, pc.member_number
          from claim_items ci join bills b on b.id = ci.bill_id join patients p on p.id = ci.patient_id left join patient_coverages pc on pc.id = b.coverage_id where ci.batch_id = $1 order by b.issued_at`,
         [id],
       );
@@ -122,9 +157,19 @@ export class InsuranceController {
   @Patch('payers/:id')
   @Staff('settings:edit')
   updatePayer(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), isActive: z.boolean().optional(), contact: z.record(z.string()).optional() }), body);
+    const b = parse(
+      z.object({
+        code: z.string().regex(/^[A-Z0-9_-]{2,20}$/).optional(), kind: z.enum(['insurer', 'tpa', 'corporate']).optional(),
+        nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), isActive: z.boolean().optional(), contact: z.record(z.string()).optional(),
+      }),
+      body,
+    );
     return this.tenancy.run(p, async (tx) => {
-      const r = await tx.maybeOne('update payers set name_ar = coalesce($2, name_ar), name_en = coalesce($3, name_en), is_active = coalesce($4, is_active), contact = coalesce($5, contact) where id = $1 returning *', [uuid(id), b.nameAr ?? null, b.nameEn ?? null, b.isActive ?? null, b.contact ? JSON.stringify(b.contact) : null]);
+      const r = await tx.maybeOne(
+        `update payers set name_ar = coalesce($2, name_ar), name_en = coalesce($3, name_en), is_active = coalesce($4, is_active), contact = coalesce($5, contact),
+           code = coalesce($6, code), kind = coalesce($7, kind) where id = $1 returning *`,
+        [uuid(id), b.nameAr ?? null, b.nameEn ?? null, b.isActive ?? null, b.contact ? JSON.stringify(b.contact) : null, b.code ?? null, b.kind ?? null],
+      );
       if (!r) throw notFound('payer');
       await this.audit.record(tx, p, meta, { action: 'insurance.payer_update', entity: 'payer', entityId: id, details: { keys: Object.keys(b) } });
       return r;
@@ -134,11 +179,21 @@ export class InsuranceController {
   @Patch('plans/:id')
   @Staff('settings:edit')
   updatePlan(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ isActive: z.boolean().optional(), coveragePercent: z.number().min(0).max(100).optional(), copayFixed: z.number().int().min(0).optional(), requiresApproval: z.boolean().optional() }), body);
+    const b = parse(
+      z.object({
+        name: z.string().min(2).optional(), isActive: z.boolean().optional(), coveragePercent: z.number().min(0).max(100).optional(), copayFixed: z.number().int().min(0).optional(),
+        requiresApproval: z.boolean().optional(), typeOverrides: z.record(z.enum(SERVICE_TYPES), z.number().min(0).max(100)).optional(),
+        excludedServiceIds: z.array(z.string().uuid()).optional(), annualLimit: z.number().int().positive().nullable().optional(),
+      }),
+      body,
+    );
     return this.tenancy.run(p, async (tx) => {
       const r = await tx.maybeOne(
-        'update payer_plans set is_active = coalesce($2, is_active), coverage_percent = coalesce($3, coverage_percent), copay_fixed = coalesce($4, copay_fixed), requires_approval = coalesce($5, requires_approval) where id = $1 returning *',
-        [uuid(id), b.isActive ?? null, b.coveragePercent ?? null, b.copayFixed ?? null, b.requiresApproval ?? null],
+        `update payer_plans set is_active = coalesce($2, is_active), coverage_percent = coalesce($3, coverage_percent), copay_fixed = coalesce($4, copay_fixed),
+           requires_approval = coalesce($5, requires_approval), name = coalesce($6, name), type_overrides = coalesce($7, type_overrides),
+           excluded_service_ids = coalesce($8, excluded_service_ids), annual_limit = case when $9::boolean then $10::bigint else annual_limit end where id = $1 returning *`,
+        [uuid(id), b.isActive ?? null, b.coveragePercent ?? null, b.copayFixed ?? null, b.requiresApproval ?? null, b.name ?? null,
+          b.typeOverrides ? JSON.stringify(b.typeOverrides) : null, b.excludedServiceIds ?? null, b.annualLimit !== undefined, b.annualLimit ?? null],
       );
       if (!r) throw notFound('plan');
       await this.audit.record(tx, p, meta, { action: 'insurance.plan_update', entity: 'payer_plan', entityId: id, details: b });

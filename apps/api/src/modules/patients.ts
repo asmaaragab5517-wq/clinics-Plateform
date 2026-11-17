@@ -50,6 +50,8 @@ export class PatientsController {
       } else if (/^[A-Z]{1,4}-\d+$/i.test(term)) {
         kind = 'mrn';
         rows = await tx.query(`select ${PUBLIC_COLS} from patients p where upper(mrn) = upper($1)`, [term]);
+        // A partial file number (e.g. "HF-0001") lists the files that start with it.
+        if (!rows.length) rows = await tx.query(`select ${PUBLIC_COLS} from patients p where upper(mrn) like upper($1) || '%' and p.merged_into_id is null order by mrn limit 25`, [term.replace(/[%_\\]/g, '')]);
       } else {
         kind = 'name';
         const n = normaliseArabic(term);

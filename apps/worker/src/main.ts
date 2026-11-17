@@ -31,6 +31,7 @@ async function main() {
     'outbound-events': () => jobs.deliverEvents(c),
     'next-slots': () => jobs.refreshNextSlots(c),
     'retention-review': () => jobs.retentionReview(c),
+    'prune-device-tokens': () => jobs.pruneDeviceTokens(c),
   };
   const running = new Set<string>();
   const exec = async (name: string) => {

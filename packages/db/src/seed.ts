@@ -94,6 +94,7 @@ export async function seedDemo(c: Client, box: SecretBox, opts: { slug?: string;
     { code: 'CONS-IM', ar: 'كشف باطنة', en: 'Internal medicine consultation', spec: 'internal-medicine', dur: 20, type: 'consultation', vat: 'exempt', price: 40000 },
     { code: 'CONS-PED', ar: 'كشف أطفال', en: 'Paediatrics consultation', spec: 'paediatrics', dur: 20, type: 'consultation', vat: 'exempt', price: 35000 },
     { code: 'CONS-DERM', ar: 'كشف جلدية', en: 'Dermatology consultation', spec: 'dermatology', dur: 15, type: 'consultation', vat: 'exempt', price: 45000 },
+    { code: 'VIDEO-IM', ar: 'استشارة باطنة بالفيديو', en: 'Internal medicine video consultation', spec: 'internal-medicine', dur: 20, type: 'telemedicine', vat: 'exempt', price: 35000 },
     { code: 'FU', ar: 'استشارة متابعة', en: 'Follow-up', spec: null, dur: 10, type: 'follow_up', vat: 'exempt', price: 15000 },
     { code: 'PROC-LASER', ar: 'جلسة ليزر تجميلي', en: 'Cosmetic laser session', spec: 'dermatology', dur: 30, type: 'procedure', vat: 'taxable', price: 120000 },
     { code: 'PT-SESSION', ar: 'جلسة علاج طبيعي', en: 'Physiotherapy session', spec: 'physiotherapy', dur: 45, type: 'procedure', vat: 'exempt', price: 30000 },
@@ -132,7 +133,7 @@ export async function seedDemo(c: Client, box: SecretBox, opts: { slug?: string;
   await mkUser('accountant', 'المحاسب', 'Accountant', 'accountant@' + slug + '.healthflow.eg', [{ role: 'accountant', clinic: null }]);
 
   const doctors = [
-    { key: 'dr_ahmed', ar: 'د. أحمد سامي', en: 'Dr. Ahmed Samy', slug: 'ahmed-samy', spec: 'internal-medicine', title: 'consultant', gender: 'male', svc: ['CONS-IM', 'FU'], clinics: [0, 1] },
+    { key: 'dr_ahmed', ar: 'د. أحمد سامي', en: 'Dr. Ahmed Samy', slug: 'ahmed-samy', spec: 'internal-medicine', title: 'consultant', gender: 'male', svc: ['CONS-IM', 'VIDEO-IM', 'FU'], clinics: [0, 1] },
     { key: 'dr_mona', ar: 'د. منى خالد', en: 'Dr. Mona Khaled', slug: 'mona-khaled', spec: 'paediatrics', title: 'specialist', gender: 'female', svc: ['CONS-PED', 'FU'], clinics: [0] },
     { key: 'dr_sara', ar: 'د. سارة عادل', en: 'Dr. Sara Adel', slug: 'sara-adel', spec: 'dermatology', title: 'dr', gender: 'female', svc: ['CONS-DERM', 'PROC-LASER', 'FU'], clinics: [1] },
   ];

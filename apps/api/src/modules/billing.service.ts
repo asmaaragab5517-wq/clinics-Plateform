@@ -73,7 +73,7 @@ export class BillingService {
       const cov = await tx.maybeOne<{ coverage_percent: number; copay_fixed: number; type_overrides: Record<string, number>; excluded_service_ids: string[]; requires_approval: boolean }>(
         `select pp.coverage_percent, pp.copay_fixed, pp.type_overrides, pp.excluded_service_ids, pp.requires_approval from patient_coverages pc join payer_plans pp on pp.id = pc.plan_id
          join payers py on py.id = pp.payer_id
-         where pc.id = $1 and pc.patient_id = $2 and pc.is_active and pp.is_active and py.is_active and pc.valid_from <= $3::date and (pc.valid_to is null or pc.valid_to >= $3::date)`,
+         where pc.id = $1 and pc.patient_id = $2 and pc.is_active and pc.verified_at is not null and pp.is_active and py.is_active and pc.valid_from <= $3::date and (pc.valid_to is null or pc.valid_to >= $3::date)`,
         [input.coverageId, input.patientId, date],
       );
       if (!cov) throw badRequest('coverage_not_valid');

@@ -49,7 +49,7 @@ export class AppointmentsController {
   @Staff('appointment:view')
   async get(@Auth() p: Principal, @Param('id') id: string) {
     const r = await this.tenancy.run(p, async (tx) => {
-      const a = await tx.maybeOne('select * from appointments where id = $1', [uuid(id)]);
+      const a = await tx.maybeOne('select a.*, (select e.id from encounters e where e.appointment_id = a.id limit 1) as encounter_id from appointments a where a.id = $1', [uuid(id)]);
       if (!a) return null;
       const events = await tx.query('select from_status, to_status, reason, actor_type, actor_id, at from appointment_events where appointment_id = $1 order by at', [id]);
       const services = await tx.query('select s.* from appointment_services x join services s on s.id = x.service_id where x.appointment_id = $1', [id]);
@@ -141,7 +141,8 @@ export class AppointmentsController {
   waitlist(@Auth() p: Principal, @Query('clinicId') clinicId?: string, @Query('status') status = 'waiting') {
     return this.tenancy.run(p, (tx) =>
       tx.query(
-        `select w.*, p.first_name_ar || ' ' || p.family_name_ar as patient_name, p.mrn, u.name_ar as doctor_name from waitlist w join patients p on p.id = w.patient_id join users u on u.id = w.doctor_id
+        `select w.*, p.first_name_ar || ' ' || p.family_name_ar as patient_name, p.mrn, u.name_ar as doctor_name, s.name_ar as service_name_ar, s.name_en as service_name_en
+         from waitlist w join patients p on p.id = w.patient_id join users u on u.id = w.doctor_id left join services s on s.id = w.service_id
          where ($1::uuid is null or w.clinic_id = $1) and w.status = $2 order by w.created_at`,
         [clinicId ? uuid(clinicId) : null, status],
       ),
@@ -151,9 +152,13 @@ export class AppointmentsController {
   @Patch('waitlist/:id')
   @Staff('appointment:edit')
   updateWaitlist(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ status: z.enum(['waiting', 'booked', 'cancelled']) }), body);
+    // 'offered' records an offer made by phone at the desk; the worker also offers slots automatically.
+    const b = parse(z.object({ status: z.enum(['waiting', 'offered', 'booked', 'cancelled']) }), body);
     return this.tenancy.run(p, async (tx) => {
-      const r = await tx.maybeOne<{ patient_id: string; clinic_id: string }>('update waitlist set status = $2 where id = $1 returning patient_id, clinic_id', [uuid(id), b.status]);
+      const r = await tx.maybeOne<{ patient_id: string; clinic_id: string }>(
+        `update waitlist set status = $2, offered_at = case when $2 = 'offered' then now() when $2 = 'waiting' then null else offered_at end where id = $1 returning patient_id, clinic_id`,
+        [uuid(id), b.status],
+      );
       if (!r) throw notFound('waitlist');
       await this.audit.record(tx, p, meta, { action: 'waitlist.update', entity: 'waitlist', entityId: id, patientId: r.patient_id, clinicId: r.clinic_id, details: b });
       return { ok: true };

@@ -174,7 +174,7 @@ export class PrescriptionsController {
   @Staff('prescription:view')
   async getRx(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
     return this.tenancy.run(p, async (tx) => {
-      const rx = await tx.maybeOne<{ patient_id: string; encounter_id: string }>('select id, clinic_id, encounter_id, patient_id, doctor_id, status, notes, issued_at, verify_code, created_at from prescriptions where id = $1', [uuid(id)]);
+      const rx = await tx.maybeOne<{ patient_id: string; encounter_id: string }>('select id, clinic_id, encounter_id, patient_id, doctor_id, status, notes, issued_at, verify_code, created_at, revoked_at, revoked_reason, revoked_by from prescriptions where id = $1', [uuid(id)]);
       if (!rx) throw notFound('prescription');
       const lines = await tx.query(
         `select l.position, l.drug_id, coalesce(d.trade_name_en, l.free_text) as drug, d.strength, l.dose, l.route, l.frequency, l.duration_days, l.quantity, l.instructions_ar, l.instructions_en, l.warnings
@@ -216,7 +216,9 @@ export class PrescriptionsController {
     const s = asStaff(p);
     const b = parse(z.object({ reason: z.string().min(3) }), body);
     return this.tenancy.run(s, async (tx) => {
-      const r = await tx.maybeOne<{ patient_id: string }>(`update prescriptions set status = 'revoked' where id = $1 and doctor_id = $2 and status = 'issued' returning patient_id`, [uuid(id), s.userId]);
+      const r = await tx.maybeOne<{ patient_id: string }>(`update prescriptions set status = 'revoked', revoked_at = now(), revoked_reason = $3, revoked_by = $2 where id = $1 and doctor_id = $2 and status = 'issued' returning patient_id`,
+        [uuid(id), s.userId, b.reason],
+      );
       if (!r) throw notFound('prescription');
       await this.audit.record(tx, s, meta, { action: 'prescription.revoke', entity: 'prescription', entityId: id, patientId: r.patient_id, reason: b.reason });
       return { ok: true };

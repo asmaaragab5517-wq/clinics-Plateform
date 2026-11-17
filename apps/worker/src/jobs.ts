@@ -284,6 +284,18 @@ export async function refreshNextSlots(c: JobContext) {
   return n;
 }
 
+/** Stop push to patient devices whose sessions have all expired or been revoked (signed out by timeout). */
+export async function pruneDeviceTokens(c: JobContext) {
+  await forEachOrg(c, 'prune-device-tokens', (org) =>
+    c.tenancy.system(org, (tx) =>
+      tx.query(
+        `delete from device_tokens d where d.account_id is not null
+           and not exists (select 1 from refresh_tokens r where r.account_id = d.account_id and r.revoked_at is null and r.expires_at > now())`,
+      ),
+    ),
+  );
+}
+
 /** D12: monthly retention review - raise an owner task when records are past the retention period (no automatic deletion). */
 export async function retentionReview(c: JobContext) {
   await forEachOrg(c, 'retention-review', async (org) => {

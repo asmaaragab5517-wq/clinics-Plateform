@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Response } from 'express';
@@ -140,11 +140,11 @@ export class EmrController {
         `update encounters set vitals = coalesce($2, vitals), chief_complaint = coalesce($3, chief_complaint), hpi = coalesce($4, hpi), examination = coalesce($5, examination),
            notes = coalesce($6, notes), diagnoses = coalesce($7, diagnoses), problems = coalesce($8, problems), observations = coalesce($9, observations),
            body_chart = coalesce($10, body_chart), follow_up = case when $11::boolean then $12::jsonb else follow_up end, updated_by = $13,
-           dental_chart = coalesce($14, dental_chart) where id = $1 returning *`,
+           dental_chart = case when $15::boolean then $14::jsonb else dental_chart end where id = $1 returning *`,
         [id, vitals ? JSON.stringify(vitals) : null, b.chiefComplaint ?? null, b.hpi ?? null, b.examination ?? null, b.notes ?? null,
           b.diagnoses ? JSON.stringify(b.diagnoses) : null, b.problems ? JSON.stringify(b.problems) : null, b.observations ? JSON.stringify(b.observations) : null,
           b.bodyChart ? JSON.stringify(b.bodyChart) : null, b.followUp !== undefined, b.followUp ? JSON.stringify(b.followUp) : null, s.userId,
-          b.dentalChart ? JSON.stringify(b.dentalChart) : null],
+          b.dentalChart ? JSON.stringify(b.dentalChart) : null, b.dentalChart !== undefined],
       );
     });
   }
@@ -406,6 +406,47 @@ export class EmrController {
         [b.specialtyId ?? null, b.personal ? s.userId : null, b.nameAr, b.nameEn, JSON.stringify(b.sections), JSON.stringify(b.defaults), b.commonDiagnoses],
       ),
     );
+  }
+
+  /** Doctors edit and delete their own personal templates; organisation templates need `settings:edit`. */
+  @Patch('encounter-templates/:id')
+  @Staff('emr:edit')
+  updateTemplate(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const s = asStaff(p);
+    const b = parse(
+      z.object({ nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), specialtyId: z.string().uuid().nullable().optional(), sections: z.array(z.string()).min(1).optional(), defaults: z.record(z.string()).optional(), commonDiagnoses: z.array(z.string()).optional() }),
+      body,
+    );
+    return this.tenancy.run(s, async (tx) => {
+      await this.ownTemplate(tx, s, uuid(id));
+      const r = await tx.one(
+        `update encounter_templates set name_ar = coalesce($2, name_ar), name_en = coalesce($3, name_en),
+           specialty_id = case when $4::boolean then $5::uuid else specialty_id end, sections = coalesce($6, sections),
+           defaults = coalesce($7, defaults), common_diagnoses = coalesce($8, common_diagnoses) where id = $1 returning *`,
+        [id, b.nameAr ?? null, b.nameEn ?? null, b.specialtyId !== undefined, b.specialtyId ?? null, b.sections ? JSON.stringify(b.sections) : null,
+          b.defaults ? JSON.stringify(b.defaults) : null, b.commonDiagnoses ?? null],
+      );
+      await this.audit.record(tx, s, meta, { action: 'encounter_template.update', entity: 'encounter_template', entityId: id });
+      return r;
+    });
+  }
+
+  @Delete('encounter-templates/:id')
+  @Staff('emr:edit')
+  deleteTemplate(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
+    const s = asStaff(p);
+    return this.tenancy.run(s, async (tx) => {
+      await this.ownTemplate(tx, s, uuid(id));
+      await tx.query('delete from encounter_templates where id = $1', [id]);
+      await this.audit.record(tx, s, meta, { action: 'encounter_template.delete', entity: 'encounter_template', entityId: id });
+      return { deleted: true };
+    });
+  }
+
+  private async ownTemplate(tx: Tx, s: StaffPrincipal, id: string) {
+    const t = await tx.maybeOne<{ doctor_id: string | null }>('select doctor_id from encounter_templates where id = $1', [id]);
+    if (!t) throw notFound('encounter_template');
+    if (t.doctor_id ? t.doctor_id !== s.userId : !s.privileges.has('settings:edit')) throw forbidden('not_template_owner');
   }
 }
 

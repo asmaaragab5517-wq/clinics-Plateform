@@ -192,8 +192,12 @@ export class AuthController {
   @Staff()
   async me(@Auth() p: Principal) {
     const s = asStaff(p);
-    const clinics = await this.tenancy.run(s, (tx) => tx.query('select id, name_ar, name_en, slug from clinics order by name_ar'));
-    return { userId: s.userId, orgId: s.orgId, name: s.name, roles: s.roles, memberships: s.memberships, network: s.network, clinics, privileges: [...s.privileges].sort(), authTime: s.authTime };
+    const [clinics, specialties] = await this.tenancy.run(s, async (tx) => [
+      await tx.query('select id, name_ar, name_en, slug from clinics order by name_ar'),
+      // The signed-in doctor's own specialties (no schedule privilege needed), e.g. to show the dental chart.
+      await tx.query('select sp.id, sp.slug, sp.name_ar, sp.name_en from doctor_specialties ds join specialties sp on sp.id = ds.specialty_id where ds.doctor_id = $1 order by sp.slug', [s.userId]),
+    ]);
+    return { userId: s.userId, orgId: s.orgId, name: s.name, roles: s.roles, memberships: s.memberships, network: s.network, clinics, specialties, privileges: [...s.privileges].sort(), authTime: s.authTime };
   }
 
   /** Development only: mint a staff token for a seeded user (Keycloak replaces this in staging/production). */
