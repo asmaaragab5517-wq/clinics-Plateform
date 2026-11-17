@@ -15,6 +15,8 @@ const AVAILABILITY: { key: TKey; days: number | null }[] = [
   { key: 'doctor.availableToday', days: 0 },
   { key: 'doctor.availableTomorrow', days: 1 },
   { key: 'doctor.availableWeek', days: 6 },
+  // The API computes next_available for every doctor over 30 days (public.ts).
+  { key: 'doctor.availableMonth', days: 29 },
 ];
 
 /**

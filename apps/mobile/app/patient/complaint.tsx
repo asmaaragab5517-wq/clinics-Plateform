@@ -12,7 +12,7 @@ const CATEGORIES: ComplaintCategory[] = ['waiting_time', 'staff_behaviour', 'cli
 
 /**
  * Complaint form (POST /v1/portal/complaints, channel "app"). The clinic is preselected when opened from an
- * appointment. The API returns only an id: there is no endpoint for patients to follow up on their complaints.
+ * appointment. Status and the clinic's response are followed up in `complaints` (GET /v1/portal/complaints).
  */
 export default function Complaint() {
   const params = useLocalSearchParams<{ clinicId?: string; patientId?: string }>();
@@ -36,7 +36,8 @@ export default function Complaint() {
       <Screen>
         <Banner kind="success">{t('complaint.sent')}</Banner>
         <Muted>{t('complaint.sentBody')}</Muted>
-        <Button title={t('common.back')} onPress={() => router.back()} style={{ marginTop: 12 }} />
+        <Button title={t('complaint.viewHistory')} onPress={() => router.replace('/patient/complaints')} style={{ marginTop: 12 }} />
+        <Button kind="secondary" title={t('common.back')} onPress={() => router.back()} />
       </Screen>
     );
 

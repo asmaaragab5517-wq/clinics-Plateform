@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Field, Select, Spinner, Textarea } from '@hf/ui';
+import { Alert, Badge, Bdi, Button, Card, EmptyState, Field, Select, Spinner, Textarea } from '@hf/ui';
 import { bff, errorText, newIdempotencyKey } from '@/lib/bff';
-import { nameOf } from '@/lib/format';
-import { t } from '@/lib/i18n';
-import { COMPLAINT_CATEGORIES, type Clinic, type ComplaintCategory } from '@/lib/types';
-import { NoPatients, PortalPage, usePortal } from './PortalShell';
+import { dateOnly, nameOf } from '@/lib/format';
+import { has, t, tDyn, type Locale } from '@/lib/i18n';
+import { COMPLAINT_CATEGORIES, type Clinic, type ComplaintCategory, type PortalComplaint } from '@/lib/types';
+import { NoPatients, PortalPage, usePatientName, usePortal } from './PortalShell';
 import { patientName, useBffData } from './hooks';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -17,6 +17,7 @@ const MAX = 5000;
 export function ComplaintView() {
   const { locale, me } = usePortal();
   const clinics = useBffData<Clinic[]>('/api/public/clinics', locale, { redirectOn401: false });
+  const history = useBffData<PortalComplaint[]>('/api/portal/complaints', locale);
   const [patientId, setPatientId] = useState(me.patients[0]?.id ?? '');
   const [clinicId, setClinicId] = useState('');
   const [category, setCategory] = useState<ComplaintCategory | ''>('');
@@ -63,6 +64,7 @@ export function ComplaintView() {
                 setDescription('');
                 setCategory('');
                 setIdem(newIdempotencyKey());
+                void history.reload();
               } catch (err) {
                 setMsg({ tone: 'danger', text: errorText(locale, err) });
               } finally {
@@ -120,6 +122,80 @@ export function ComplaintView() {
           </form>
         </Card>
       )}
+      <ComplaintHistory state={history} clinics={clinics.data} />
     </PortalPage>
+  );
+}
+
+const STATUS_TONE: Record<string, 'neutral' | 'primary' | 'success' | 'warning'> = { open: 'warning', in_progress: 'primary', resolved: 'success', closed: 'neutral' };
+
+function statusLabel(locale: Locale, status: string): string {
+  return has(`complaint.status.${status}`) ? tDyn(locale, `complaint.status.${status}`) : status;
+}
+
+/** The patient's own complaints with their status and the clinic's resolution (GET /v1/portal/complaints). */
+function ComplaintHistory({ state, clinics }: { state: { data: PortalComplaint[] | null; loading: boolean; error: unknown }; clinics: Clinic[] | null }) {
+  const { locale } = usePortal();
+  const name = usePatientName();
+  return (
+    <section aria-labelledby="cmp-history" className="mt-8 max-w-2xl">
+      <h2 id="cmp-history" className="mb-3 text-lg font-bold">
+        {t(locale, 'complaint.history')}
+      </h2>
+      {state.loading && !state.data ? (
+        <Spinner label={t(locale, 'common.loading')} />
+      ) : state.error ? (
+        <Alert>{errorText(locale, state.error)}</Alert>
+      ) : !state.data?.length ? (
+        <EmptyState title={t(locale, 'complaint.historyEmpty')} />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {state.data.map((c) => {
+            const clinic = clinics?.find((x) => x.id === c.clinic_id);
+            return (
+              <li key={c.id}>
+                <Card className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-bold">{has(`complaint.category.${c.category}`) ? tDyn(locale, `complaint.category.${c.category}`) : c.category}</p>
+                      <p className="text-sm text-muted">
+                        <span className="num">{dateOnly(c.created_at)}</span>
+                        {clinic && ` · ${nameOf(locale, clinic)}`}
+                        {name(c.patient_id) && (
+                          <>
+                            {' · '}
+                            <Bdi>{name(c.patient_id)}</Bdi>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <Badge tone={STATUS_TONE[c.status] ?? 'neutral'}>{statusLabel(locale, c.status)}</Badge>
+                  </div>
+                  <p dir="auto" className="line-clamp-4 whitespace-pre-line text-sm">
+                    {c.description}
+                  </p>
+                  {c.resolution && (
+                    <div className="rounded-lg bg-bg p-3 text-sm">
+                      <p className="mb-1 font-medium">
+                        {t(locale, 'complaint.resolution')}
+                        {c.resolved_at && (
+                          <>
+                            {' · '}
+                            <span className="num text-muted">{dateOnly(c.resolved_at)}</span>
+                          </>
+                        )}
+                      </p>
+                      <p dir="auto" className="whitespace-pre-line">
+                        {c.resolution}
+                      </p>
+                    </div>
+                  )}
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

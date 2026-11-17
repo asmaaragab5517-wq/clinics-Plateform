@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { ActionButton, Banner, Button, Card, Chip, ErrorBox, H2, Loading, Muted, Row, Screen, Section, T, colors, s } from '../../../components/ui';
 import { SlotPicker } from '../../../components/SlotPicker';
 import { newIdempotencyKey, portalApi, publicApi } from '../../../lib/endpoints';
 import { dateTime, money, patientName } from '../../../lib/format';
 import { useI18n } from '../../../lib/i18n';
+import { openCheckout } from '../../../lib/payments';
 import { useAction, useQuery } from '../../../lib/useQuery';
 import type { Slot } from '../../../lib/types';
 
@@ -14,7 +14,8 @@ type Step = 'service' | 'clinic' | 'slot' | 'patient' | 'payment';
 
 /**
  * Booking flow (FR-APP-1, FR-WEB-3): service → clinic (if several) → slot (14 days) → family member → payment.
- * Pay online opens payment.checkout_url (HealthPay hosted checkout) in the in-app browser; the 10-minute hold
+ * Pay online opens payment.checkout_url (HealthPay hosted checkout) in an auth session that returns on
+ * healthflow://book/result (lib/payments.ts); the 10-minute hold
  * is shown. One Idempotency-Key per attempt so a retried tap cannot double-book.
  */
 export default function Booking() {
@@ -56,8 +57,7 @@ export default function Booking() {
     if (!r) return;
     reset();
     if (r.payment?.checkout_url) {
-      await WebBrowser.openBrowserAsync(r.payment.checkout_url, { dismissButtonStyle: 'close' });
-      router.replace({ pathname: '/patient/payment-result', params: { ref: r.appointment.ref, id: r.appointment.id } });
+      await openCheckout(r.payment.checkout_url, r.appointment, 'replace');
     } else router.replace({ pathname: '/patient/appointments/[id]', params: { id: r.appointment.id, booked: '1' } });
   };
 

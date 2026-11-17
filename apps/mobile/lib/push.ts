@@ -1,6 +1,5 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
 import { hasPatientSession, platformName } from './api';
 import { portalApi } from './endpoints';
 import { KEYS, deleteSecret, getSecret, setSecret } from './storage';
@@ -49,7 +48,7 @@ export async function unregisterPush(): Promise<void> {
   await deleteSecret(KEYS.pushToken);
 }
 
-/** Re-register when FCM/APNs rotates the token; route notification taps carrying a deep link. */
+/** Re-register when FCM/APNs rotates the token. Notification taps are routed by `usePushNavigation` below. */
 export function startPushListeners(): () => void {
   const a = Notifications.addPushTokenListener((t) => {
     const token = typeof t.data === 'string' ? t.data : '';
@@ -59,12 +58,5 @@ export function startPushListeners(): () => void {
       .then(() => setSecret(KEYS.pushToken, token))
       .catch(() => undefined);
   });
-  const b = Notifications.addNotificationResponseReceivedListener((r) => {
-    const data = r.notification.request.content.data as { path?: unknown } | undefined;
-    if (typeof data?.path === 'string' && data.path.startsWith('/')) router.push(data.path as never);
-  });
-  return () => {
-    a.remove();
-    b.remove();
-  };
+  return () => a.remove();
 }

@@ -22,6 +22,24 @@ const nextConfig = {
       { source: '/api/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] },
       { source: '/api/(auth|portal)/:path*', headers: [{ key: 'Cache-Control', value: 'no-store, private' }] },
       { source: '/:locale(ar|en)/portal/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] },
+      // PWA: the worker is always revalidated so updates roll out; it controls the whole origin.
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, max-age=0' },
+          { key: 'Service-Worker-Allowed', value: '/' },
+          { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'" },
+        ],
+      },
+      { source: '/manifest.webmanifest', headers: [{ key: 'Content-Type', value: 'application/manifest+json; charset=utf-8' }, { key: 'Cache-Control', value: 'public, max-age=3600' }] },
+      {
+        source: '/offline.html',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex' },
+          { key: 'Content-Security-Policy', value: "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" },
+        ],
+      },
     ];
   },
 };

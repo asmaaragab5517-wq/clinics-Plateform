@@ -19,6 +19,9 @@ function csp(nonce: string): string {
     `img-src 'self' data: blob: https:`,
     `font-src 'self' data:`,
     `connect-src 'self'${dev ? ' ws: wss:' : ''}`,
+    // PWA: only our own /sw.js may run as a worker; the manifest is same-origin.
+    `worker-src 'self'`,
+    `manifest-src 'self'`,
     `frame-src https://www.openstreetmap.org`,
     `frame-ancestors 'none'`,
     `form-action 'self'`,

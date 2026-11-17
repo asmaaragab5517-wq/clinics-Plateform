@@ -24,8 +24,8 @@ const egp = (v: SP[string]) => {
   return str(v) && Number.isFinite(n) && n >= 0 ? Math.round(n) : undefined;
 };
 
-/** The API computes "next available" over 14 days, so "available by" is offered from today to today + 13 (clinic time). */
-const AVAILABILITY_DAYS = 14;
+/** The API computes "next available" for every doctor over 30 days, so "available by" is offered from today to today + 29 (clinic time). */
+const AVAILABILITY_DAYS = 30;
 
 /** FR-WEB-2 filters, all in the query string so results are server-rendered and shareable. */
 function parseFilters(sp: SP) {

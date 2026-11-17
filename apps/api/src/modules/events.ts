@@ -99,7 +99,7 @@ export class EventsController {
   @Get('complaints')
   @Staff('quality:view')
   complaints(@Auth() p: Principal, @Query('status') status?: string) {
-    return this.tenancy.run(p, (tx) => tx.query(`select c.*, cl.name_ar as clinic_name from complaints c join clinics cl on cl.id = c.clinic_id where ($1::text is null or c.status = $1) order by c.created_at desc limit 300`, [status ?? null]));
+    return this.tenancy.run(p, (tx) => tx.query(`select c.*, cl.name_ar as clinic_name from complaints c left join clinics cl on cl.id = c.clinic_id where ($1::text is null or c.status = $1) order by c.created_at desc limit 300`, [status ?? null]));
   }
 
   @Post('complaints')
@@ -122,7 +122,11 @@ export class EventsController {
   @Get('portal/complaints')
   @PatientAuth()
   myComplaints(@Auth() p: Principal) {
-    return this.tenancy.run(p, (tx) => tx.query('select id, clinic_id, patient_id, category, description, status, resolution, created_at, resolved_at from complaints order by created_at desc limit 100'));
+    return this.tenancy.run(p, (tx) => tx.query(
+        `select c.id, c.clinic_id, cl.name_ar as clinic_name_ar, cl.name_en as clinic_name_en, c.patient_id, c.category, c.description,
+                c.status, c.resolution, c.created_at, c.resolved_at
+           from complaints c left join clinics cl on cl.id = c.clinic_id order by c.created_at desc limit 100`,
+      ));
   }
 
   private async recordComplaint(tx: Tx, actor: Principal, meta: RequestMeta, b: z.infer<typeof complaintSchema>) {

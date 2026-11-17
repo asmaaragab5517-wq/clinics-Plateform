@@ -20,6 +20,8 @@ import type {
   OtpVerifyResponse,
   PatientSearchRow,
   PortalAppointment,
+  PortalComplaint,
+  PortalCoverage,
   PortalDocument,
   PortalInvoice,
   PortalMe,
@@ -101,6 +103,10 @@ export const portalApi = {
   invoices: () => api.get<PortalInvoice[]>('/v1/portal/invoices', undefined, 'patient'),
   complaint: (b: { clinicId: string; patientId: string; category: ComplaintCategory; description: string }) =>
     api.post<{ id: string; created_at: string }>('/v1/portal/complaints', { ...b, channel: 'app' }, 'patient'),
+  /** The account's own complaints with status and the clinic's resolution (events.ts `myComplaints`). */
+  complaints: () => api.get<PortalComplaint[]>('/v1/portal/complaints', undefined, 'patient'),
+  /** Insurance on file: member number, plan, payer names and coverage % (portal.ts `coverages`). */
+  coverages: () => api.get<PortalCoverage[]>('/v1/portal/coverages', undefined, 'patient'),
   packages: () => api.get<PortalPackage[]>('/v1/portal/packages', undefined, 'patient'),
   review: (appointmentId: string, rating: number, comment?: string) => api.post('/v1/portal/reviews', { appointmentId, rating, comment: comment || undefined }, 'patient'),
   notifications: () => api.get<PortalNotification[]>('/v1/portal/notifications', undefined, 'patient'),
@@ -146,9 +152,11 @@ export const staffApi = {
   videoVisits: (date: string) => api.get<DoctorVideoVisit[]>('/v1/telemedicine', { date }, 'staff'),
   startVideo: (appointmentId: string) => api.post<TelemedicineStart>(`/v1/telemedicine/${appointmentId}/start`, {}, 'staff'),
   endVideo: (appointmentId: string) => api.post<{ ok: true }>(`/v1/telemedicine/${appointmentId}/end`, {}, 'staff'),
-  // AI scribe (ai.ts). Typed dictation only: no audio recording module is installed.
+  // AI scribe (ai.ts): typed text as JSON, or a recorded audio file as multipart `audio` (≤ 20 MB; webm/ogg/wav/mp3/m4a).
   dictation: (encounterId: string, text: string, language: 'ar' | 'en' | 'auto') =>
     request<AiDraft & { transcript: string }>(`/v1/encounters/${encounterId}/ai/dictation`, { method: 'POST', body: { text, language }, auth: 'staff', timeoutMs: 90000 }),
+  dictationAudio: (encounterId: string, audio: FormData) =>
+    request<AiDraft & { transcript: string }>(`/v1/encounters/${encounterId}/ai/dictation`, { method: 'POST', form: audio, auth: 'staff', timeoutMs: 180000 }),
   aiDraft: (id: string) => api.get<AiDraft>(`/v1/ai/drafts/${id}`, undefined, 'staff'),
   approveDraft: (id: string, b: ApproveEncounterDraft) => api.post<{ ok: true; applied: unknown }>(`/v1/ai/drafts/${id}/approve`, b, 'staff'),
   rejectDraft: (id: string) => api.post<{ ok: true }>(`/v1/ai/drafts/${id}/reject`, {}, 'staff'),

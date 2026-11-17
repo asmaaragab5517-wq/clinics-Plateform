@@ -3,9 +3,9 @@
 import { useState } from 'react';
 import { Alert, Badge, Bdi, Button, Card, EmptyState, Field, Input, Spinner, Table } from '@hf/ui';
 import { BffError, bff, errorText } from '@/lib/bff';
-import { dateOnly, money, pick } from '@/lib/format';
+import { dateOnly, money, num, pick } from '@/lib/format';
 import { has, t, tDyn, type Locale } from '@/lib/i18n';
-import type { PortalDocument, PortalInvoice, PortalPackage, PortalPrescription, PortalVisit, ShareLink } from '@/lib/types';
+import type { PortalCoverage, PortalDocument, PortalInvoice, PortalPackage, PortalPrescription, PortalVisit, ShareLink } from '@/lib/types';
 import { NoPatients, PatientSelect, PortalPage, usePatientName, usePortal } from './PortalShell';
 import { redirectToSignIn, useBffData } from './hooks';
 
@@ -19,11 +19,29 @@ function Loader<T>({ state, empty, children }: { state: { data: T[] | null; load
 
 type ShareKind = 'rx' | 'invoice';
 
-/** Rewrites the API's signed link (…/v1/share/<kind>/<token>) to the site's same-origin opener; null if it has another shape. */
-function sameOriginShare(url: string, kind: ShareKind): string | null {
+const SHARE_PATH = /^\/v1\/share\/(rx|invoice)\/([^/?#]+)$/;
+
+/**
+ * Maps the API's signed link to the site's same-origin opener (/api/share/<kind>/<token>); null if it has another shape.
+ * Uses the response's `token` (or API-relative `path`) when present, and only falls back to parsing the absolute `url` for older APIs.
+ */
+function sameOriginShare(link: ShareLink, kind: ShareKind): string | null {
+  const opener = (token: string) => `/api/share/${kind}/${encodeURIComponent(token)}`;
+  if (typeof link.token === 'string' && link.token) {
+    // The path, when also given, must agree with the kind asked for.
+    const m = typeof link.path === 'string' ? SHARE_PATH.exec(link.path) : null;
+    if (!link.path || (m && m[1] === kind)) return opener(link.token);
+  }
+  const fromPath = (p: string) => {
+    const m = SHARE_PATH.exec(p);
+    return m && m[1] === kind ? opener(decodeURIComponent(m[2]!)) : null;
+  };
+  if (typeof link.path === 'string') {
+    const r = fromPath(link.path);
+    if (r) return r;
+  }
   try {
-    const m = /\/v1\/share\/(rx|invoice)\/([^/?#]+)$/.exec(new URL(url, window.location.href).pathname);
-    return m && m[1] === kind ? `/api/share/${kind}/${encodeURIComponent(decodeURIComponent(m[2]!))}` : null;
+    return fromPath(new URL(link.url, window.location.href).pathname);
   } catch {
     return null;
   }
@@ -44,7 +62,7 @@ function SignedDownload({ kind, id, label, filename }: { kind: ShareKind; id: st
     let href = fallback;
     try {
       const r = await bff<ShareLink>(`${base}/link`);
-      href = sameOriginShare(r.url, kind) ?? fallback;
+      href = sameOriginShare(r, kind) ?? fallback;
     } catch (e) {
       if (e instanceof BffError && e.code === 'unauthorized') {
         redirectToSignIn(locale);
@@ -392,6 +410,66 @@ export function PackagesView() {
                     <p className="text-sm text-muted">
                       {t(locale, 'packages.expires')}: <span className="num">{dateOnly(p.expires_on)}</span>
                     </p>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Loader>
+    </PortalPage>
+  );
+}
+
+/** Insurance on file (GET /v1/portal/coverages): member number, plan, payer and coverage share. Read-only; reception updates it. */
+export function InsuranceView() {
+  const { locale } = usePortal();
+  const name = usePatientName();
+  const state = useBffData<PortalCoverage[]>('/api/portal/coverages', locale);
+  return (
+    <PortalPage title={t(locale, 'portal.nav.insurance')}>
+      <p className="mb-4 max-w-2xl text-sm text-muted">{t(locale, 'insurance.intro')}</p>
+      <Loader state={state} empty={t(locale, 'insurance.empty')}>
+        {(rows) => (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {rows.map((c) => {
+              const pct = num(c.coverage_percent ?? null);
+              const copay = num(c.copay_fixed ?? null);
+              return (
+                <li key={c.id}>
+                  <Card className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <h2 className="font-bold">{pick(locale, c.payer_name_ar, c.payer_name_en) || t(locale, 'insurance.payerUnknown')}</h2>
+                        {c.plan_name && (
+                          <p dir="auto" className="text-sm text-muted">
+                            {c.plan_name}
+                          </p>
+                        )}
+                      </div>
+                      <Badge tone={c.is_active ? 'success' : 'neutral'}>{t(locale, c.is_active ? 'insurance.active' : 'insurance.inactive')}</Badge>
+                    </div>
+                    {name(c.patient_id) && <Bdi className="text-sm">{name(c.patient_id)}</Bdi>}
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                      <dt className="text-muted">{t(locale, 'insurance.memberNumber')}</dt>
+                      <dd>
+                        <Bdi className="num font-medium">{c.member_number}</Bdi>
+                      </dd>
+                      {pct !== null && (
+                        <>
+                          <dt className="text-muted">{t(locale, 'insurance.coverage')}</dt>
+                          <dd className="num">{t(locale, 'insurance.percent', { pct: Math.round(pct * 100) / 100 })}</dd>
+                        </>
+                      )}
+                      {!!copay && (
+                        <>
+                          <dt className="text-muted">{t(locale, 'insurance.copay')}</dt>
+                          <dd className="num">{money(copay, locale)}</dd>
+                        </>
+                      )}
+                      <dt className="text-muted">{t(locale, 'insurance.validity')}</dt>
+                      <dd className="num">{c.valid_to ? t(locale, 'insurance.validRange', { from: dateOnly(c.valid_from), to: dateOnly(c.valid_to) }) : t(locale, 'insurance.validFrom', { from: dateOnly(c.valid_from) })}</dd>
+                    </dl>
                   </Card>
                 </li>
               );

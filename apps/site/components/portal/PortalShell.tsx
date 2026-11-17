@@ -30,6 +30,7 @@ export const PORTAL_NAV: [string, Key][] = [
   ['/documents', 'portal.nav.documents'],
   ['/invoices', 'portal.nav.invoices'],
   ['/packages', 'portal.nav.packages'],
+  ['/insurance', 'portal.nav.insurance'],
   ['/family', 'portal.nav.family'],
   ['/notifications', 'portal.nav.notifications'],
   ['/privacy', 'portal.nav.privacy'],

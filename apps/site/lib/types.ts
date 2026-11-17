@@ -295,6 +295,10 @@ export interface ConsentState {
 
 export interface ShareLink {
   url: string;
+  /** API-relative path (`/v1/share/<kind>/<token>`); newer APIs only. */
+  path?: string;
+  /** The signed token itself; newer APIs only. */
+  token?: string;
   expiresInSeconds: number;
 }
 
@@ -314,3 +318,35 @@ export interface TelemedicineJoin {
 
 export const COMPLAINT_CATEGORIES = ['waiting_time', 'staff_behaviour', 'clinical_care', 'billing', 'facility', 'communication', 'other'] as const;
 export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];
+
+/** GET /v1/portal/coverages: the account's patients' insurance (plan and payer names joined server-side). */
+export interface PortalCoverage {
+  id: string;
+  patient_id: string;
+  member_number: string;
+  valid_from: string;
+  valid_to: string | null;
+  is_active: boolean;
+  plan_name?: string;
+  coverage_percent?: Num;
+  /** Fixed co-payment per visit, piastres. */
+  copay_fixed?: Num;
+  payer_name_ar?: string;
+  payer_name_en?: string | null;
+}
+
+export const COMPLAINT_STATUSES = ['open', 'in_progress', 'resolved', 'closed'] as const;
+export type ComplaintStatus = (typeof COMPLAINT_STATUSES)[number];
+
+/** GET /v1/portal/complaints: the account's own complaints, newest first. */
+export interface PortalComplaint {
+  id: string;
+  clinic_id: string;
+  patient_id: string | null;
+  category: ComplaintCategory | string;
+  description: string;
+  status: ComplaintStatus | string;
+  resolution: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}

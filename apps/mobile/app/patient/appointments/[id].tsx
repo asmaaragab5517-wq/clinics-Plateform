@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { AppointmentCard } from '../../../components/AppointmentCard';
 import { VideoVisitCard } from '../../../components/VideoVisitCard';
 import { ActionButton, Banner, Button, Empty, ErrorBox, Field, Loading, Muted, Screen, Section, T } from '../../../components/ui';
@@ -10,6 +9,7 @@ import { readUpcoming } from '../../../lib/cache';
 import { portalApi } from '../../../lib/endpoints';
 import { dateTime } from '../../../lib/format';
 import { useI18n } from '../../../lib/i18n';
+import { openCheckout } from '../../../lib/payments';
 import { useAction, useQuery } from '../../../lib/useQuery';
 import type { Slot } from '../../../lib/types';
 
@@ -52,7 +52,7 @@ export default function AppointmentDetail() {
       {a.status === 'requested' && a.checkout_url ? (
         <ActionButton
           title={t('payment.payNow')}
-          onPress={() => void WebBrowser.openBrowserAsync(a.checkout_url!).then(() => router.push({ pathname: '/patient/payment-result', params: { ref: a.ref, id: a.id } }))}
+          onPress={() => void openCheckout(a.checkout_url!, a, 'push')}
         />
       ) : null}
       {a.status === 'booked' ? <ActionButton title={t('appointments.confirm')} loading={act.busy} onPress={() => void act.run(async () => { await portalApi.confirm(a.id); await done(t('appointments.confirmedMsg')); })} /> : null}

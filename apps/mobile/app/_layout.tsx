@@ -10,6 +10,7 @@ import { KEYS, getSecretSync, setSecret } from '../lib/storage';
 import { SessionProvider } from '../lib/session';
 import { LockProvider } from '../lib/lock';
 import { startPushListeners } from '../lib/push';
+import { usePushNavigation } from '../lib/pushNavigation';
 import { LockOverlay } from '../components/LockOverlay';
 import { colors } from '../components/ui';
 
@@ -23,6 +24,7 @@ const needsDirectionReload = applyDirection(bootLocale) && getSecretSync(KEYS.rt
 
 function Navigator() {
   const { t } = useI18n();
+  usePushNavigation();
   return (
     <Stack
       screenOptions={{

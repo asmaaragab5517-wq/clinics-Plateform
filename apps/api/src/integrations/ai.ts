@@ -163,6 +163,10 @@ export class HttpSttProvider implements SttProvider {
 @Injectable()
 export class FakeSttProvider implements SttProvider {
   async transcribe(audio: Buffer) {
-    return audio.toString('utf8').replace(/^FAKEAUDIO:/, '');
+    // Development stand-in: only test clips prefixed FAKEAUDIO: carry a transcript. Real recordings need STT_MODE=http,
+    // so they fail here (mapped to 503 transcription_unavailable) instead of being decoded as text.
+    const head = audio.subarray(0, 10).toString('utf8');
+    if (head !== 'FAKEAUDIO:') throw new Error('fake speech-to-text only accepts FAKEAUDIO: test clips');
+    return audio.subarray(10).toString('utf8');
   }
 }

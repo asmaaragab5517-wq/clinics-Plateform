@@ -17,6 +17,9 @@ const LINK_PATH_PREFIXES = ['/book/result', '/appointments', '/review', '/report
 /** preview/production builds (eas.json APP_ENV) never allow cleartext; local/dev builds must reach Metro over http. */
 const releaseBuild = env.APP_ENV === 'production' || env.APP_ENV === 'staging';
 
+/** iOS microphone purpose string (default language Arabic; localised in i18n/native/*.json). */
+const MIC_USAGE_AR = 'يستخدم التطبيق الميكروفون لتسجيل إملاء الطبيب للزيارة وتحويله إلى مسودة ملاحظة طبية.';
+
 const pins = (env.CERT_PINS ?? '')
   .split(',')
   .map((p) => p.trim())
@@ -50,8 +53,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: 'eg.healthflow.clinics',
     allowBackup: false, // tokens and cached PHI must not leave the device via Google backup
     softwareKeyboardLayoutMode: 'resize',
-    permissions: ['android.permission.CAMERA', 'android.permission.POST_NOTIFICATIONS', 'android.permission.USE_BIOMETRIC'],
-    blockedPermissions: ['android.permission.RECORD_AUDIO', 'android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE'],
+    // RECORD_AUDIO: in-app AI dictation for doctors (expo-audio, foreground only). Asked at first use, never at launch.
+    permissions: ['android.permission.CAMERA', 'android.permission.POST_NOTIFICATIONS', 'android.permission.USE_BIOMETRIC', 'android.permission.RECORD_AUDIO'],
+    // Background recording/playback services and storage access are never needed.
+    blockedPermissions: ['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE', 'android.permission.FOREGROUND_SERVICE_MICROPHONE', 'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK'],
     intentFilters: [
       {
         action: 'VIEW',
@@ -69,12 +74,24 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-camera',
       {
         cameraPermission: 'يستخدم التطبيق الكاميرا لمسح رمز QR الخاص بالحجز عند تسجيل الوصول.',
-        microphonePermission: false,
+        // The camera never records video/audio, but NSMicrophoneUsageDescription is one Info.plist key shared with
+        // expo-audio (dictation); `false` here would delete it, so both plugins set the same string.
+        microphonePermission: MIC_USAGE_AR,
         recordAudioAndroid: false,
         barcodeScannerEnabled: true,
       },
     ],
     ['expo-local-authentication', { faceIDPermission: 'يستخدم التطبيق Face ID لفتح حسابك بأمان.' }],
+    [
+      'expo-audio',
+      {
+        // AI scribe dictation (doctor mode). Localised in i18n/native/{ar,en}.json (NSMicrophoneUsageDescription).
+        microphonePermission: MIC_USAGE_AR,
+        recordAudioAndroid: true,
+        enableBackgroundRecording: false,
+        enableBackgroundPlayback: false,
+      },
+    ],
     ['expo-notifications', { color: '#0F766E', defaultChannel: 'default' }],
     'expo-web-browser',
     [

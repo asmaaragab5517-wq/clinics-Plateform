@@ -12,6 +12,8 @@ must be closed before go-live.
 - Docker image build was not exercised in the development sandbox (no registry access); the CI `image` job is the first real build.
 
 ## Product/API
+- Sprint 16 follow-ups: patients cannot add/update insurance coverage from the portal (staff-entered only); portal appointments have no video-visit flag and patients cannot book video visits; the doctor's video list lacks patient/encounter ids; no endpoint to re-open a pending AI draft; push tokens stay registered after a session expires.
+- Mobile dictation recordings stay in the app's private cache after upload (deleting needs expo-file-system). Dictation, notification taps and payment return are not yet tested on a device.
 - Public catalogue cache is per process: after a write, other replicas can serve catalogue data up to `PUBLIC_CACHE_SECONDS` (60 s) old and slots up to 5 s old. Booking stays correct because the database exclusion constraint decides. Move the cache to Redis if staff need instant consistency across replicas.
 - Uncached public reads cost ~2–14 ms CPU each; the sandbox load test saturates one Node process at ~260 req/s, so size replicas from the staging k6 run.
 - Idempotency keys are honoured for bookings, walk-ins and payments; check-in and queue updates rely on state-machine conflicts.

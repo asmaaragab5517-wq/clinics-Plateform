@@ -16,9 +16,10 @@ const TILES: { key: TKey; path: string }[] = [
   { key: 'patient.reports', path: '/patient/documents' },
   { key: 'patient.invoices', path: '/patient/invoices' },
   { key: 'patient.packages', path: '/patient/packages' },
+  { key: 'insurance.title', path: '/patient/insurance' },
   { key: 'patient.family', path: '/patient/family' },
   { key: 'patient.notifications', path: '/patient/notifications' },
-  { key: 'complaint.title', path: '/patient/complaint' },
+  { key: 'complaint.historyTitle', path: '/patient/complaints' },
   { key: 'settings.title', path: '/patient/settings' },
 ];
 

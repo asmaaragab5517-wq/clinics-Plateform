@@ -105,6 +105,8 @@ export interface RequestOptions {
   /** Idempotency-Key header (bookings). Reuse the same key when retrying the same user action. */
   idempotencyKey?: string;
   timeoutMs?: number;
+  /** multipart/form-data body (file uploads). Sent instead of `body`; fetch sets the content type and boundary. */
+  form?: FormData;
 }
 
 function buildUrl(path: string, query?: Query) {
@@ -195,13 +197,19 @@ const NO_REFRESH = new Set(['reauthentication_required', 'otp_invalid', 'otp_exp
 export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const auth = opts.auth ?? 'none';
   const url = buildUrl(path, opts.query);
+  const headers = () => {
+    const h: Record<string, string> = { ...baseHeaders(), ...authHeader(auth), ...(opts.idempotencyKey ? { 'idempotency-key': opts.idempotencyKey } : {}) };
+    // Multipart: let fetch write `multipart/form-data; boundary=…` itself.
+    if (opts.form) delete h['content-type'];
+    return h;
+  };
   const send = () =>
     rawFetch(
       url,
       {
-        method: opts.method ?? (opts.body === undefined ? 'GET' : 'POST'),
-        headers: { ...baseHeaders(), ...authHeader(auth), ...(opts.idempotencyKey ? { 'idempotency-key': opts.idempotencyKey } : {}) },
-        body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+        method: opts.method ?? (opts.body === undefined && !opts.form ? 'GET' : 'POST'),
+        headers: headers(),
+        body: opts.form ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body)),
       },
       opts.timeoutMs ?? 20000,
     );

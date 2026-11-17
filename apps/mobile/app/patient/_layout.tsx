@@ -30,6 +30,8 @@ export default function PatientLayout() {
       <Stack.Screen name="notifications" options={{ title: t('patient.notifications') }} />
       <Stack.Screen name="settings" options={{ title: t('settings.title') }} />
       <Stack.Screen name="complaint" options={{ title: t('complaint.title') }} />
+      <Stack.Screen name="complaints" options={{ title: t('complaint.historyTitle') }} />
+      <Stack.Screen name="insurance" options={{ title: t('insurance.title') }} />
       <Stack.Screen name="payment-result" options={{ title: t('payment.resultTitle') }} />
     </Stack>
   );

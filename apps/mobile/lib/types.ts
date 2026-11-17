@@ -196,7 +196,42 @@ export interface TelemedicineLink {
 export type ComplaintCategory = 'waiting_time' | 'staff_behaviour' | 'clinical_care' | 'billing' | 'facility' | 'communication' | 'other';
 export interface SignedLink {
   url: string;
+  /** API-relative path and the bare token (newer APIs); the app opens `url` in the system browser. */
+  path?: string;
+  token?: string;
   expiresInSeconds: number;
+}
+
+/** GET /v1/portal/coverages (portal.ts): insurance on file for the account's patients. */
+export interface PortalCoverage {
+  id: string;
+  patient_id: string;
+  member_number: string;
+  /** YYYY-MM-DD */
+  valid_from: string;
+  valid_to: string | null;
+  is_active: boolean;
+  plan_name?: string;
+  coverage_percent?: number | string | null;
+  /** Fixed co-payment per visit, piastres. */
+  copay_fixed?: number | string | null;
+  payer_name_ar?: string;
+  payer_name_en?: string | null;
+}
+
+export type ComplaintStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+/** GET /v1/portal/complaints (events.ts): the account's own complaints, newest first (max 100). */
+export interface PortalComplaint {
+  id: string;
+  clinic_id: string;
+  patient_id: string | null;
+  category: ComplaintCategory;
+  description: string;
+  status: ComplaintStatus;
+  resolution: string | null;
+  created_at: string;
+  resolved_at: string | null;
 }
 export interface PortalPackage {
   id: string;
