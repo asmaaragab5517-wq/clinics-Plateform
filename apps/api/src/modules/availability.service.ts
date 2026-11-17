@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Tx } from '@hf/db';
-import { addDays, computeSlots, zonedToUtc, type ExceptionDef, type SessionDef, type Slot } from '@hf/shared';
+import { addDays, computeSlots, localDate, zonedToUtc, type ExceptionDef, type SessionDef, type Slot } from '@hf/shared';
 
 export interface SlotQuery {
   doctorIds: string[];
@@ -56,6 +56,27 @@ export class AvailabilityService {
       notBefore: new Date(Date.now() + (q.leadMinutes ?? 0) * 60000),
       serviceId: q.serviceId ?? undefined,
     });
+  }
+
+  /** Refresh the cached next free online slot per doctor and clinic for the next 30 days (worker, every 5 min). */
+  async refreshNextSlots(tx: Tx, leadMinutes: number) {
+    const pairs = await tx.query<{ doctor_id: string; clinic_id: string }>('select distinct doctor_id, clinic_id from doctor_sessions where is_active');
+    const doctors = [...new Set(pairs.map((p) => p.doctor_id))];
+    const slots = await this.slots(tx, { doctorIds: doctors, from: localDate(new Date()), days: 30, channel: 'online', leadMinutes });
+    const next = new Map<string, string>();
+    for (const s of slots) {
+      const k = `${s.doctorId}|${s.clinicId}`;
+      if (s.available > 0 && !next.has(k)) next.set(k, s.start);
+    }
+    for (const p of pairs) {
+      await tx.query(
+        `insert into doctor_next_slot (organisation_id, doctor_id, clinic_id, next_start, computed_at) values (app_org(), $1, $2, $3, now())
+         on conflict (doctor_id, clinic_id) do update set next_start = excluded.next_start, computed_at = now()`,
+        [p.doctor_id, p.clinic_id, next.get(`${p.doctor_id}|${p.clinic_id}`) ?? null],
+      );
+    }
+    await tx.query(`delete from doctor_next_slot d where not exists (select 1 from doctor_sessions s where s.doctor_id = d.doctor_id and s.clinic_id = d.clinic_id and s.is_active)`);
+    return pairs.length;
   }
 
   /** Effective price for a service at a clinic on a date (doctor override first) - FR-ORG-3. */

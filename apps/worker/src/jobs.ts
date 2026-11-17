@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 import {
-  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, EtaService, EventsService, Tenancy, generateCommissionStatements,
+  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, EtaService, EventsService, Tenancy, generateCommissionStatements, retentionCandidates,
 } from '@hf/api/dist/core';
 import { addDays, formatDate, formatMoney, formatTime12, localDate } from '@hf/shared';
 
@@ -230,7 +230,7 @@ export async function prepareTelemedicine(c: JobContext) {
   let created = 0;
   await forEachOrg(c, 'telemedicine', async (org) => {
     await c.tenancy.system(org, async (tx) => {
-      const due = await tx.query<import('@hf/api/dist/modules/appointments.service').ApptRow>(
+      const due = await tx.query<Parameters<TelemedicineService['ensureSession']>[1]>(
         `select a.* from appointments a where a.status in ('booked','confirmed') and a.start_at < now() + interval '24 hours' and a.start_at > now() - interval '1 hour'
            and not exists (select 1 from telemedicine_sessions t where t.appointment_id = a.id)
            and exists (select 1 from appointment_services x join services s on s.id = x.service_id where x.appointment_id = a.id and s.type = 'telemedicine')`,
@@ -273,4 +273,25 @@ export async function deliverEvents(c: JobContext) {
     n += await c.tenancy.system(org, (tx) => c.events.deliverDue(tx));
   });
   return n;
+}
+
+/** FR-WEB-2: refresh the cached next free slot per doctor and clinic (30 days). */
+export async function refreshNextSlots(c: JobContext) {
+  let n = 0;
+  await forEachOrg(c, 'next-slots', async (org) => {
+    n += await c.tenancy.system(org, async (tx) => c.availability.refreshNextSlots(tx, (await c.appointments.policy(tx)).leadMinutes));
+  });
+  return n;
+}
+
+/** D12: monthly retention review - raise an owner task when records are past the retention period (no automatic deletion). */
+export async function retentionReview(c: JobContext) {
+  await forEachOrg(c, 'retention-review', async (org) => {
+    await c.tenancy.system(org, async (tx) => {
+      const due = await retentionCandidates(tx, 100000);
+      if (due.length) {
+        await tx.query(`insert into tasks (organisation_id, kind, title, assignee_role) values (app_org(), 'retention_review', $1, 'owner')`, [`${due.length} patient record(s) are past the retention period and await review`]);
+      }
+    });
+  });
 }

@@ -189,7 +189,7 @@ export class BillingService {
       await this.activatePackages(tx, b.id, b.patient_id);
       await this.eta.enqueue(tx, b.id); // FR-BIL-10 B2C e-receipt
     }
-    await this.messaging.enqueue(tx, { event: 'payment_received', patientId: b.patient_id, clinicId: b.clinic_id, dedupeKey: `pay:${pay.id}`, vars: { amount: formatMoney(p.amount, 'ar'), receipt } });
+    await this.messaging.enqueue(tx, { event: 'payment_received', patientId: b.patient_id, clinicId: b.clinic_id, dedupeKey: `pay:${pay.id}`, data: { path: '/invoices' }, vars: { amount: formatMoney(p.amount, 'ar'), receipt } });
     await this.audit.record(tx, actor, meta, { action: 'payment.create', entity: 'payment', entityId: pay.id, patientId: b.patient_id, clinicId: b.clinic_id, details: { method: p.method, amount: p.amount } });
     return { ...pay, billStatus: status };
   }

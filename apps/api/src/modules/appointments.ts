@@ -136,6 +136,30 @@ export class AppointmentsController {
     });
   }
 
+  @Get('waitlist')
+  @Staff('appointment:view')
+  waitlist(@Auth() p: Principal, @Query('clinicId') clinicId?: string, @Query('status') status = 'waiting') {
+    return this.tenancy.run(p, (tx) =>
+      tx.query(
+        `select w.*, p.first_name_ar || ' ' || p.family_name_ar as patient_name, p.mrn, u.name_ar as doctor_name from waitlist w join patients p on p.id = w.patient_id join users u on u.id = w.doctor_id
+         where ($1::uuid is null or w.clinic_id = $1) and w.status = $2 order by w.created_at`,
+        [clinicId ? uuid(clinicId) : null, status],
+      ),
+    );
+  }
+
+  @Patch('waitlist/:id')
+  @Staff('appointment:edit')
+  updateWaitlist(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const b = parse(z.object({ status: z.enum(['waiting', 'booked', 'cancelled']) }), body);
+    return this.tenancy.run(p, async (tx) => {
+      const r = await tx.maybeOne<{ patient_id: string; clinic_id: string }>('update waitlist set status = $2 where id = $1 returning patient_id, clinic_id', [uuid(id), b.status]);
+      if (!r) throw notFound('waitlist');
+      await this.audit.record(tx, p, meta, { action: 'waitlist.update', entity: 'waitlist', entityId: id, patientId: r.patient_id, clinicId: r.clinic_id, details: b });
+      return { ok: true };
+    });
+  }
+
   // ---- Queue (FR-APT-5..7)
   @Get('queue')
   @Staff('queue:view')

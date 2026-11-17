@@ -29,6 +29,8 @@ async function main() {
     'calendar-sync': () => jobs.syncCalendars(c),
     'eta-receipts': () => jobs.submitEtaReceipts(c),
     'outbound-events': () => jobs.deliverEvents(c),
+    'next-slots': () => jobs.refreshNextSlots(c),
+    'retention-review': () => jobs.retentionReview(c),
   };
   const running = new Set<string>();
   const exec = async (name: string) => {

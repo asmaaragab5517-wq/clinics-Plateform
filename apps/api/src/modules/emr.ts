@@ -3,7 +3,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { ageInYears, encounterUpdateSchema, orderSchema, vitalsSchema } from '@hf/shared';
+import { ageInYears, encounterUpdateSchema, mergeDentalCharts, orderSchema, treatmentPlan, vitalsSchema, type DentalChart } from '@hf/shared';
 import type { Tx } from '@hf/db';
 import { labOrderHtml, renderPdf, visitSummaryHtml } from '@hf/documents';
 import { Auth, Meta, Staff } from '../common/decorators';
@@ -139,10 +139,12 @@ export class EmrController {
       return tx.one(
         `update encounters set vitals = coalesce($2, vitals), chief_complaint = coalesce($3, chief_complaint), hpi = coalesce($4, hpi), examination = coalesce($5, examination),
            notes = coalesce($6, notes), diagnoses = coalesce($7, diagnoses), problems = coalesce($8, problems), observations = coalesce($9, observations),
-           body_chart = coalesce($10, body_chart), follow_up = case when $11::boolean then $12::jsonb else follow_up end, updated_by = $13 where id = $1 returning *`,
+           body_chart = coalesce($10, body_chart), follow_up = case when $11::boolean then $12::jsonb else follow_up end, updated_by = $13,
+           dental_chart = coalesce($14, dental_chart) where id = $1 returning *`,
         [id, vitals ? JSON.stringify(vitals) : null, b.chiefComplaint ?? null, b.hpi ?? null, b.examination ?? null, b.notes ?? null,
           b.diagnoses ? JSON.stringify(b.diagnoses) : null, b.problems ? JSON.stringify(b.problems) : null, b.observations ? JSON.stringify(b.observations) : null,
-          b.bodyChart ? JSON.stringify(b.bodyChart) : null, b.followUp !== undefined, b.followUp ? JSON.stringify(b.followUp) : null, s.userId],
+          b.bodyChart ? JSON.stringify(b.bodyChart) : null, b.followUp !== undefined, b.followUp ? JSON.stringify(b.followUp) : null, s.userId,
+          b.dentalChart ? JSON.stringify(b.dentalChart) : null],
       );
     });
   }
@@ -218,6 +220,25 @@ export class EmrController {
     });
   }
 
+  /** Current dental status: visit charts merged oldest to newest, plus the open treatment plan (FR-EMR-3). */
+  @Get('patients/:patientId/dental-chart')
+  @Staff()
+  dental(@Auth() p: Principal, @Param('patientId') patientId: string, @Meta() meta: RequestMeta) {
+    const s = asStaff(p);
+    return this.tenancy.run(s, async (tx) => {
+      await visiblePatient(tx, patientId);
+      if (!(await this.patients.canViewEmr(tx, s, patientId))) throw forbidden('emr_access_denied');
+      const rows = await tx.query<{ id: string; dental_chart: DentalChart; created_at: Date; status: string }>(
+        `select id, dental_chart, created_at, status from encounters where patient_id = $1 and dental_chart is not null order by created_at`,
+        [patientId],
+      );
+      let chart: DentalChart | null = null;
+      for (const r of rows) chart = mergeDentalCharts(chart, r.dental_chart);
+      await this.audit.record(tx, s, meta, { action: 'emr.dental_chart_read', entity: 'patient', entityId: patientId, patientId });
+      return { chart, treatmentPlan: chart ? treatmentPlan(chart) : [], visits: rows.map((r) => ({ encounterId: r.id, at: r.created_at, status: r.status })) };
+    });
+  }
+
   @Get('encounters/:id/body-chart.png')
   @Staff()
   async bodyChartPng(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
@@ -243,6 +264,7 @@ export class EmrController {
         clinic: await clinicHeader(tx, e.clinic_id), doctor: doc.name_ar,
         patient: { name: this.patients.fullName(pt), mrn: pt.mrn, ageYears: ageInYears(pt.date_of_birth) }, date: new Date(e.created_at),
         chiefComplaint: e.chief_complaint, diagnoses: codes.map((c) => ({ code: c.code, title: c.title_ar ?? c.title_en })), vitals: e.vitals, plan: e.notes, followUp: e.follow_up?.date ?? null,
+        dental: (e as unknown as { dental_chart: DentalChart | null }).dental_chart?.teeth.map((t) => ({ tooth: t.tooth, status: t.status, conditions: t.conditions.map((c) => `${c.type}${c.surfaces?.length ? ` (${c.surfaces.join('')})` : ''}`).join('، '), planned: t.planned.filter((x) => !x.done).map((x) => x.procedure).join('، ') })) ?? null,
       });
     });
     const pdf = await renderPdf(html);
@@ -290,7 +312,7 @@ export class EmrController {
       await this.load(tx, s, o.encounter_id, meta, 'emr.order_result');
       const d = await storeDocument({ storage: this.storage, av: this.av }, tx, { orgId: s.orgId, patientId: o.patient_id, encounterId: o.encounter_id, orderId: o.id, title: body?.title ?? 'Result', kind: 'result', file, patientProvided: false, actorId: s.userId });
       await tx.query(`update orders set status = 'result_received' where id = $1 and status = 'ordered'`, [id]);
-      await this.messaging.enqueue(tx, { event: 'report_ready', patientId: o.patient_id, dedupeKey: `result:${d.id}`, vars: { link: 'portal/reports' } });
+      await this.messaging.enqueue(tx, { event: 'report_ready', patientId: o.patient_id, dedupeKey: `result:${d.id}`, data: { path: '/reports' }, vars: { link: 'portal/reports' } });
       return d;
     });
   }

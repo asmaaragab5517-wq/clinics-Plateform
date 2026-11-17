@@ -12,6 +12,7 @@ import {
 } from './enums';
 import { decodeNationalId } from './egypt/national-id';
 import { normalisePhone } from './egypt/phone';
+import { dentalChartSchema } from './dental';
 
 export const zUuid = z.string().uuid();
 export const zDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD');
@@ -218,6 +219,7 @@ export const encounterUpdateSchema = z.object({
     .object({ image: z.string().max(50), shapes: z.array(z.record(z.unknown())).max(500), pngDataUrl: z.string().max(400_000).regex(/^data:image\/png;base64,/).optional() })
     .optional(),
   followUp: z.object({ date: zDate, serviceId: zUuid.optional(), note: z.string().max(500).optional() }).nullable().optional(),
+  dentalChart: dentalChartSchema.optional(),
 });
 
 export const prescriptionLineSchema = z.object({

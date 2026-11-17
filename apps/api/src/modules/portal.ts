@@ -159,7 +159,7 @@ export class PortalController {
       const policy = await this.appointments.policy(tx);
       if (policy.requireOnlinePayment && b.paymentMode !== 'online') throw badRequest('online_payment_required');
       const appt = await this.appointments.book(tx, pt, meta, { patientId: b.patientId, clinicId: b.clinicId, doctorId: b.doctorId, serviceIds: [b.serviceId], start: b.start, channel, paymentMode: b.paymentMode, idempotencyKey: idem ? `${pt.accountId}:${idem}` : undefined });
-      const payment = appt.status === 'requested' ? await this.payments.createIntent(tx, appt, pt.phone) : null;
+      const payment = appt.status === 'requested' ? await this.payments.createIntent(tx, appt, pt.phone, channel === 'app' ? 'app' : 'site') : null;
       return { appointment: appt, payment, holdExpiresAt: appt.hold_expires_at };
     });
   }
@@ -291,6 +291,27 @@ export class PortalController {
     const { token } = parse(z.object({ token: z.string().min(20).max(4096) }), body);
     await this.tenancy.system(pt.orgId, (tx) => tx.query('delete from device_tokens where token = $1 and account_id = $2', [token, pt.accountId]));
     return { ok: true };
+  }
+
+  @Get('coverages')
+  @PatientAuth()
+  coverages(@Auth() p: Principal) {
+    return this.tenancy.run(p, (tx) =>
+      tx.query(
+        `select pc.id, pc.patient_id, pc.member_number, pc.valid_from, pc.valid_to, pc.is_active from patient_coverages pc order by pc.is_active desc, pc.valid_from desc`,
+      ).then(async (rows) => {
+        // Plan and payer names come from staff-only tables; read them in system mode for the rows the patient may see.
+        if (!rows.length) return rows;
+        const names = await this.tenancy.system(p.orgId, (sys) =>
+          sys.query<{ id: string; plan_name: string; coverage_percent: number; copay_fixed: number; payer_name_ar: string; payer_name_en: string }>(
+            `select pc.id, pp.name as plan_name, pp.coverage_percent, pp.copay_fixed, py.name_ar as payer_name_ar, py.name_en as payer_name_en
+             from patient_coverages pc join payer_plans pp on pp.id = pc.plan_id join payers py on py.id = pp.payer_id where pc.id = any($1::uuid[])`,
+            [rows.map((r) => r.id)],
+          ),
+        );
+        return rows.map((r) => ({ ...r, ...(names.find((n) => n.id === r.id) ?? {}) }));
+      }),
+    );
   }
 
   @Get('visits')

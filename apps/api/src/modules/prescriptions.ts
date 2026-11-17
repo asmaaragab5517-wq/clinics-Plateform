@@ -203,7 +203,7 @@ export class PrescriptionsController {
       if (flagged.length && !b.acknowledgeWarnings) throw new DomainError('warnings_not_acknowledged', HttpStatus.CONFLICT);
       const r = await tx.one(`update prescriptions set status = 'issued', issued_at = now() where id = $1 returning *`, [id]);
       const link = `${this.cfg.API_PUBLIC_URL}/v1/share/rx/${this.tokens.signShareLink('rx', id)}`;
-      await this.messaging.enqueue(tx, { event: 'prescription_shared', patientId: rx.patient_id, clinicId: rx.clinic_id, dedupeKey: `rx:${id}`, vars: { link } });
+      await this.messaging.enqueue(tx, { event: 'prescription_shared', patientId: rx.patient_id, clinicId: rx.clinic_id, dedupeKey: `rx:${id}`, data: { path: '/rx' }, vars: { link } });
       await this.audit.record(tx, s, meta, { action: 'prescription.issue', entity: 'prescription', entityId: id, patientId: rx.patient_id, details: { acknowledgedWarnings: flagged.length } });
       return { ...r, shareLink: link };
     });

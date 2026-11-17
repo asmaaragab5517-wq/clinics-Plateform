@@ -60,6 +60,7 @@ const schema = z.object({
   STT_API_KEY: z.string().optional(),
   STT_MODEL: z.string().default('whisper-1'),
   ETA_MODE: z.enum(['fake', 'http']).default('fake'),
+  APP_RETURN_URL: z.string().regex(/^(healthflow:\/\/|https:\/\/)/).default('healthflow://book/result'),
   SUPPORT_TOKEN_SECRET: z.string().default('dev-support-token-secret'),
   PLATFORM_HEALTHPAY_MERCHANT_ID: z.string().optional(),
   PLATFORM_HEALTHPAY_API_KEY: z.string().optional(),

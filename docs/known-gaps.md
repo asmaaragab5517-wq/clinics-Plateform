@@ -14,7 +14,7 @@ must be closed before go-live.
 ## Product/API
 - Idempotency keys are honoured for bookings, walk-ins and payments; check-in and queue updates rely on state-machine conflicts.
 - Console: waitlist UI, custom-field definitions UI, encounter-template authoring, prescription revoke button, tablet signature capture for re-consent.
-- Mobile: live queue uses polling (SSE in web), screenshot blocking is app-wide on Android only, root/jailbreak warning not implemented, certificate pins must be supplied (`CERT_PINS`).
+- Mobile: in-app audio dictation pending (Sprint 16); live queue uses polling (SSE in web), screenshot blocking is app-wide on Android only, root/jailbreak warning not implemented, certificate pins must be supplied (`CERT_PINS`).
 - Site BFF refresh de-duplication is per instance.
 - R2/R3 integrations are built against fakes; each needs a real-account check: Zoom/Google OAuth apps, ETA preprod
   onboarding (serialisation test vectors, EGS item codes, signing requirement), the insurers' claim file formats, the ITQAN

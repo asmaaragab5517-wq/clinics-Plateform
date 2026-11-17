@@ -145,7 +145,7 @@ export class AppointmentsService {
   async notifyBooked(tx: Tx, a: ApptRow) {
     const c = await this.context(tx, a.id);
     await this.messaging.enqueue(tx, {
-      event: 'booking_confirmed', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `booked:${a.id}:${new Date(a.start_at).toISOString()}`,
+      event: 'booking_confirmed', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `booked:${a.id}:${new Date(a.start_at).toISOString()}`, data: { path: `/appointments/${a.id}` },
       vars: { doctor: c.doctor, clinic: c.clinic, date: formatDate(new Date(a.start_at)), time: formatTime12(new Date(a.start_at), 'ar'), ref: a.ref },
     });
   }
@@ -193,15 +193,15 @@ export class AppointmentsService {
         break;
       case 'completed':
         await tx.query(`update queue_tickets set status = 'done', done_at = now() where appointment_id = $1`, [id]);
-        await this.messaging.enqueue(tx, { event: 'review_request', patientId: a.patient_id, clinicId: a.clinic_id, scheduledFor: new Date(Date.now() + 2 * 3600_000), dedupeKey: `review:${id}`, vars: { ...vars, link: `review/${id}` } });
+        await this.messaging.enqueue(tx, { event: 'review_request', patientId: a.patient_id, clinicId: a.clinic_id, scheduledFor: new Date(Date.now() + 2 * 3600_000), dedupeKey: `review:${id}`, data: { path: `/review/${id}` }, vars: { ...vars, link: `review/${id}` } });
         break;
       case 'no_show':
-        await this.messaging.enqueue(tx, { event: 'no_show_notice', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `noshow:${id}`, vars });
+        await this.messaging.enqueue(tx, { event: 'no_show_notice', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `noshow:${id}`, data: { path: `/appointments/${id}` }, vars });
         break;
       case 'cancelled':
         await tx.query(`update queue_tickets set status = 'skipped' where appointment_id = $1 and status in ('waiting','called')`, [id]);
         await tx.query(`update payment_intents set status = 'expired' where appointment_id = $1 and status in ('created','pending')`, [id]);
-        await this.messaging.enqueue(tx, { event: updated.cancelled_by === 'patient' ? 'cancelled_by_patient' : 'cancelled_by_clinic', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `cancel:${id}`, vars });
+        await this.messaging.enqueue(tx, { event: updated.cancelled_by === 'patient' ? 'cancelled_by_patient' : 'cancelled_by_clinic', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `cancel:${id}`, data: { path: `/appointments/${id}` }, vars });
         await this.refundIfPrepaid(tx, actor, a, opts.reason ?? 'cancelled', updated.cancelled_by === 'clinic');
         break;
     }
@@ -238,7 +238,7 @@ export class AppointmentsService {
       [a.clinic_id, a.doctor_id, a.id, a.patient_id, date, Number(n.n), priority],
     );
     const c = await this.context(tx, a.id);
-    await this.messaging.enqueue(tx, { event: 'checkin_ticket', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `ticket:${a.id}`, channels: ['push'], vars: { ticket: Number(n.n), doctor: c.doctor } });
+    await this.messaging.enqueue(tx, { event: 'checkin_ticket', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `ticket:${a.id}`, data: { path: `/appointments/${a.id}` }, channels: ['push'], vars: { ticket: Number(n.n), doctor: c.doctor } });
     return t;
   }
 
@@ -274,7 +274,7 @@ export class AppointmentsService {
     if (!updated) throw conflict('slot_unavailable');
     await this.event(tx, a, a.status, updated.status, actor, reason ?? 'rescheduled');
     const c = await this.context(tx, id);
-    await this.messaging.enqueue(tx, { event: 'rescheduled', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `resched:${id}:${start.toISOString()}`, vars: { doctor: c.doctor, clinic: c.clinic, date: formatDate(start), time: formatTime12(start, 'ar') } });
+    await this.messaging.enqueue(tx, { event: 'rescheduled', patientId: a.patient_id, clinicId: a.clinic_id, dedupeKey: `resched:${id}:${start.toISOString()}`, data: { path: `/appointments/${id}` }, vars: { doctor: c.doctor, clinic: c.clinic, date: formatDate(start), time: formatTime12(start, 'ar') } });
     await this.audit.record(tx, actor, meta, { action: 'appointment.reschedule', entity: 'appointment', entityId: id, patientId: a.patient_id, clinicId: a.clinic_id, details: { from: a.start_at, to: start } });
     return updated;
   }
@@ -343,7 +343,7 @@ export class AppointmentsService {
     const target = g.waiting[n];
     if (target) {
       await tx.query('update queue_tickets set notified_near = true where id = $1 and not notified_near', [target.id]);
-      await this.messaging.enqueue(tx, { event: 'turn_approaching', patientId: target.patient_id, clinicId, dedupeKey: `near:${target.id}`, vars: { position: n } });
+      await this.messaging.enqueue(tx, { event: 'turn_approaching', patientId: target.patient_id, clinicId, dedupeKey: `near:${target.id}`, data: { path: `/appointments/${target.appointment_id}` }, vars: { position: n } });
     }
     await this.audit.record(tx, actor, meta, { action: 'queue.call_next', entity: 'queue_ticket', entityId: next.id, clinicId, patientId: next.patient_id });
     await this.publishQueue(tx, clinicId, doctorId);

@@ -97,3 +97,13 @@ describe('worker jobs', () => {
     expect(cronMatches('0 4 1 * *', new Date('2026-01-02T02:00:00Z'))).toBe(false);
   });
 });
+
+describe('sprint 15 jobs', () => {
+  it('refreshes next-slot cache and raises a retention review task', async () => {
+    expect(await jobs.refreshNextSlots(c)).toBeGreaterThan(0);
+    expect((await admin.query('select count(*)::int as n from doctor_next_slot where next_start is not null')).rows[0].n).toBeGreaterThan(0);
+    await admin.query(`insert into patients (organisation_id, mrn, first_name_ar, date_of_birth, gender, created_at) values ($1, 'OLD-W', 'قديم', '1950-01-01', 'male', now() - interval '12 years')`, [env.demo.orgId]);
+    await jobs.retentionReview(c);
+    expect((await admin.query(`select count(*)::int as n from tasks where kind = 'retention_review'`)).rows[0].n).toBeGreaterThan(0);
+  });
+});

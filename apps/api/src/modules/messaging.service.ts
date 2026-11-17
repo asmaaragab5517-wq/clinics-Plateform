@@ -14,6 +14,8 @@ export interface EnqueueInput {
   channels?: ('sms' | 'whatsapp' | 'email' | 'push')[];
   scheduledFor?: Date;
   dedupeKey?: string;
+  /** Deep link for push notifications, e.g. { path: '/appointments/<id>' } (docs/integrations/push.md). */
+  data?: { path: string };
 }
 
 const MARKETING_EVENTS: MessageEvent[] = [];
@@ -62,7 +64,14 @@ export class MessagingService {
         if (channel === 'sms' && prefs?.sms_opt_out) continue;
         if (channel === 'whatsapp' && prefs?.whatsapp_opt_out) continue;
       }
-      const recipients = channel === 'email' ? [input.to?.email] : channel === 'push' ? (input.to?.deviceTokens ?? []) : [phone];
+      let pushTokens = input.to?.deviceTokens ?? [];
+      if (channel === 'push' && !pushTokens.length && input.patientId) {
+        pushTokens = (await tx.query<{ token: string }>(
+          `select d.token from device_tokens d join patient_links l on l.account_id = d.account_id and l.confirmed_at is not null where l.patient_id = $1`,
+          [input.patientId],
+        )).map((r) => r.token);
+      }
+      const recipients = channel === 'email' ? [input.to?.email] : channel === 'push' ? pushTokens : [phone];
       for (const recipient of recipients.filter((r): r is string => !!r)) {
         const tpl = await tx.maybeOne<{ body: string; is_enabled: boolean }>(
           'select body, is_enabled from message_templates where event = $1 and channel = $2 and locale = $3',
@@ -71,11 +80,11 @@ export class MessagingService {
         if (tpl && !tpl.is_enabled) continue;
         const body = tpl ? renderTemplate(tpl.body, input.vars) : JSON.stringify(input.vars);
         const row = await tx.maybeOne<{ id: string }>(
-          `insert into messages (organisation_id, clinic_id, patient_id, event, channel, recipient, locale, body, segments, scheduled_for, dedupe_key)
-           values (app_org(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `insert into messages (organisation_id, clinic_id, patient_id, event, channel, recipient, locale, body, segments, scheduled_for, dedupe_key, data)
+           values (app_org(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
            on conflict (organisation_id, dedupe_key) do nothing returning id`,
           [input.clinicId ?? null, input.patientId ?? null, input.event, channel, recipient, locale, body,
-            channel === 'sms' ? smsSegments(body).segments : 1, when, input.dedupeKey ? `${input.dedupeKey}:${channel}:${recipient}` : null],
+            channel === 'sms' ? smsSegments(body).segments : 1, when, input.dedupeKey ? `${input.dedupeKey}:${channel}:${recipient}` : null, input.data ? JSON.stringify(input.data) : null],
         );
         if (row) ids.push(row.id);
       }
@@ -86,8 +95,8 @@ export class MessagingService {
   /** Send one queued message (worker and OTP fast path). */
   async dispatch(orgId: string, messageId: string): Promise<'sent' | 'failed' | 'skipped'> {
     const m = await this.tenancy.system(orgId, (tx) =>
-      tx.maybeOne<{ id: string; channel: 'sms' | 'whatsapp' | 'email' | 'push'; recipient: string; locale: 'ar' | 'en'; body: string; event: string; status: string }>(
-        `update messages set status = 'sent', sent_at = now() where id = $1 and status = 'queued' returning id, channel, recipient, locale, body, event, status`,
+      tx.maybeOne<{ id: string; channel: 'sms' | 'whatsapp' | 'email' | 'push'; recipient: string; locale: 'ar' | 'en'; body: string; event: string; status: string; data: { path: string } | null }>(
+        `update messages set status = 'sent', sent_at = now() where id = $1 and status = 'queued' returning id, channel, recipient, locale, body, event, status, data`,
         [messageId],
       ),
     );
@@ -97,7 +106,7 @@ export class MessagingService {
       const tpl = await this.tenancy.system(orgId, (tx) =>
         tx.maybeOne<{ provider_template_id: string | null }>('select provider_template_id from message_templates where event = $1 and channel = $2 and locale = $3', [m.event, m.channel, m.locale]),
       );
-      const r = await provider.send({ channel: m.channel, to: m.recipient, locale: m.locale, body: m.body, providerTemplateId: tpl?.provider_template_id ?? m.event });
+      const r = await provider.send({ channel: m.channel, to: m.recipient, locale: m.locale, body: m.body, providerTemplateId: tpl?.provider_template_id ?? m.event, data: m.data ?? undefined });
       await this.tenancy.system(orgId, (tx) =>
         tx.query('update messages set provider_message_id = $2, segments = coalesce($3, segments), cost = $4 where id = $1', [m.id, r.providerMessageId, r.segments ?? null, r.cost ?? 0]),
       );

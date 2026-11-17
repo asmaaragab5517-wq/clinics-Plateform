@@ -11,3 +11,4 @@ export { generateCommissionStatements } from './modules/staff';
 export { TelemedicineService, CalendarSyncService } from './modules/telemedicine';
 export { EtaService } from './modules/eta';
 export { EventsService } from './modules/events';
+export { retentionCandidates } from './modules/governance';

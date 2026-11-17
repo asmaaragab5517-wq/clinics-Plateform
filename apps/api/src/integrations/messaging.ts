@@ -11,6 +11,7 @@ export interface OutboundMessage {
   subject?: string;
   providerTemplateId?: string | null;
   templateVars?: Record<string, string>;
+  data?: { path: string };
 }
 export interface SendResult {
   providerMessageId: string;
@@ -117,7 +118,7 @@ export class FcmProvider implements ChannelProvider {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${await this.accessToken(sa)}` },
       // Push payloads carry no PHI: a generic title, body text, and a deep link.
-      body: JSON.stringify({ message: { token: m.to, notification: { title: m.subject ?? 'HealthFlow', body: m.body } } }),
+      body: JSON.stringify({ message: { token: m.to, notification: { title: m.subject ?? 'HealthFlow', body: m.body }, data: m.data ? { path: m.data.path } : undefined } }),
     });
     if (!res.ok) throw new Error(`fcm_${res.status}`);
     const json = (await res.json()) as { name: string };

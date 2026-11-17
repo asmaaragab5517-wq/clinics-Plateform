@@ -150,6 +150,7 @@ export interface VisitSummaryDoc {
   vitals: Record<string, number | undefined>;
   plan: string;
   followUp?: string | null;
+  dental?: { tooth: number; status: string; conditions: string; planned: string }[] | null;
 }
 
 export function visitSummaryHtml(d: VisitSummaryDoc): string {
@@ -161,6 +162,7 @@ ${header(d.clinic, `<h2>ملخص الزيارة / Visit summary</h2><div class="
 ${v.length ? `<h3>العلامات الحيوية / Vitals</h3><table><tr>${v.map(([k]) => `<th>${esc(k)}</th>`).join('')}</tr><tr>${v.map(([, x]) => `<td class="num">${x}</td>`).join('')}</tr></table>` : ''}
 <h3>التشخيص / Diagnosis</h3><ul>${d.diagnoses.map((x) => `<li><span class="ltr">${esc(x.code)}</span> ${esc(x.title)}</li>`).join('')}</ul>
 <h3>الخطة / Plan</h3><p>${esc(d.plan)}</p>
+${d.dental?.length ? `<h3>مخطط الأسنان / Dental chart</h3><table><thead><tr><th>السن / Tooth (FDI)</th><th>الحالة / Status</th><th>الملاحظات / Findings</th><th>الخطة / Planned</th></tr></thead><tbody>${d.dental.map((t) => `<tr><td class="num">${t.tooth}</td><td>${esc(t.status)}</td><td>${esc(t.conditions)}</td><td>${esc(t.planned)}</td></tr>`).join('')}</tbody></table>` : ''}
 ${d.followUp ? `<p>المتابعة / Follow-up: <span class="ltr">${esc(d.followUp)}</span></p>` : ''}`;
   return page({ title: 'Visit summary', size: 'A4', body });
 }

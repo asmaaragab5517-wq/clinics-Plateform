@@ -80,11 +80,19 @@ export class PublicController {
       // FR-WEB-2 "next available": one availability pass for all listed doctors (14 days).
       const policy = await this.appointments.policy(tx);
       const today = localDate(new Date());
-      const slots = rows.length
-        ? await this.availability.slots(tx, { doctorIds: rows.slice(0, 60).map((r) => r.id as string), clinicId: f.clinicId, from: today, days: 14, channel: 'online', leadMinutes: policy.leadMinutes })
-        : [];
+      // Cached by the worker for every doctor (30 days); live computation only for doctors not cached recently.
+      const cached = await tx.query<{ doctor_id: string; next: Date | null; fresh: boolean }>(
+        `select doctor_id, min(next_start) filter (where next_start > now()) as next, bool_and(computed_at > now() - interval '15 minutes') as fresh
+         from doctor_next_slot where doctor_id = any($1::uuid[]) and ($2::uuid is null or clinic_id = $2) group by doctor_id`,
+        [rows.map((r) => r.id), f.clinicId ?? null],
+      );
       const next = new Map<string, string>();
-      for (const s of slots) if (s.available > 0 && !next.has(s.doctorId)) next.set(s.doctorId, s.start);
+      for (const c of cached) if (c.fresh && c.next) next.set(c.doctor_id, new Date(c.next).toISOString());
+      const missing = rows.map((r) => r.id as string).filter((id) => !cached.some((c) => c.doctor_id === id && c.fresh));
+      if (missing.length) {
+        const slots = await this.availability.slots(tx, { doctorIds: missing.slice(0, 60), clinicId: f.clinicId, from: today, days: 14, channel: 'online', leadMinutes: policy.leadMinutes });
+        for (const s of slots) if (s.available > 0 && !next.has(s.doctorId)) next.set(s.doctorId, s.start);
+      }
       const out = rows.map(({ photo_key, ...r }) => ({ ...r, next_available: next.get(r.id as string) ?? null, photo_url: photo_key ? `/v1/public/doctors/${r.slug}/photo` : null }));
       if (!f.availableBy) return out;
       const limit = zonedToUtc(addDays(f.availableBy, 1), '00:00').toISOString();

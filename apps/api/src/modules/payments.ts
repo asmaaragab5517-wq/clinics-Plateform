@@ -34,7 +34,7 @@ export class PaymentsService {
   }
 
   /** FR-HP-2 step 1: create a payment intent with idempotency key and hosted checkout. */
-  async createIntent(tx: Tx, a: ApptRow, phone: string) {
+  async createIntent(tx: Tx, a: ApptRow, phone: string, client: 'site' | 'app' = 'site') {
     const existing = await tx.maybeOne<{ id: string; checkout_url: string; amount: number; status: string }>(`select * from payment_intents where appointment_id = $1 and status in ('created','pending')`, [a.id]);
     if (existing) return existing;
     const amount = await this.depositFor(tx, a);
@@ -46,7 +46,7 @@ export class PaymentsService {
     const merchant = await this.billing.merchantFor(tx, a.clinic_id);
     const out = await this.healthpay.createCheckout({
       merchant, orderId: intent.id, amount, description: `Appointment ${a.ref}`, customerPhone: phone,
-      returnUrl: `${this.cfg.PUBLIC_SITE_URL}/ar/book/result?ref=${a.ref}&appointment=${a.id}`, idempotencyKey: `intent:${intent.id}`,
+      returnUrl: client === 'app' ? `${this.cfg.APP_RETURN_URL}?ref=${a.ref}&appointment=${a.id}` : `${this.cfg.PUBLIC_SITE_URL}/ar/book/result?ref=${a.ref}&appointment=${a.id}`, idempotencyKey: `intent:${intent.id}`,
     });
     return tx.one<{ id: string; checkout_url: string; amount: number; status: string }>(
       `update payment_intents set provider_order_id = $2, checkout_url = $3, status = 'pending' where id = $1 returning id, checkout_url, amount, status`,

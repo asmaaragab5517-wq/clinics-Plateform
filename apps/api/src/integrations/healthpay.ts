@@ -103,13 +103,13 @@ export class HttpHealthPayClient implements HealthPayClient {
 /** In-memory HealthPay used for development and automated tests. */
 @Injectable()
 export class FakeHealthPayClient implements HealthPayClient {
-  readonly sessions = new Map<string, { orderId: string; amount: number }>();
+  readonly sessions = new Map<string, { orderId: string; amount: number; returnUrl?: string }>();
   readonly txns: ProviderTxn[] = [];
   constructor(@Inject(CONFIG) private readonly cfg: Config) {}
 
   async createCheckout(r: CheckoutRequest) {
     const providerOrderId = `hp_${randomUUID()}`;
-    this.sessions.set(providerOrderId, { orderId: r.orderId, amount: r.amount });
+    this.sessions.set(providerOrderId, { orderId: r.orderId, amount: r.amount, returnUrl: r.returnUrl });
     return { providerOrderId, checkoutUrl: `${this.cfg.API_PUBLIC_URL}/v1/dev/healthpay/checkout/${providerOrderId}` };
   }
   async refund(r: Parameters<HealthPayClient['refund']>[0]) {
