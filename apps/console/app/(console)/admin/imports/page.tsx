@@ -7,7 +7,7 @@ import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
 import { get, post, upload } from '@/lib/api';
-import { useLocalState } from '@/lib/hooks';
+import { useApi } from '@/lib/hooks';
 
 const FIELDS: Record<string, string[]> = {
   patients: ['first_name_ar', 'father_name_ar', 'grandfather_name_ar', 'family_name_ar', 'name_en', 'national_id', 'date_of_birth', 'gender', 'phone', 'governorate', 'city', 'address'],
@@ -36,7 +36,9 @@ export default function ImportsPage() {
   const [file, setFile] = useState<File | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [batch, setBatch] = useState<Batch | null>(null);
-  const [recent, setRecent] = useLocalState<{ id: string; entity: string; at: string }[]>('hf_imports', []);
+  // Server-side history of import batches (all staff with import:view see the same list).
+  const history = useApi<{ id: string; entity: string; status: string; row_count: number; error_count: number; committed_at: string | null; created_at: string }[]>('/imports');
+  const recent = (history.data ?? []).slice(0, 15);
   const a = useAction();
 
   async function load(id: string) {
@@ -70,7 +72,7 @@ export default function ImportsPage() {
               if (Object.keys(m).length) fd.set('mapping', JSON.stringify(m));
               const r = await a.run(() => upload<{ id: string; rows: number; valid: number; errors: number }>('/imports', fd));
               if (r) {
-                setRecent([{ id: r.id, entity, at: new Date().toISOString() }, ...recent].slice(0, 10));
+                history.reload();
                 toast(t('imp.validated', { valid: r.valid, rows: r.rows }));
                 await load(r.id);
               }
@@ -100,8 +102,11 @@ export default function ImportsPage() {
                 {recent.map((r) => (
                   <li key={r.id}>
                     <button className="underline" onClick={() => void load(r.id)}>
-                      {t(`imp.entities.${r.entity}`)} · <DateText value={r.at} locale={locale} withTime />
-                    </button>
+                      {t(`imp.entities.${r.entity}`)} · <DateText value={r.created_at} locale={locale} withTime />
+                    </button>{' '}
+                    <span className="text-xs text-muted">
+                      {t(`imp.status.${r.status}`)} · {t('imp.historyCounts', { rows: r.row_count, errors: r.error_count })}
+                    </span>
                   </li>
                 ))}
               </ul>

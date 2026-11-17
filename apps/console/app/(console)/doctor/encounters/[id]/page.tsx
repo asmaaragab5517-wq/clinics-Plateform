@@ -158,21 +158,24 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
 
   async function doSave(quiet = false) {
     const chartJson = JSON.stringify(markers);
+    const chartChanged = chartJson !== savedChart.current;
     let pngDataUrl: string | undefined;
-    if (chartRef.current && chartJson !== savedChart.current) {
+    if (chartRef.current && chartChanged) {
       try {
         pngDataUrl = await bodyChartPng(chartRef.current);
       } catch {
-        pngDataUrl = undefined; // vector shapes are still saved; the image is regenerated on the next save
+        pngDataUrl = undefined; // vector shapes are still saved; the image is regenerated on the next change
       }
     }
-    const payload = pngDataUrl ? { ...body, bodyChart: { ...body.bodyChart, pngDataUrl } } : body;
+    // An unchanged chart is left out: re-sending it without a PNG would drop the stored image reference.
+    const { bodyChart, ...rest } = body;
+    const payload = !chartChanged ? rest : pngDataUrl ? { ...rest, bodyChart: { ...bodyChart, pngDataUrl } } : body;
     const r = await save.run(() => patch(`/encounters/${e.id}`, payload));
     if (r) {
       setDirty(false);
-      if (pngDataUrl) {
+      if (chartChanged) {
         savedChart.current = chartJson;
-        setHasPng(true);
+        setHasPng(!!pngDataUrl);
       }
       if (!quiet) toast(t('common.saved'));
     }

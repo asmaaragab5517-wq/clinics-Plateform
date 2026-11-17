@@ -2068,6 +2068,29 @@
         ]
       }
     },
+    "/v1/prescriptions/{id}": {
+      "get": {
+        "operationId": "PrescriptionsController_getRx",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
     "/v1/prescriptions/{id}/issue": {
       "post": {
         "operationId": "PrescriptionsController_issue",
@@ -4564,6 +4587,75 @@
         ]
       }
     },
+    "/v1/insurance/claim-batches/{id}/items": {
+      "get": {
+        "operationId": "InsuranceController_items",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/payers/{id}": {
+      "patch": {
+        "operationId": "InsuranceController_updatePayer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/plans/{id}": {
+      "patch": {
+        "operationId": "InsuranceController_updatePlan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
     "/v1/insurance/claim-batches/{id}/export.csv": {
       "get": {
         "operationId": "InsuranceController_export",
@@ -5203,6 +5295,41 @@
         "parameters": [],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      },
+      "get": {
+        "operationId": "PlatformController_announcements",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/announcements/{id}/withdraw": {
+      "post": {
+        "operationId": "PlatformController_withdraw",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },

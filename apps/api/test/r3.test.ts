@@ -75,6 +75,21 @@ describe('AI scribe (BR-19, FR-EMR-9)', () => {
     expect(audit.body.map((a: { action: string }) => a.action)).toEqual(expect.arrayContaining(['ai.draft_encounter_note', 'ai.approve']));
   });
 
+  it('keeps existing diagnoses (with notes) and the stored body-chart image (regressions)', async () => {
+    const walk2 = await h.http().post('/v1/appointments/walk-in').set(auth(h.staff.reception)).send({ patientId: ctx.patient, clinicId: h.env.demo.clinicIds[0], doctorId: h.env.demo.doctorIds[0], serviceIds: [(await h.http().get('/v1/services').set(auth(h.staff.manager))).body.find((s: { code: string }) => s.code === 'FU').id] });
+    const enc = (await admin.query('select id from encounters where appointment_id = $1', [walk2.body.appointment.id])).rows[0].id;
+    const png = 'data:image/png;base64,' + Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]).toString('base64');
+    await h.http().patch(`/v1/encounters/${enc}`).set(auth(h.staff.dr_ahmed)).send({ diagnoses: [{ code: 'R51', primary: true, note: 'tension type' }], bodyChart: { image: 'front', shapes: [{ x: 1 }], pngDataUrl: png } }).expect(200);
+    const key = (await admin.query(`select body_chart->>'pngKey' as k from encounters where id = $1`, [enc])).rows[0].k;
+    expect(key).toBeTruthy();
+    await h.http().patch(`/v1/encounters/${enc}`).set(auth(h.staff.dr_ahmed)).send({ bodyChart: { image: 'front', shapes: [{ x: 1 }, { x: 2 }] } }).expect(200);
+    expect((await admin.query(`select body_chart->>'pngKey' as k from encounters where id = $1`, [enc])).rows[0].k).toBe(key);
+    const d = await h.http().post(`/v1/encounters/${enc}/ai/dictation`).set(auth(h.staff.dr_ahmed)).send({ text: 'ارتفاع ضغط الدم مع صداع' });
+    await h.http().post(`/v1/ai/drafts/${d.body.id}/approve`).set(auth(h.staff.dr_ahmed)).send({ diagnosisCodes: ['I10'] }).expect(200);
+    const after = (await admin.query('select diagnoses from encounters where id = $1', [enc])).rows[0].diagnoses;
+    expect(after).toEqual([{ code: 'R51', primary: true, note: 'tension type' }, { code: 'I10', primary: false }]);
+  });
+
   it('words prescription instructions and writes a patient summary only on approval', async () => {
     const drug = (await h.http().get('/v1/drugs?q=Augmentin').set(auth(h.staff.dr_ahmed))).body[0].id;
     const rx = await h.http().post(`/v1/encounters/${ctx.encounter}/prescriptions`).set(auth(h.staff.dr_ahmed)).send({ lines: [{ drugId: drug, dose: '1 قرص', frequency: 'كل 12 ساعة', durationDays: 7 }] });
@@ -91,7 +106,7 @@ describe('AI scribe (BR-19, FR-EMR-9)', () => {
     const enc = await admin.query('select patient_summary from encounters where id = $1', [ctx.encounter]);
     expect(enc.rows[0].patient_summary).toBeNull();
     const usage = await h.http().get('/v1/ai/usage').set(auth(h.staff.owner));
-    expect(usage.body.reduce((a: number, r: { drafts: number }) => a + r.drafts, 0)).toBe(4);
+    expect(usage.body.reduce((a: number, r: { drafts: number }) => a + r.drafts, 0)).toBe(5);
   });
 });
 

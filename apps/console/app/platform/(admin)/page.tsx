@@ -67,7 +67,10 @@ export default function OrganisationsPage() {
                     <td>{o.status === 'active' ? <Badge tone="success">{t('common.active')}</Badge> : <Badge tone="danger">{t(`plat.orgs.status.${o.status}`)}</Badge>}</td>
                     <td className="text-xs">
                       <span className="num block">{t('plat.orgs.usageLine1', { clinics: o.clinics, staff: o.staff, patients: o.patients })}</span>
-                      <span className="num block text-muted">{t('plat.orgs.usageLine2', { appts: o.appointments_30d, sms: o.sms_segments_30d, cost: formatMoney(num(o.sms_cost_30d), locale), storage: bytes(o.storage_bytes) })}</span>
+                      <span className="num block text-muted">{t('plat.orgs.usageLine2', { appts: o.appointments_30d, sms: o.sms_segments_30d, cost: formatMoney(num(o.sms_cost_30d), locale) })}</span>
+                      <span className="block text-muted">
+                        {t('sub.limit.storage')}: <bdi dir="ltr">{bytes(o.storage_bytes)}</bdi>
+                      </span>
                     </td>
                     <td>
                       <div className="flex flex-wrap gap-1">

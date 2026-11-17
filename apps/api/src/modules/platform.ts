@@ -137,6 +137,21 @@ export class PlatformController {
     return { id };
   }
 
+  @Get('announcements')
+  @Platform()
+  announcements() {
+    return this.tenancy.db.raw('select * from platform_announcements_list()');
+  }
+
+  @Post('announcements/:id/withdraw')
+  @Platform()
+  @HttpCode(200)
+  async withdraw(@Auth() p: Principal, @Param('id') id: string) {
+    this.admin(p);
+    await this.tenancy.db.raw('select platform_announcement_withdraw($1)', [uuid(id)]);
+    return { ok: true };
+  }
+
   /** Support access needs the organisation owner's approval before any token is issued. */
   @Post('organisations/:id/support-access')
   @Platform()

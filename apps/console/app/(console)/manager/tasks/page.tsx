@@ -1,11 +1,15 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Alert, Badge, Button, DateText, PageHeader, Select, Table } from '@hf/ui';
 import { DataState, Section, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
+
+/** Where to act on tasks raised by other modules. */
+const TASK_LINKS: Record<string, string> = { complaint: '/quality/complaints', incident: '/quality/incidents', support_access: '/admin/support' };
 
 /** Service-recovery tasks (low ratings), break-glass notices and shift variances for the manager. */
 export default function TasksPage() {
@@ -46,7 +50,14 @@ export default function TasksPage() {
                     <td>
                       <Badge tone={x.kind === 'break_glass' ? 'danger' : 'warning'}>{t(`task.kinds.${x.kind}`)}</Badge>
                     </td>
-                    <td dir="auto">{x.title}</td>
+                    <td dir="auto">
+                      {x.title}
+                      {TASK_LINKS[x.kind] && (
+                        <Link className="ms-2 text-xs underline" href={TASK_LINKS[x.kind]!}>
+                          {t('task.open')}
+                        </Link>
+                      )}
+                    </td>
                     <td>
                       {x.status === 'open' && (
                         <Button size="sm" variant="secondary" onClick={() => void a.run(() => post(`/tasks/${x.id}/done`)).then((r) => r && q.reload())}>

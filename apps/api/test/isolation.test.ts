@@ -87,7 +87,7 @@ const ENTITY_BY_SEGMENT: Record<string, string> = {
   patients: 'patient', appointments: 'appointment', bills: 'bill', encounters: 'encounter', prescriptions: 'prescription', clinics: 'clinic', staff: 'user', doctors: 'user',
   sessions: 'session', 'schedule-exceptions': 'exception', orders: 'order', documents: 'document', refunds: 'refund', shifts: 'shift', queue: 'ticket', approvals: 'approval',
   reviews: 'review', tasks: 'task', imports: 'importBatch', articles: 'article', 'data-requests': 'dataRequest', breaches: 'breach', services: 'service', 'legal-entities': 'legalEntity',
-  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', drafts: 'aiDraft', 'support-access': 'supportAccess', 'api-keys': 'apiKey', organisations: 'clinic', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
+  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', drafts: 'aiDraft', payers: 'payer', plans: 'plan', announcements: 'clinic', 'support-access': 'supportAccess', 'api-keys': 'apiKey', organisations: 'clinic', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
 };
 const FIXED: Record<string, string> = { role: 'nurse', kind: 'signature', entity: 'patients', token: 'x.1.y', code: 'nope', slug: 'nasr-city', providerOrderId: 'x' };
 
@@ -167,6 +167,8 @@ function bodyFor(r: Route, ids: Record<string, string>, own: Record<string, stri
     'post /v1/insurance/patients/:patientId/coverages': { planId: ids.plan, memberNumber: 'M1', validFrom: '2026-01-01' },
     'post /v1/insurance/claim-batches/:id/settle': { reference: 'x', items: [{ billId: ids.bill, paidAmount: 1 }] },
     'patch /v1/insurance/coverages/:id': { isActive: false },
+    'patch /v1/insurance/payers/:id': { isActive: false },
+    'patch /v1/insurance/plans/:id': { isActive: false },
     'post /v1/complaints': { clinicId: ids.clinic, patientId: ids.patient, category: 'other', description: 'isolation test' },
     'post /v1/portal/complaints': { clinicId: ids.clinic, patientId: ids.patient, category: 'other', description: 'isolation test' },
     'post /v1/incidents': { clinicId: ids.clinic, category: 'fall', severity: 'minor', description: 'isolation test', occurredAt: new Date().toISOString() },

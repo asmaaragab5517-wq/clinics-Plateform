@@ -200,7 +200,7 @@ export class OrgController {
   @Staff('settings:view')
   legalEntities(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) =>
-      tx.query(`select id, name_ar, name_en, tax_registration_number, commercial_register, address, healthpay_mode, healthpay_config_enc is not null as healthpay_configured from legal_entities order by name_ar`),
+      tx.query(`select id, name_ar, name_en, tax_registration_number, commercial_register, address, healthpay_mode, healthpay_config_enc is not null as healthpay_configured, eta_mode, eta_config_enc is not null as eta_configured from legal_entities order by name_ar`),
     );
   }
 

@@ -19,7 +19,7 @@ The BRD roadmap (§10) mapped onto sprints. Each sprint is one commit series on 
 | 11 | R2 | Complaints and incident registers; signed, pseudonymised outbound webhooks (ITQAN feed) with SSRF guard and retries; low ratings forwarded | FR-INT-1, FR-REV-3, BR-18 | Done |
 | 12 | R3 | AI scribe: dictation → structured draft, patient summary, prescription wording; doctor approval, PHI minimisation, governance | BR-19, FR-EMR-9 | Done (ADR 0007) |
 | 13 | R3 | SaaS administration: platform admins, organisation onboarding, plans and limits, usage, HealthPay platform invoices, announcements, owner-approved read-only support access; public read-only API with hashed scoped keys | BR-20, FR-ADM-1, FR-INT-3 | Done |
-| 14 | R2/R3 | Console, site and mobile screens for sprints 8–13 | BR-11..20 | In progress |
+| 14 | R2/R3 | Console, site and mobile screens for sprints 8–13 (telemedicine, AI review, insurance and claims, ETA, quality, integrations, API keys, subscription, support approvals, platform admin area) | BR-11..20 | Done |
 
 ## R1 acceptance gate (SRS §11) — automated evidence
 

@@ -292,13 +292,16 @@ export class AiController {
       let applied: Record<string, unknown> = {};
       if (d.kind === 'encounter_note') {
         const b = parse(approveEncounterSchema, body);
-        const e = await tx.one<{ status: string; vitals: Record<string, number> }>('select status, vitals from encounters where id = $1 for update', [d.encounter_id]);
+        const e = await tx.one<{ status: string; vitals: Record<string, number>; diagnoses: { code: string; primary: boolean; note?: string }[] }>('select status, vitals, diagnoses from encounters where id = $1 for update', [d.encounter_id]);
         if (e.status === 'signed') throw new DomainError('encounter_signed_use_addendum', HttpStatus.CONFLICT);
         let diagnoses: { code: string; primary: boolean }[] | null = null;
         if (b.diagnosisCodes) {
           const known = await tx.query<{ code: string }>('select code from icd10_codes where code = any($1)', [b.diagnosisCodes]);
           if (known.length !== new Set(b.diagnosisCodes).size) throw badRequest('unknown_icd10_code');
-          diagnoses = b.diagnosisCodes.map((c, i) => ({ code: c, primary: i === 0 }));
+          // Approved codes are added to the doctor's existing diagnoses (notes and primary flag kept).
+          const existing = e.diagnoses ?? [];
+          const added = b.diagnosisCodes.filter((c) => !existing.some((x) => x.code === c)).map((c, i) => ({ code: c, primary: existing.length === 0 && i === 0 }));
+          diagnoses = [...existing, ...added];
         }
         const vitals: Record<string, number> | null = b.vitals ? { ...e.vitals, ...(b.vitals as Record<string, number>) } : null;
         if (vitals && vitals.weightKg && vitals.heightCm) vitals.bmi = Math.round((vitals.weightKg / (vitals.heightCm / 100) ** 2) * 10) / 10;

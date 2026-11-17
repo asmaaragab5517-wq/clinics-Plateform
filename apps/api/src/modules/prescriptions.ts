@@ -170,6 +170,22 @@ export class PrescriptionsController {
     });
   }
 
+  @Get('prescriptions/:id')
+  @Staff('prescription:view')
+  async getRx(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
+    return this.tenancy.run(p, async (tx) => {
+      const rx = await tx.maybeOne<{ patient_id: string; encounter_id: string }>('select id, clinic_id, encounter_id, patient_id, doctor_id, status, notes, issued_at, verify_code, created_at from prescriptions where id = $1', [uuid(id)]);
+      if (!rx) throw notFound('prescription');
+      const lines = await tx.query(
+        `select l.position, l.drug_id, coalesce(d.trade_name_en, l.free_text) as drug, d.strength, l.dose, l.route, l.frequency, l.duration_days, l.quantity, l.instructions_ar, l.instructions_en, l.warnings
+         from prescription_lines l left join drugs d on d.id = l.drug_id where l.prescription_id = $1 order by l.position`,
+        [id],
+      );
+      await this.audit.record(tx, p, meta, { action: 'prescription.read', entity: 'prescription', entityId: id, patientId: rx.patient_id });
+      return { ...rx, lines };
+    });
+  }
+
   /** Issue (sign) a prescription. Safety warnings must be acknowledged explicitly. */
   @Post('prescriptions/:id/issue')
   @Staff('prescription:approve')

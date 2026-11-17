@@ -43,7 +43,7 @@
       "secret": "change-me-console-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:3001/api/auth/callback", "https://console.healthflow.example/api/auth/callback"],
+      "redirectUris": ["http://localhost:3001/api/auth/callback", "https://console.healthflow.example/api/auth/callback", "http://localhost:3001/api/platform/auth/callback", "https://console.healthflow.example/api/platform/auth/callback"],
       "webOrigins": ["http://localhost:3001", "https://console.healthflow.example"],
       "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://localhost:3001/*##https://console.healthflow.example/*" },
       "defaultClientScopes": ["openid", "profile", "email", "healthflow-api"]

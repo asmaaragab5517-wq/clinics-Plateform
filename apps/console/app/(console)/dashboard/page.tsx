@@ -163,11 +163,14 @@ function BookingFunnel({ f }: { f: NonNullable<Dashboard['bookingFunnel']> }) {
   const { t } = useI18n();
   const pct = (n: number) => (f.started ? Math.round((n / f.started) * 1000) / 10 : 0);
   return (
-    <div className="flex flex-col gap-2 lg:col-span-2">
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label={t('dash.funnelStarted')} value={num(f.started)} />
-        <Stat label={t('dash.funnelCompleted')} value={num(f.completed)} />
-        <Stat label={t('dash.funnelRate')} value={`${f.completionRate}%`} hint={<Gauge label={t('dash.funnelRate')} percent={f.completionRate} />} />
+    <div className="grid gap-3 lg:col-span-2 lg:grid-cols-2">
+      <div className="flex flex-col gap-3">
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label={t('dash.funnelStarted')} value={num(f.started)} />
+          <Stat label={t('dash.funnelCompleted')} value={num(f.completed)} />
+          <Stat label={t('dash.funnelRate')} value={`${f.completionRate}%`} hint={<Gauge label={t('dash.funnelRate')} percent={f.completionRate} />} />
+        </div>
+        <p className="text-xs text-muted">{t('dash.funnelHint')}</p>
       </div>
       <HBarChart
         title={t('dash.funnel')}
@@ -177,7 +180,6 @@ function BookingFunnel({ f }: { f: NonNullable<Dashboard['bookingFunnel']> }) {
           return { label: t(`dash.funnelStep.${s.step}`), value: num(s.sessions), display: `${num(s.sessions)} · ${pct(s.sessions)}%${i && drop > 0 ? ` (−${drop}%)` : ''}` };
         }) : []}
       />
-      <p className="text-xs text-muted">{t('dash.funnelHint')}</p>
     </div>
   );
 }

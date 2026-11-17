@@ -103,7 +103,47 @@ export class InsuranceController {
   @Get('claim-batches')
   @Staff('bill:view')
   batches(@Auth() p: Principal) {
-    return this.tenancy.run(p, (tx) => tx.query(`select cb.*, py.name_ar as payer_name_ar, (select count(*)::int from claim_items ci where ci.batch_id = cb.id) as items from claim_batches cb join payers py on py.id = cb.payer_id order by cb.created_at desc`));
+    return this.tenancy.run(p, (tx) => tx.query(`select cb.*, py.name_ar as payer_name_ar, py.name_en as payer_name_en, (select count(*)::int from claim_items ci where ci.batch_id = cb.id) as items from claim_batches cb join payers py on py.id = cb.payer_id order by cb.created_at desc`));
+  }
+
+  @Get('claim-batches/:id/items')
+  @Staff('bill:view')
+  items(@Auth() p: Principal, @Param('id') id: string) {
+    return this.tenancy.run(p, async (tx) => {
+      if (!(await tx.maybeOne('select 1 from claim_batches where id = $1', [uuid(id)]))) throw notFound('claim_batch');
+      return tx.query(
+        `select ci.id, ci.bill_id, b.number as invoice, ci.patient_id, p.mrn, ci.amount, ci.paid, ci.status, ci.rejection_reason, b.approval_number, pc.member_number
+         from claim_items ci join bills b on b.id = ci.bill_id join patients p on p.id = ci.patient_id left join patient_coverages pc on pc.id = b.coverage_id where ci.batch_id = $1 order by b.issued_at`,
+        [id],
+      );
+    });
+  }
+
+  @Patch('payers/:id')
+  @Staff('settings:edit')
+  updatePayer(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const b = parse(z.object({ nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), isActive: z.boolean().optional(), contact: z.record(z.string()).optional() }), body);
+    return this.tenancy.run(p, async (tx) => {
+      const r = await tx.maybeOne('update payers set name_ar = coalesce($2, name_ar), name_en = coalesce($3, name_en), is_active = coalesce($4, is_active), contact = coalesce($5, contact) where id = $1 returning *', [uuid(id), b.nameAr ?? null, b.nameEn ?? null, b.isActive ?? null, b.contact ? JSON.stringify(b.contact) : null]);
+      if (!r) throw notFound('payer');
+      await this.audit.record(tx, p, meta, { action: 'insurance.payer_update', entity: 'payer', entityId: id, details: { keys: Object.keys(b) } });
+      return r;
+    });
+  }
+
+  @Patch('plans/:id')
+  @Staff('settings:edit')
+  updatePlan(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const b = parse(z.object({ isActive: z.boolean().optional(), coveragePercent: z.number().min(0).max(100).optional(), copayFixed: z.number().int().min(0).optional(), requiresApproval: z.boolean().optional() }), body);
+    return this.tenancy.run(p, async (tx) => {
+      const r = await tx.maybeOne(
+        'update payer_plans set is_active = coalesce($2, is_active), coverage_percent = coalesce($3, coverage_percent), copay_fixed = coalesce($4, copay_fixed), requires_approval = coalesce($5, requires_approval) where id = $1 returning *',
+        [uuid(id), b.isActive ?? null, b.coveragePercent ?? null, b.copayFixed ?? null, b.requiresApproval ?? null],
+      );
+      if (!r) throw notFound('plan');
+      await this.audit.record(tx, p, meta, { action: 'insurance.plan_update', entity: 'payer_plan', entityId: id, details: b });
+      return r;
+    });
   }
 
   /** Collect issued bills with an insurer share for a payer and period into a draft batch. */

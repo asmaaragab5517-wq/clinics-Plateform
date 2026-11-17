@@ -131,6 +131,10 @@ export class EmrController {
         await this.storage.put(key, png, 'image/png');
         const { pngDataUrl: _drop, ...rest } = b.bodyChart;
         b.bodyChart = { ...rest, pngKey: key } as typeof b.bodyChart;
+      } else if (b.bodyChart) {
+        // Shapes saved without a new rendering keep the previously stored image reference.
+        const prev = await tx.maybeOne<{ key: string | null }>(`select body_chart->>'pngKey' as key from encounters where id = $1`, [id]);
+        if (prev?.key) b.bodyChart = { ...b.bodyChart, pngKey: prev.key } as typeof b.bodyChart;
       }
       return tx.one(
         `update encounters set vitals = coalesce($2, vitals), chief_complaint = coalesce($3, chief_complaint), hpi = coalesce($4, hpi), examination = coalesce($5, examination),
