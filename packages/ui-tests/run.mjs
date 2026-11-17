@@ -100,7 +100,17 @@ if (process.env.LIGHTHOUSE !== '0') {
       const s = { path: p, performance: Math.round(c.performance.score * 100), accessibility: Math.round(c.accessibility.score * 100), seo: Math.round(c.seo.score * 100), bestPractices: Math.round(c['best-practices'].score * 100), lcpMs: Math.round(r.lhr.audits['largest-contentful-paint'].numericValue) };
       lighthouseScores.push(s);
       if (s.accessibility < 90) failures.push(`lighthouse ${p}: accessibility ${s.accessibility}`);
-      if (s.performance < 90) failures.push(`lighthouse ${p}: performance ${s.performance} (target 90; measure on staging/Vercel, local servers are not representative)`);
+      if (s.performance < 90) {
+        failures.push(`lighthouse ${p}: performance ${s.performance} (target 90; measure on staging/Vercel, local servers are not representative)`);
+        // Diagnostics in the CI log: every run's score and the median run's slowest parts.
+        const a = r.lhr.audits;
+        const lcpEl = a['largest-contentful-paint-element']?.details?.items?.flatMap((g) => g.items ?? []).find((x) => x.node)?.node;
+        console.log(`[lighthouse ${p}] runs ${runs.map((x) => Math.round(x.lhr.categories.performance.score * 100)).join('/')}; ` +
+          ['first-contentful-paint', 'largest-contentful-paint', 'total-blocking-time', 'cumulative-layout-shift', 'speed-index'].map((k) => `${k}=${a[k]?.displayValue}`).join(', ') +
+          `; LCP element ${lcpEl?.selector ?? '?'} "${(lcpEl?.nodeLabel ?? '').slice(0, 60)}"`);
+        for (const k of ['largest-contentful-paint-element', 'render-blocking-resources', 'bootup-time', 'unused-javascript', 'server-response-time', 'font-display', 'uses-rel-preconnect'])
+          if (a[k] && a[k].score !== null && a[k].score < 0.9) console.log(`  ${k}: ${a[k].displayValue ?? ''} ${JSON.stringify((a[k].details?.items ?? []).flatMap((g) => g.items ?? [g]).slice(0, 4).map((x) => x.phase ? `${x.phase} ${Math.round(x.timing)}ms` : `${(x.url ?? '').slice(-50)} ${Math.round(x.wastedMs ?? x.total ?? 0)}ms`))}`);
+      }
     }
   } finally {
     await chrome.kill();
