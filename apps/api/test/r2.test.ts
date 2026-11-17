@@ -185,3 +185,42 @@ describe('ETA e-receipts, insurance and interactions (FR-BIL-10, FR-BIL-11, FR-R
     void today;
   }, 60000);
 });
+
+describe('ITQAN outbound events (FR-INT-1, FR-REV-3)', () => {
+  it('rejects unsafe webhook URLs (SSRF) and delivers signed, redacted, pseudonymised events', async () => {
+    for (const url of ['http://93.184.215.14/hook', 'https://127.0.0.1/hook', 'https://10.0.0.5/hook', 'https://[::1]/hook']) {
+      const r = await h.http().post('/v1/webhooks').set(auth(h.staff.owner)).send({ name: 'bad', url, events: ['ping'] });
+      expect(r.status, url).toBe(400);
+    }
+    const ep = await h.http().post('/v1/webhooks').set(auth(h.staff.owner)).send({ name: 'ITQAN', url: 'https://93.184.215.14/itqan/events', events: ['complaint.created', 'rating.low', 'incident.reported'] });
+    expect(ep.status, JSON.stringify(ep.body)).toBe(201);
+    expect(ep.body.secret).toMatch(/^whsec_/);
+
+    await h.http().post('/v1/complaints').set(auth(h.staff.reception)).send({ clinicId: ctx.clinic, patientId: ctx.patient, category: 'waiting_time', description: 'انتظرت ساعتين، اتصلوا بي على 01055550001' }).expect(201);
+    const consents = await h.http().get('/v1/portal/consents').set(auth(ctx.token));
+    const v = consents.body.versions.find((x: { type: string }) => x.type === 'itqan_sharing');
+    await h.http().post('/v1/portal/consents').set(auth(ctx.token)).send({ patientId: ctx.patient, type: 'itqan_sharing', granted: true, versionId: v.id }).expect(201);
+    await h.http().post('/v1/incidents').set(auth(h.staff.nurse)).send({ clinicId: ctx.clinic, patientId: ctx.patient, category: 'fall', severity: 'minor', description: 'Patient slipped in waiting area', occurredAt: new Date().toISOString() }).expect(201);
+
+    const sent: { url: string; body: string; sig: string }[] = [];
+    const fakeFetch = (async (url: string, init: RequestInit) => {
+      sent.push({ url, body: String(init.body), sig: (init.headers as Record<string, string>)['x-healthflow-signature']! });
+      return new Response('ok', { status: 200 });
+    }) as unknown as typeof fetch;
+    const { EventsService } = await import('../src/modules/events');
+    const { Tenancy } = await import('../src/common/services');
+    const n = await h.app.get(Tenancy).system(h.env.demo.orgId, (tx) => h.app.get(EventsService).deliverDue(tx, fakeFetch));
+    expect(n).toBe(2);
+    const complaint = JSON.parse(sent.find((s) => s.body.includes('complaint.created'))!.body);
+    expect(complaint.data.description).not.toContain('01055550001');
+    expect(complaint.data.patientRef).toBeNull(); // no ITQAN consent at the time
+    const incident = JSON.parse(sent.find((s) => s.body.includes('incident.reported'))!.body);
+    expect(incident.data.patientRef).toMatch(/^p_[0-9a-f]{32}$/);
+    expect(JSON.stringify(sent)).not.toContain(ctx.patient);
+    const { createHmac } = await import('node:crypto');
+    const [t, v1] = sent[0]!.sig.split(',').map((x) => x.split('=')[1]);
+    expect(v1).toBe(createHmac('sha256', ep.body.secret).update(`${t}.${sent[0]!.body}`).digest('hex'));
+    const del = await h.http().get(`/v1/webhooks/${ep.body.id}/deliveries`).set(auth(h.staff.owner));
+    expect(del.body.every((d: { status: string }) => d.status === 'delivered')).toBe(true);
+  });
+});

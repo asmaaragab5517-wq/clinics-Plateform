@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 import {
-  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, EtaService, Tenancy, generateCommissionStatements,
+  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, EtaService, EventsService, Tenancy, generateCommissionStatements,
 } from '@hf/api/dist/core';
 import { addDays, formatDate, formatMoney, formatTime12, localDate } from '@hf/shared';
 
@@ -17,6 +17,7 @@ export interface JobContext {
   telemedicine: TelemedicineService;
   calendar: CalendarSyncService;
   eta: EtaService;
+  events: EventsService;
 }
 
 export function jobContext(app: INestApplicationContext): JobContext {
@@ -32,6 +33,7 @@ export function jobContext(app: INestApplicationContext): JobContext {
     telemedicine: app.get(TelemedicineService),
     calendar: app.get(CalendarSyncService),
     eta: app.get(EtaService),
+    events: app.get(EventsService),
   };
 }
 
@@ -260,6 +262,15 @@ export async function submitEtaReceipts(c: JobContext) {
   let n = 0;
   await forEachOrg(c, 'eta', async (org) => {
     n += await c.tenancy.system(org, (tx) => c.eta.submitDue(tx));
+  });
+  return n;
+}
+
+/** FR-INT-1: deliver signed, pseudonymised outbound events (ITQAN and other endpoints). */
+export async function deliverEvents(c: JobContext) {
+  let n = 0;
+  await forEachOrg(c, 'events', async (org) => {
+    n += await c.tenancy.system(org, (tx) => c.events.deliverDue(tx));
   });
   return n;
 }

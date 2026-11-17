@@ -14,6 +14,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     ...all('schedule'),
     ...all('clinic', ['view', 'create', 'edit']),
     ...all('report'),
+    ...all('quality', ['view', 'export']),
     'audit:view',
     'emr:view',
     'refund:approve',
@@ -34,6 +35,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     ...all('shift', ['view', 'approve']),
     ...all('report', ['view', 'export']),
     ...all('review', ['view', 'approve', 'edit']),
+    ...all('quality', ['view', 'create', 'edit']),
     'message:view',
   ],
   doctor: [
@@ -50,6 +52,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     'bill:create',
     'commission:view',
     'review:view',
+    'quality:create',
   ],
   nurse: [
     'clinic:view',
@@ -59,6 +62,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     'patient:view',
     'emr:view',
     'emr:create',
+    'quality:create',
   ],
   receptionist: [
     'clinic:view',
@@ -70,6 +74,7 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     ...all('payment', ['view', 'create']),
     'refund:create',
     ...all('shift', ['view', 'create', 'edit']),
+    'quality:create',
   ],
   accountant: [
     'clinic:view',

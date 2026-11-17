@@ -22,6 +22,7 @@ import { BillingService } from './billing.service';
 import { invoiceDocument } from './billing';
 import { storeDocument } from './emr';
 import { CONFIG, type Config } from '../config';
+import { EventsService, redact } from './events';
 
 /** Patient portal & app API (BR-11, FR-APP-1). Every query also runs under patient-mode RLS (MT-4). */
 @Controller('v1/portal')
@@ -35,6 +36,7 @@ export class PortalController {
     private readonly rx: PrescriptionRenderer,
     private readonly billing: BillingService,
     private readonly tokens: TokenService,
+    private readonly events: EventsService,
     @Inject(CONFIG) private readonly cfg: Config,
     @Inject(STORAGE) private readonly storage: Storage,
     @Inject(ANTIVIRUS) private readonly av: Antivirus,
@@ -373,7 +375,11 @@ export class PortalController {
       );
       await this.audit.record(tx, pt, meta, { action: 'review.create', entity: 'review', entityId: r.id, patientId: a.patient_id });
       if (b.rating <= 2) {
-        await this.tenancy.system(pt.orgId, (sys) => sys.query(`insert into tasks (organisation_id, clinic_id, kind, title, entity_id, assignee_role) values (app_org(), $1, 'service_recovery', $2, $3, 'clinic_manager')`, [a.clinic_id, `Low rating (${b.rating}/5)`, r.id]));
+        await this.tenancy.system(pt.orgId, async (sys) => {
+          await sys.query(`insert into tasks (organisation_id, clinic_id, kind, title, entity_id, assignee_role) values (app_org(), $1, 'service_recovery', $2, $3, 'clinic_manager')`, [a.clinic_id, `Low rating (${b.rating}/5)`, r.id]);
+          // FR-REV-3 (R2): forwarded to ITQAN Patient Voice, pseudonymised.
+          await this.events.emit(sys, 'rating.low', { reviewId: r.id, clinicId: a.clinic_id, doctorId: a.doctor_id, rating: b.rating, comment: b.comment ? redact(b.comment) : null, patientRef: await this.events.pseudonym(sys, a.patient_id) });
+        });
       }
       return r;
     });

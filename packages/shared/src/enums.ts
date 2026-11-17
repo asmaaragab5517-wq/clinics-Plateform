@@ -97,6 +97,8 @@ export const PRIVILEGE_MODULES = [
   'privacy',
   'audit',
   'settings',
+  'quality',
+  'integration',
 ] as const;
 export type PrivilegeModule = (typeof PRIVILEGE_MODULES)[number];
 export const PRIVILEGE_ACTIONS = ['view', 'create', 'edit', 'approve', 'delete', 'export'] as const;

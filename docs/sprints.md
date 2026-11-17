@@ -16,7 +16,7 @@ The BRD roadmap (§10) mapped onto sprints. Each sprint is one commit series on 
 | 8 | R1+ | Gap closure: next-available/city search, public photos, booking funnel, rate limiting, body chart PNG, consent signature | FR-WEB-2/3, SEC-5, FR-EMR-2, FR-PRV-2 | Done |
 | 9 | R2 | Telemedicine (Zoom S2S / Google Meet / fake), waiting room, Google Calendar one-way sync | BR-13, FR-TEL-1..4, FR-INT-2 | Done |
 | 10 | R2 | ETA e-receipts (chained UUIDs, retry queue, QR), insurance/TPA (payers, plans, coverage split, claim batches, settlement), drug interactions | FR-BIL-10, FR-BIL-11, FR-RX-3 | Done |
-| 11 | R2 | ITQAN signed outbound events (complaints, low ratings, incidents) | FR-INT-1, FR-REV-3 | Pending |
+| 11 | R2 | Complaints and incident registers; signed, pseudonymised outbound webhooks (ITQAN feed) with SSRF guard and retries; low ratings forwarded | FR-INT-1, FR-REV-3, BR-18 | Done |
 | R3 | R3 | AI scribe (doctor-approved), SaaS administration, public API keys | BR-19, BR-20 | Not started |
 
 ## R1 acceptance gate (SRS §11) — automated evidence

@@ -28,6 +28,7 @@ async function main() {
     telemedicine: () => jobs.prepareTelemedicine(c),
     'calendar-sync': () => jobs.syncCalendars(c),
     'eta-receipts': () => jobs.submitEtaReceipts(c),
+    'outbound-events': () => jobs.deliverEvents(c),
   };
   const running = new Set<string>();
   const exec = async (name: string) => {
