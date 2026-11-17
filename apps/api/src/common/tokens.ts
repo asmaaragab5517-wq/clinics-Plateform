@@ -76,6 +76,29 @@ export class TokenService {
       .sign(this.devKey);
   }
 
+  async signDevPlatform(sub: string): Promise<string> {
+    if (!this.devKey) throw new Error('dev tokens disabled');
+    return new SignJWT({ amr: ['pwd', 'otp'], auth_time: Math.floor(Date.now() / 1000), typ: 'platform' })
+      .setProtectedHeader({ alg: 'HS256' }).setSubject(sub).setIssuer('hf-dev').setAudience('hf-staff').setIssuedAt().setExpirationTime('8h').sign(this.devKey);
+  }
+
+  /** Support token: one platform admin, one organisation, valid only inside the owner-approved window. */
+  async signSupport(adminId: string, accessId: string, orgId: string, endsAt: Date): Promise<string> {
+    return new SignJWT({ typ: 'support', org: orgId, access: accessId })
+      .setProtectedHeader({ alg: 'HS256' }).setSubject(adminId).setIssuer('hf-api').setAudience('hf-support').setIssuedAt()
+      .setExpirationTime(Math.floor(endsAt.getTime() / 1000)).sign(new TextEncoder().encode(this.cfg.SUPPORT_TOKEN_SECRET));
+  }
+
+  async verifySupport(token: string): Promise<{ adminId: string; accessId: string; orgId: string } | null> {
+    try {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(this.cfg.SUPPORT_TOKEN_SECRET), { issuer: 'hf-api', audience: 'hf-support', algorithms: ['HS256'] });
+      if (payload.typ !== 'support' || !payload.sub) return null;
+      return { adminId: payload.sub, accessId: String(payload.access), orgId: String(payload.org) };
+    } catch {
+      return null;
+    }
+  }
+
   /** Waiting-room display token, bound to one clinic (FR-APT-6). */
   async signDisplay(orgId: string, clinicId: string): Promise<string> {
     return new SignJWT({ org: orgId, clinic: clinicId, typ: 'display' })

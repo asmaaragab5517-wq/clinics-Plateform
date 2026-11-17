@@ -99,6 +99,20 @@
         ]
       }
     },
+    "/v1/auth/dev/platform-token": {
+      "post": {
+        "operationId": "AuthController_devPlatformToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/v1/auth/pin": {
       "post": {
         "operationId": "AuthController_setPin",
@@ -1363,6 +1377,29 @@
         ]
       }
     },
+    "/v1/patients/{id}/merges": {
+      "get": {
+        "operationId": "PatientsController_merges",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Patients"
+        ]
+      }
+    },
     "/v1/patients/merges/{mergeId}/unmerge": {
       "post": {
         "operationId": "PatientsController_unmerge",
@@ -1735,6 +1772,29 @@
         ]
       }
     },
+    "/v1/encounters/{id}/body-chart.png": {
+      "get": {
+        "operationId": "EmrController_bodyChartPng",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
     "/v1/encounters/{id}/summary.pdf": {
       "get": {
         "operationId": "EmrController_summaryPdf",
@@ -2080,6 +2140,29 @@
     "/v1/share/rx/{token}": {
       "get": {
         "operationId": "PrescriptionsController_shared",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Prescriptions"
+        ]
+      }
+    },
+    "/v1/share/invoice/{token}": {
+      "get": {
+        "operationId": "PrescriptionsController_sharedInvoice",
         "parameters": [
           {
             "name": "token",
@@ -2856,6 +2939,43 @@
         ]
       }
     },
+    "/v1/public/doctors/{slug}/photo": {
+      "get": {
+        "operationId": "PublicController_photo",
+        "parameters": [
+          {
+            "name": "slug",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
+    "/v1/public/booking-funnel": {
+      "post": {
+        "operationId": "PublicController_funnel",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Public"
+        ]
+      }
+    },
     "/v1/public/doctors/{slug}": {
       "get": {
         "operationId": "PublicController_doctor",
@@ -3200,6 +3320,89 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/prescriptions/{id}/link": {
+      "get": {
+        "operationId": "PortalController_prescriptionLink",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/invoices/{id}/link": {
+      "get": {
+        "operationId": "PortalController_invoiceLink",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}": {
+      "get": {
+        "operationId": "PortalController_appointment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/devices/unregister": {
+      "post": {
+        "operationId": "PortalController_unregisterDevice",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""
@@ -3878,6 +4081,18 @@
         "tags": [
           "Imports"
         ]
+      },
+      "get": {
+        "operationId": "ImportsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Imports"
+        ]
       }
     },
     "/v1/imports/{id}": {
@@ -3946,6 +4161,1322 @@
         },
         "tags": [
           "Imports"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}/telemedicine": {
+      "get": {
+        "operationId": "TelemedicineController_status",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/portal/appointments/{id}/telemedicine/join": {
+      "post": {
+        "operationId": "TelemedicineController_join",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/telemedicine": {
+      "get": {
+        "operationId": "TelemedicineController_today",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/telemedicine/{appointmentId}/start": {
+      "post": {
+        "operationId": "TelemedicineController_start",
+        "parameters": [
+          {
+            "name": "appointmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/telemedicine/{appointmentId}/end": {
+      "post": {
+        "operationId": "TelemedicineController_end",
+        "parameters": [
+          {
+            "name": "appointmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/integrations/google": {
+      "get": {
+        "operationId": "TelemedicineController_googleStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      },
+      "patch": {
+        "operationId": "TelemedicineController_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      },
+      "delete": {
+        "operationId": "TelemedicineController_disconnect",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/integrations/google/connect": {
+      "post": {
+        "operationId": "TelemedicineController_connect",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/integrations/google/callback": {
+      "get": {
+        "operationId": "TelemedicineController_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Telemedicine"
+        ]
+      }
+    },
+    "/v1/legal-entities/{id}/eta": {
+      "put": {
+        "operationId": "EtaController_configure",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Eta"
+        ]
+      }
+    },
+    "/v1/eta/receipts": {
+      "get": {
+        "operationId": "EtaController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Eta"
+        ]
+      }
+    },
+    "/v1/eta/receipts/{id}/retry": {
+      "post": {
+        "operationId": "EtaController_retry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Eta"
+        ]
+      }
+    },
+    "/v1/insurance/payers": {
+      "get": {
+        "operationId": "InsuranceController_payers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      },
+      "post": {
+        "operationId": "InsuranceController_createPayer",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/plans": {
+      "post": {
+        "operationId": "InsuranceController_createPlan",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/patients/{patientId}/coverages": {
+      "get": {
+        "operationId": "InsuranceController_coverages",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      },
+      "post": {
+        "operationId": "InsuranceController_addCoverage",
+        "parameters": [
+          {
+            "name": "patientId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/coverages/{id}": {
+      "patch": {
+        "operationId": "InsuranceController_updateCoverage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/claim-batches": {
+      "get": {
+        "operationId": "InsuranceController_batches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      },
+      "post": {
+        "operationId": "InsuranceController_createBatch",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/claim-batches/{id}/export.csv": {
+      "get": {
+        "operationId": "InsuranceController_export",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/claim-batches/{id}/submit": {
+      "post": {
+        "operationId": "InsuranceController_submit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/claim-batches/{id}/settle": {
+      "post": {
+        "operationId": "InsuranceController_settle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/complaints": {
+      "get": {
+        "operationId": "EventsController_complaints",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      },
+      "post": {
+        "operationId": "EventsController_createComplaint",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/portal/complaints": {
+      "post": {
+        "operationId": "EventsController_patientComplaint",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/complaints/{id}": {
+      "patch": {
+        "operationId": "EventsController_updateComplaint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/incidents": {
+      "get": {
+        "operationId": "EventsController_incidents",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      },
+      "post": {
+        "operationId": "EventsController_createIncident",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/incidents/{id}": {
+      "patch": {
+        "operationId": "EventsController_updateIncident",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/webhooks": {
+      "get": {
+        "operationId": "EventsController_endpoints",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      },
+      "post": {
+        "operationId": "EventsController_createEndpoint",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/webhooks/{id}": {
+      "patch": {
+        "operationId": "EventsController_updateEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      },
+      "delete": {
+        "operationId": "EventsController_deleteEndpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/webhooks/{id}/ping": {
+      "post": {
+        "operationId": "EventsController_ping",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/webhooks/{id}/deliveries": {
+      "get": {
+        "operationId": "EventsController_deliveries",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
+      }
+    },
+    "/v1/ai/settings": {
+      "get": {
+        "operationId": "AiController_settings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      },
+      "put": {
+        "operationId": "AiController_setSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/ai/usage": {
+      "get": {
+        "operationId": "AiController_usage",
+        "parameters": [
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/ai/dictation": {
+      "post": {
+        "operationId": "AiController_dictation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/encounters/{id}/ai/patient-summary": {
+      "post": {
+        "operationId": "AiController_summary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/prescriptions/{id}/ai/instructions": {
+      "post": {
+        "operationId": "AiController_rxInstructions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/ai/drafts/{id}": {
+      "get": {
+        "operationId": "AiController_draft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/ai/drafts/{id}/approve": {
+      "post": {
+        "operationId": "AiController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/ai/drafts/{id}/reject": {
+      "post": {
+        "operationId": "AiController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/platform/me": {
+      "get": {
+        "operationId": "PlatformController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/organisations": {
+      "get": {
+        "operationId": "PlatformController_orgs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      },
+      "post": {
+        "operationId": "PlatformController_createOrg",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/plans": {
+      "get": {
+        "operationId": "PlatformController_plans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/organisations/{id}": {
+      "patch": {
+        "operationId": "PlatformController_updateOrg",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/invoices/generate": {
+      "post": {
+        "operationId": "PlatformController_generate",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/invoices": {
+      "get": {
+        "operationId": "PlatformController_invoices",
+        "parameters": [
+          {
+            "name": "organisationId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/announcements": {
+      "post": {
+        "operationId": "PlatformController_announce",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/organisations/{id}/support-access": {
+      "post": {
+        "operationId": "PlatformController_requestSupport",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/support-access": {
+      "get": {
+        "operationId": "PlatformController_supportList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/platform/support-access/{id}/token": {
+      "post": {
+        "operationId": "PlatformController_supportToken",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Platform"
+        ]
+      }
+    },
+    "/v1/subscription": {
+      "get": {
+        "operationId": "TenantPlatformController_subscription",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/subscription/invoices": {
+      "get": {
+        "operationId": "TenantPlatformController_invoices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/announcements": {
+      "get": {
+        "operationId": "TenantPlatformController_announcements",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/support-access": {
+      "get": {
+        "operationId": "TenantPlatformController_support",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/support-access/{id}/decision": {
+      "post": {
+        "operationId": "TenantPlatformController_decide",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/support-access/{id}/revoke": {
+      "post": {
+        "operationId": "TenantPlatformController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/api-keys": {
+      "get": {
+        "operationId": "TenantPlatformController_keys",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      },
+      "post": {
+        "operationId": "TenantPlatformController_createKey",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/api-keys/{id}/revoke": {
+      "post": {
+        "operationId": "TenantPlatformController_revokeKey",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "TenantPlatform"
+        ]
+      }
+    },
+    "/v1/ext/clinics": {
+      "get": {
+        "operationId": "ExternalApiController_clinics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ExternalApi"
+        ]
+      }
+    },
+    "/v1/ext/doctors": {
+      "get": {
+        "operationId": "ExternalApiController_doctors",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ExternalApi"
+        ]
+      }
+    },
+    "/v1/ext/services": {
+      "get": {
+        "operationId": "ExternalApiController_services",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ExternalApi"
+        ]
+      }
+    },
+    "/v1/ext/availability": {
+      "get": {
+        "operationId": "ExternalApiController_slots",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ExternalApi"
+        ]
+      }
+    },
+    "/v1/ext/appointments": {
+      "get": {
+        "operationId": "ExternalApiController_appointments",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ExternalApi"
+        ]
+      }
+    },
+    "/v1/ext/reports/dashboard": {
+      "get": {
+        "operationId": "ExternalApiController_dashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ExternalApi"
         ]
       }
     },

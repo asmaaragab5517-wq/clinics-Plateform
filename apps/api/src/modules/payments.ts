@@ -58,6 +58,11 @@ export class PaymentsService {
   async handleWebhook(evt: WebhookEvent): Promise<'processed' | 'duplicate' | 'ignored'> {
     const orgRow = (await this.tenancy.db.raw<{ organisation_id: string }>('select organisation_id from payment_intent_org($1)', [evt.orderId]))[0];
     if (!orgRow) {
+      // Platform subscription invoices use the invoice id as the order reference (BR-20 billing via HealthPay).
+      if (evt.type === 'payment.captured') {
+        const paid = (await this.tenancy.db.raw<{ platform_invoice_paid: string | null }>('select platform_invoice_paid($1)', [evt.orderId]).catch(() => []))[0];
+        if (paid?.platform_invoice_paid) return 'processed';
+      }
       this.log.warn(`webhook for unknown intent`);
       return 'ignored';
     }

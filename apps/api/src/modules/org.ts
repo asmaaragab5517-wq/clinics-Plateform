@@ -9,6 +9,7 @@ import { AuditService, BOX, Tenancy } from '../common/services';
 import { TokenService } from '../common/tokens';
 import { notFound } from '../common/errors';
 import { parse, uuid } from '../common/zod';
+import { assertPlanLimit } from './platform';
 
 const settingsSchema = z.object({
   defaultLocale: z.enum(['ar', 'en']).optional(),
@@ -142,6 +143,7 @@ export class OrgController {
     const s = asStaff(p);
     const c = parse(clinicSchema.extend({ specialtyIds: z.array(z.string().uuid()).default([]) }), body);
     return this.tenancy.run(s, async (tx) => {
+      await assertPlanLimit(tx, 'clinics');
       const row = await tx.one<{ id: string }>(
         `insert into clinics (organisation_id, legal_entity_id, name_ar, name_en, slug, governorate, city, address_lines, lat, lng, phones, email, working_hours, colours, invoice_footer, is_public, created_by)
          values (app_org(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning *`,

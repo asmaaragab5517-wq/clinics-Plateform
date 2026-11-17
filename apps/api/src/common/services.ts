@@ -31,9 +31,10 @@ export interface AuditEntry {
 @Injectable()
 export class AuditService {
   async record(tx: Tx, p: Principal | null, meta: RequestMeta | null, e: AuditEntry) {
-    const actorType = p?.kind ?? 'system';
-    const actorId = p?.kind === 'staff' ? p.userId : p?.kind === 'patient' ? p.accountId : null;
-    const role = p?.kind === 'staff' ? p.roles.join(',') : p?.kind ?? 'system';
+    const support = p?.kind === 'staff' ? p.support : null;
+    const actorType = support ? 'support' : p?.kind === 'apikey' ? 'api_key' : (p?.kind ?? 'system');
+    const actorId = p?.kind === 'staff' ? p.userId : p?.kind === 'patient' ? p.accountId : p?.kind === 'apikey' ? p.keyId : p?.kind === 'platform' ? p.adminId : null;
+    const role = support ? `support:${support.accessId}` : p?.kind === 'staff' ? p.roles.join(',') : (p?.kind ?? 'system');
     await tx.query(`select audit_append($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, [
       actorType,
       actorId,

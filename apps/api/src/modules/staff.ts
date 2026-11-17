@@ -9,6 +9,7 @@ import type { Principal, RequestMeta } from '../common/principal';
 import { AuditService, BOX, Tenancy } from '../common/services';
 import { badRequest, forbidden, notFound } from '../common/errors';
 import { parse, uuid } from '../common/zod';
+import { assertPlanLimit } from './platform';
 import { IDENTITY_ADMIN, type IdentityAdmin } from '../integrations/keycloak';
 import { STORAGE, sniffMime, type Storage } from '../integrations/storage';
 import { MessagingService } from './messaging.service';
@@ -50,6 +51,7 @@ export class StaffController {
     if (!b.email && !b.phone) throw badRequest('email_or_phone_required');
     // Only the owner may grant owner/network roles.
     if (b.roles.some((r) => r === 'owner' || r === 'network_director') && !s.roles.includes('owner')) throw forbidden('owner_only_role');
+    await this.tenancy.run(s, (tx) => assertPlanLimit(tx, 'staff'));
     const sub = await this.idp.createUser({ email: b.email, phone: b.phone, firstName: b.name.ar, orgId: s.orgId });
     return this.tenancy.run(s, async (tx) => {
       const u = await tx.one<{ id: string }>(

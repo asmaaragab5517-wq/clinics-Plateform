@@ -12,6 +12,8 @@ export interface StaffPrincipal {
   network: boolean;
   privileges: Set<Privilege>;
   authTime: number | null; // seconds since epoch of last interactive authentication
+  /** Set when a platform admin acts through an owner-approved, read-only support window (BR-20). */
+  support?: { adminId: string; accessId: string; endsAt: string } | null;
 }
 
 export interface PatientPrincipal {
@@ -27,7 +29,21 @@ export interface PublicPrincipal {
   orgId: string;
 }
 
-export type Principal = StaffPrincipal | PatientPrincipal | PublicPrincipal;
+export interface PlatformPrincipal {
+  kind: 'platform';
+  orgId: string; // nil UUID: platform principals never run under a tenant context
+  adminId: string;
+  email: string;
+}
+
+export interface ApiKeyPrincipal {
+  kind: 'apikey';
+  orgId: string;
+  keyId: string;
+  scopes: string[];
+}
+
+export type Principal = StaffPrincipal | PatientPrincipal | PublicPrincipal | PlatformPrincipal | ApiKeyPrincipal;
 
 export interface RequestMeta {
   ip: string | null;
@@ -42,6 +58,10 @@ export function tenantOf(p: Principal): TenantContext {
       return { orgId: p.orgId, mode: 'patient', patientIds: p.patientIds };
     case 'public':
       return { orgId: p.orgId, mode: 'public' };
+    case 'apikey':
+      return { orgId: p.orgId, mode: 'staff', network: true };
+    case 'platform':
+      throw new Error('platform principals have no tenant context');
   }
 }
 

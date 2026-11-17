@@ -204,6 +204,18 @@ export class AuthController {
     return { accessToken: await this.tokens.signDevStaff(u.keycloak_sub) };
   }
 
+  /** Development only: platform (SaaS) admin token. */
+  @Post('dev/platform-token')
+  @Public()
+  @HttpCode(200)
+  async devPlatformToken(@Body() body: unknown) {
+    if (this.cfg.isProd || !this.cfg.AUTH_DEV_SECRET) throw forbidden('dev_auth_disabled');
+    const { email } = parse(z.object({ email: z.string().email() }), body);
+    const a = (await this.tenancy.db.raw<{ keycloak_sub: string }>('select * from platform_admin_sub($1)', [email]))[0];
+    if (!a) throw badRequest('unknown_admin');
+    return { accessToken: await this.tokens.signDevPlatform(a.keycloak_sub) };
+  }
+
   /** Quick PIN re-unlock for shared reception PCs after idle timeout (IAM-2). */
   @Post('pin')
   @Staff()

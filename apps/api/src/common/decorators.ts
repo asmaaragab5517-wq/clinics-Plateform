@@ -4,7 +4,8 @@ import type { Principal, RequestMeta } from './principal';
 
 export const ACCESS_KEY = 'hf:access';
 export const PRIVILEGES_KEY = 'hf:privileges';
-export type AccessKind = 'public' | 'patient' | 'staff' | 'webhook' | 'display';
+export const SCOPE_KEY = 'hf:scope';
+export type AccessKind = 'public' | 'patient' | 'staff' | 'webhook' | 'display' | 'platform' | 'apikey';
 
 /** Anonymous access within an organisation resolved from the X-Org header (public site). */
 export const Public = () => SetMetadata(ACCESS_KEY, 'public');
@@ -17,6 +18,13 @@ export const Staff = (...privileges: Privilege[]) => (target: object, key?: stri
 };
 /** Unauthenticated: provider webhooks and signed links. The handler MUST verify a signature or expose nothing sensitive. */
 export const Webhook = () => SetMetadata(ACCESS_KEY, 'webhook');
+/** Platform (SaaS) administrators only - never organisation staff (FR-ADM-1). */
+export const Platform = () => SetMetadata(ACCESS_KEY, 'platform');
+/** Organisation API key holding the given scope (FR-INT-3). */
+export const ApiKey = (scope: string) => (target: object, key?: string | symbol, desc?: PropertyDescriptor) => {
+  SetMetadata(ACCESS_KEY, 'apikey')(target, key as string, desc as PropertyDescriptor);
+  SetMetadata(SCOPE_KEY, scope)(target, key as string, desc as PropertyDescriptor);
+};
 /** Waiting-room display token (ticket numbers only). */
 export const DisplayAuth = () => SetMetadata(ACCESS_KEY, 'display');
 

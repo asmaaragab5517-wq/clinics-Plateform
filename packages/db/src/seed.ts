@@ -61,6 +61,8 @@ export async function seedDemo(c: Client, box: SecretBox, opts: { slug?: string;
     )
   ).rows[0].id as string;
   const q = (sql: string, params: unknown[]) => c.query(sql, params).then((r) => r.rows[0]);
+  await c.query(`insert into org_subscriptions (organisation_id, plan_code, status, current_period_end) values ($1, 'enterprise', 'active', current_date + 365) on conflict do nothing`, [org]);
+  await c.query(`insert into platform_admins (keycloak_sub, email, name) values ($1, $2, 'Platform Admin') on conflict do nothing`, [`dev-platform-${slug}`, `platform@${slug}.healthflow.eg`]);
 
   const le = await q(
     `insert into legal_entities (organisation_id, name_ar, name_en, tax_registration_number, commercial_register, address)

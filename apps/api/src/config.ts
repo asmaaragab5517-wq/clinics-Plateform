@@ -60,6 +60,10 @@ const schema = z.object({
   STT_API_KEY: z.string().optional(),
   STT_MODEL: z.string().default('whisper-1'),
   ETA_MODE: z.enum(['fake', 'http']).default('fake'),
+  SUPPORT_TOKEN_SECRET: z.string().default('dev-support-token-secret'),
+  PLATFORM_HEALTHPAY_MERCHANT_ID: z.string().optional(),
+  PLATFORM_HEALTHPAY_API_KEY: z.string().optional(),
+  RATE_LIMIT_APIKEY_PER_MIN: z.coerce.number().int().positive().default(600),
   OAUTH_STATE_SECRET: z.string().default('dev-oauth-state-secret'),
   RATE_LIMIT_PUBLIC_PER_MIN: z.coerce.number().int().positive().default(240),
   RATE_LIMIT_PATIENT_PER_MIN: z.coerce.number().int().positive().default(300),
@@ -74,7 +78,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     const missing = (['FIELD_ENCRYPTION_KEY', 'KEYCLOAK_ISSUER', 'REDIS_URL'] as const).filter((k) => !c[k]);
     if (missing.length) throw new Error(`Missing production configuration: ${missing.join(', ')}`);
     if (c.AUTH_DEV_SECRET || c.OTP_DEV_ECHO) throw new Error('Dev auth options must not be enabled in production');
-    if (c.PATIENT_JWT_SECRET.startsWith('dev-') || c.HEALTHPAY_MODE === 'fake' || c.CEQUENS_MODE === 'fake' || c.STORAGE_MODE === 'memory' || c.AV_MODE === 'disabled' || c.OAUTH_STATE_SECRET.startsWith('dev-')) {
+    if (c.PATIENT_JWT_SECRET.startsWith('dev-') || c.HEALTHPAY_MODE === 'fake' || c.CEQUENS_MODE === 'fake' || c.STORAGE_MODE === 'memory' || c.AV_MODE === 'disabled' || c.OAUTH_STATE_SECRET.startsWith('dev-') || c.SUPPORT_TOKEN_SECRET.startsWith('dev-')) {
       throw new Error('Production requires real secrets, HealthPay, Cequens, S3 storage and antivirus');
     }
   }

@@ -38,6 +38,7 @@ import { EtaController, EtaService } from './modules/eta';
 import { InsuranceController } from './modules/insurance';
 import { EventsController, EventsService } from './modules/events';
 import { AiController } from './modules/ai';
+import { ExternalApiController, PlatformController, TenantPlatformController } from './modules/platform';
 import { AI, AnthropicAiClient, FakeAiClient, FakeSttProvider, HttpSttProvider, STT } from './integrations/ai';
 import { ETA, FakeEtaClient, HttpEtaClient } from './integrations/eta';
 import { CalendarSyncService, GoogleTokenStore, TelemedicineController, TelemedicineService } from './modules/telemedicine';
@@ -47,7 +48,7 @@ import { FakeGoogleClient, GOOGLE, HttpGoogleClient } from './integrations/googl
 export const CONTROLLERS = [
   HealthController, AuthController, OrgController, CatalogueController, StaffController, SchedulesController, AppointmentsController, PatientsController,
   EmrController, PrescriptionsController, BillingController, PaymentsController, CommsController, PublicController, PortalController, ReportsController,
-  GovernanceController, ImportsController, TelemedicineController, EtaController, InsuranceController, EventsController, AiController, DevController,
+  GovernanceController, ImportsController, TelemedicineController, EtaController, InsuranceController, EventsController, AiController, PlatformController, TenantPlatformController, ExternalApiController, DevController,
 ];
 
 /** Domain services shared by the API and the worker. */
@@ -89,6 +90,7 @@ export function coreProviders(cfg: Config): Provider[] {
     BillingService,
     PaymentsService,
     PrescriptionRenderer,
+    ReportsController,
   ];
 }
 

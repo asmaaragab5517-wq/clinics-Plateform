@@ -3,7 +3,9 @@ import { Reflector } from '@nestjs/core';
 import { NETWORK_ROLES, hasPrivilege, privilegesForRoles, type Privilege, type Role } from '@hf/shared';
 import type { Request } from 'express';
 import { CONFIG, type Config } from '../config';
-import { ACCESS_KEY, PRIVILEGES_KEY, type AccessKind } from './decorators';
+import { ACCESS_KEY, PRIVILEGES_KEY, SCOPE_KEY, type AccessKind } from './decorators';
+import { createHash } from 'node:crypto';
+import { DEFAULT_PRIVILEGES } from '@hf/shared';
 import { forbidden } from './errors';
 import type { Principal } from './principal';
 import { Tenancy } from './services';
@@ -60,8 +62,45 @@ export class AuthGuard implements CanActivate {
       return true;
     }
 
+    if (access === 'apikey') {
+      const raw = (req.headers['x-api-key'] as string | undefined) ?? (bearer?.startsWith('hfk_') ? bearer : undefined);
+      if (!raw || !/^hfk_(live|test)_[A-Za-z0-9_-]{20,}$/.test(raw)) throw unauthorized();
+      const k = (await this.tenancy.db.raw<{ id: string; organisation_id: string; scopes: string[] }>('select * from api_key_identity($1)', [createHash('sha256').update(raw).digest('hex')]))[0];
+      if (!k) throw unauthorized();
+      const scope = this.reflector.getAllAndOverride<string>(SCOPE_KEY, [ctx.getHandler(), ctx.getClass()]);
+      if (!k.scopes.includes(scope)) throw forbidden('missing_scope');
+      await this.limiter.hit(`key:${k.id}`, this.cfg.RATE_LIMIT_APIKEY_PER_MIN, 60);
+      req.principal = { kind: 'apikey', orgId: k.organisation_id, keyId: k.id, scopes: k.scopes };
+      return true;
+    }
+
+    if (access === 'platform') {
+      if (!bearer) throw unauthorized();
+      const claims = await this.tokens.verifyStaff(bearer);
+      const admin = claims?.sub ? (await this.tenancy.db.raw<{ id: string; email: string }>('select * from platform_admin_identity($1)', [claims.sub]))[0] : undefined;
+      if (!admin) throw forbidden('platform_admin_only');
+      req.principal = { kind: 'platform', orgId: '00000000-0000-0000-0000-000000000000', adminId: admin.id, email: admin.email };
+      return true;
+    }
+
     // staff
     if (!bearer) throw unauthorized();
+    const support = await this.tokens.verifySupport(bearer);
+    if (support) {
+      // Read-only support window approved by the organisation owner (BR-20).
+      const win = (await this.tenancy.db.raw<{ organisation_id: string; ends_at: Date }>('select * from support_identity($1, $2)', [support.accessId, support.adminId]))[0];
+      if (!win || win.organisation_id !== support.orgId) throw unauthorized();
+      if (req.method !== 'GET') throw forbidden('support_read_only');
+      // Support never sees clinical content (EMR, prescriptions, documents) even inside an approved window.
+      const privileges = new Set(DEFAULT_PRIVILEGES.network_director.filter((x) => x.endsWith(':view') && !/^(emr|prescription):/.test(x)));
+      const needed = this.reflector.getAllAndOverride<Privilege[] | undefined>(PRIVILEGES_KEY, [ctx.getHandler(), ctx.getClass()]) ?? [];
+      for (const p of needed) if (!privileges.has(p)) throw forbidden('missing_privilege');
+      req.principal = {
+        kind: 'staff', orgId: win.organisation_id, userId: support.adminId, name: 'HealthFlow support', roles: ['network_director'], memberships: [], clinicIds: [], network: true,
+        privileges, authTime: null, support: { adminId: support.adminId, accessId: support.accessId, endsAt: new Date(win.ends_at).toISOString() },
+      };
+      return true;
+    }
     const claims = await this.tokens.verifyStaff(bearer);
     if (!claims?.sub) throw unauthorized();
     const ident = (await this.tenancy.db.raw<{

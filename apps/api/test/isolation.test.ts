@@ -77,15 +77,17 @@ async function seedForeign(c: Client, org: string, clinic: string, doctor: strin
   const incident = await q(`insert into incidents (organisation_id, clinic_id, category, severity, description, occurred_at) values ($1,$2,'fall','minor','xxxxx',now()) returning id`, [org, clinic]);
   const webhook = await q(`insert into webhook_endpoints (organisation_id, name, url, secret_enc, events) values ($1,'x','https://93.184.215.14/x','\\x00','{ping}') returning id`, [org]);
   const aiDraft = await q(`insert into ai_drafts (organisation_id, clinic_id, patient_id, doctor_id, encounter_id, kind, source, output, model, prompt_version) values ($1,$2,$3,$4,$5,'encounter_note','text','{}','m','v') returning id`, [org, clinic, patient, doctor, encounter]);
+  const supportAccess = await q(`insert into support_access (organisation_id, admin_id, reason, hours) values ($1, (select id from platform_admins limit 1), 'xxxxxxxxxx', 1) returning id`, [org]);
+  const apiKey = await q(`insert into api_keys (organisation_id, name, prefix, key_hash, scopes) values ($1, 'x', 'hfk', $2, '{catalogue:read}') returning id`, [org, `h-${label}`]);
   const etaReceipt = await q(`insert into eta_receipts (organisation_id, legal_entity_id, clinic_id, bill_id, receipt_number, issued_at, payload, status) values ($1,$2,$3,$4,'R',now(),'{}','failed') returning id`, [org, (await c.query('select id from legal_entities where organisation_id = $1 limit 1', [org])).rows[0].id, clinic, bill]);
-  return { patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor, coverage, claimBatch, etaReceipt, payer, plan, complaint, incident, webhook, aiDraft };
+  return { patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor, coverage, claimBatch, etaReceipt, payer, plan, complaint, incident, webhook, aiDraft, supportAccess, apiKey };
 }
 
 const ENTITY_BY_SEGMENT: Record<string, string> = {
   patients: 'patient', appointments: 'appointment', bills: 'bill', encounters: 'encounter', prescriptions: 'prescription', clinics: 'clinic', staff: 'user', doctors: 'user',
   sessions: 'session', 'schedule-exceptions': 'exception', orders: 'order', documents: 'document', refunds: 'refund', shifts: 'shift', queue: 'ticket', approvals: 'approval',
   reviews: 'review', tasks: 'task', imports: 'importBatch', articles: 'article', 'data-requests': 'dataRequest', breaches: 'breach', services: 'service', 'legal-entities': 'legalEntity',
-  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', drafts: 'aiDraft', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
+  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', drafts: 'aiDraft', 'support-access': 'supportAccess', 'api-keys': 'apiKey', organisations: 'clinic', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
 };
 const FIXED: Record<string, string> = { role: 'nurse', kind: 'signature', entity: 'patients', token: 'x.1.y', code: 'nope', slug: 'nasr-city', providerOrderId: 'x' };
 
@@ -186,7 +188,7 @@ beforeAll(async () => {
   sibling = await seedForeign(c, h.env.demo.orgId, h.env.demo.clinicIds[0]!, h.env.demo.doctorIds[0]!, h.env.demo.staff.reception!, 'S', '+201066667777');
   await c.end();
   for (const v of Object.values(foreign)) forbiddenIds.add(v);
-  for (const [k, v] of Object.entries(sibling)) if (!['clinic', 'user', 'service', 'session', 'legalEntity', 'template', 'article', 'exception', 'statement', 'task', 'breach', 'importBatch', 'approval', 'shift', 'payer', 'plan', 'claimBatch', 'etaReceipt', 'incident', 'webhook'].includes(k)) siblingPrivate.add(v);
+  for (const [k, v] of Object.entries(sibling)) if (!['clinic', 'user', 'service', 'session', 'legalEntity', 'template', 'article', 'exception', 'statement', 'task', 'breach', 'importBatch', 'approval', 'shift', 'payer', 'plan', 'claimBatch', 'etaReceipt', 'incident', 'webhook', 'supportAccess', 'apiKey'].includes(k)) siblingPrivate.add(v);
   forbiddenIds.add(h.env.other.orgId);
   // Patient persona A with a record of their own.
   const t = await patientLogin(h, '01033334444');
@@ -205,7 +207,7 @@ describe('MT-5 isolation suite', () => {
 
   it('unauthenticated callers are refused on every staff and patient route', async () => {
     const failures: string[] = [];
-    for (const r of routes().filter((x) => (x.access === 'staff' || x.access === 'patient' || x.access === 'display') && !x.sse)) {
+    for (const r of routes().filter((x) => ['staff', 'patient', 'display', 'platform', 'apikey'].includes(x.access ?? '') && !x.sse)) {
       const { url } = fill(r.path, foreign);
       const res = await (h.http() as never as Record<string, (u: string) => import('supertest').Test>)[r.method]!(url).set('x-org', 'demo');
       if (res.status !== 401 && res.status !== 403) failures.push(`${r.method.toUpperCase()} ${r.path} → ${res.status}`);
