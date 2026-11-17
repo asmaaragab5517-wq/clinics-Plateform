@@ -57,7 +57,7 @@ export function OfflineBanner() {
   );
 }
 
-export function T({ style, children, ltr, ...rest }: { style?: StyleProp<TextStyle>; children?: ReactNode; ltr?: boolean; numberOfLines?: number; accessibilityLabel?: string }) {
+export function T({ style, children, ltr, ...rest }: { style?: StyleProp<TextStyle>; children?: ReactNode; ltr?: boolean; numberOfLines?: number; accessibilityLabel?: string; selectable?: boolean }) {
   const { isRTL } = useI18n();
   // `ltr` isolates Western-digit codes, phone numbers and Latin names inside Arabic UI.
   return <Text {...rest} style={[s.text, { writingDirection: ltr ? 'ltr' : isRTL ? 'rtl' : 'ltr' }, style]}>{children}</Text>;

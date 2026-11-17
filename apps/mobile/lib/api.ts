@@ -80,6 +80,8 @@ export async function setStaffTokens(t: StaffTokens | null) {
 }
 
 export const getStaffTokens = () => staff;
+/** This device's patient refresh token (sent to POST /v1/auth/logout so only this device is signed out). */
+export const getPatientRefreshToken = () => patient?.refreshToken ?? null;
 export const hasPatientSession = () => !!patient;
 export const hasStaffSession = () => !!staff;
 

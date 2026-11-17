@@ -12,6 +12,9 @@ export default function DoctorLayout() {
         <Stack.Screen name="index" options={{ title: t('doctor.today'), headerRight: () => <ModeButton /> }} />
         <Stack.Screen name="encounter/[appointmentId]" options={{ title: t('emr.encounter') }} />
         <Stack.Screen name="earnings" options={{ title: t('doctor.earnings') }} />
+        <Stack.Screen name="video" options={{ title: t('video.title') }} />
+        <Stack.Screen name="dictation/[encounterId]" options={{ title: t('ai.dictationTitle') }} />
+        <Stack.Screen name="draft/[id]" options={{ title: t('ai.draftTitle') }} />
       </Stack>
     </StaffGuard>
   );

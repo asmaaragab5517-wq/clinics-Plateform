@@ -75,25 +75,29 @@ Before the first store build, add `google-services.json` (FCM) and set `android.
   - `mode` (mode and clinic switcher, account sign-in and sign-out)
 - **Patient** (`app/patient/*`):
   - Home: next appointment card with live queue position (polls `/appointments/:id/queue` every 30 s when checked in), plus shortcuts
-  - `doctors` (name search + specialty chips, fee, rating) and `doctors/[slug]` (profile, clinics, services and prices, reviews, next available)
+  - `doctors` (name search, specialty, city and "available by" chips (`availableBy`), public photo, fee, rating, next available slot) and `doctors/[slug]` (photo, profile, clinics, services and prices, reviews, next available)
   - `book/[slug]`: service → clinic (if several) → slot (14 days) → family member → pay online (opens `payment.checkout_url` with expo-web-browser, then polls the result) or pay at clinic. Sends an `Idempotency-Key` per attempt and `x-client: app`
-  - `appointments` (upcoming/past) and `appointments/[id]` (confirm, cancel with reason, reschedule via the slot picker, pay now, rate)
-  - `prescriptions` (in-app view; offline cache)
+  - `appointments` (upcoming/past) and `appointments/[id]` (loaded with `GET /v1/portal/appointments/:id`; confirm, cancel with reason, reschedule via the slot picker, pay now, rate, report a problem)
+  - **Video visit card** (`components/VideoVisitCard.tsx`, on Home and the appointment detail): shown when `GET /v1/portal/appointments/:id/telemedicine` answers (a 400 `not_a_video_consultation` hides it). Waiting-room countdown to `opensAt` (T-10 min), status, a "pay online first" note for `requested` visits (video visits need online payment), and a telemedicine-consent check that links to Settings → Consents (`/patient/settings?focus=consents`, which shows consents first for that patient). **Join** calls `POST …/telemedicine/join`, shows the passcode (alert + card) and opens the URL with expo-web-browser
+  - `prescriptions` (in-app view; offline cache) and `invoices`: **PDF** buttons fetch a 10-minute signed link (`GET /v1/portal/prescriptions/:id/link`, `/invoices/:id/link`) on tap and open it in the system browser (`FEATURES.signedPdfUrls = true`)
+  - `complaint`: patient, clinic (public clinic list, preselected from an appointment), category and description → `POST /v1/portal/complaints` with `channel: "app"
   - `documents` (reports/results via a signed URL, plus visit summaries)
-  - `invoices`, `packages`, `family` (list and add, with relation, four-part Arabic name and consent; confirms reception-created family links with a `link_family` OTP)
+  - `packages`, `family` (list and add, with relation, four-part Arabic name and consent; confirms reception-created family links with a `link_family` OTP)
   - `review/[id]`, `notifications`, `payment-result`
-  - `settings`: language, biometric unlock, per-patient notification preferences, consents with re-consent flag, account deletion request, sign out
+  - `settings`: language, biometric unlock, per-patient notification preferences, consents with re-consent flag, account deletion request, sign out (this device only, see Push)
 - **Doctor** (`app/doctor/*`):
-  - Today: the selected clinic's queue for the doctor (now serving, waiting, **Call next**, **Start consultation**), polled every 20 s, plus today's appointments
-  - `encounter/[appointmentId]`: allergies banner, demographics, active history, last 3 signed visits; vitals, chief complaint, notes, ICD-10 search (first diagnosis is primary), save
+  - Today: the selected clinic's queue for the doctor (now serving, waiting, **Call next**, **Start consultation**), polled every 20 s, plus today's appointments. The encounter is opened by the `encounter_id` on the queue ticket / appointment row
+  - `video`: today's/tomorrow's video visits (`GET /v1/telemedicine?date=`), polled every 20 s, with session status and "patient joined". **Start** (`POST /v1/telemedicine/:id/start`) opens the host URL in the system browser and offers the visit's encounter (`encounterId` from the response); **End** closes the session
+  - `encounter/[appointmentId]` (params `encounterId`, `patientId`, both optional): loads `encounterId` directly, otherwise reads `encounter_id` from the appointment's row in today's schedule; the patient comes from the encounter when not passed. Allergies banner, demographics, active history, last 3 signed visits; vitals, chief complaint, HPI, examination, notes, ICD-10 search (first diagnosis is primary), save
+  - **AI scribe**: `dictation/[encounterId]` takes typed text (doctors can speak through the OS keyboard's own voice input; the app records no audio because no audio module is installed) plus a language (auto/ar/en) and posts `{text, language}` to `POST /v1/encounters/:id/ai/dictation`. `draft/[id]` (`GET /v1/ai/drafts/:id`) is labelled **AI draft, review required**: warnings (unmapped ICD-10, out-of-range vitals) and missing information are listed, and every field (chief complaint, HPI, examination, notes, vitals with client-side range checks, diagnoses with ICD-10 search, follow-up days) is editable. **Approve** sends only the doctor's non-empty values (`POST …/approve`, so empty fields keep the encounter's values); **Reject** discards it. `ai_assistance_disabled`, `ai_declined`, `ai_unavailable`, `draft_expired` and `draft_not_pending` map to messages
   - Prescription from template chips or drug search (or free text), with dose, frequency, duration and instructions. Create → issue, with a safety-warnings acknowledgement dialog
   - **Sign off**: on `reauthentication_required` it runs an interactive Keycloak re-login (`prompt=login`, `max_age=0`) and retries once
   - `earnings`: own commission statements
 - **Reception** (`app/reception/*`, two columns on tablets):
   - Clinic queue per doctor, with priority (emergency/elderly) and skip actions; today's arrivals with **Check in**
-  - `scan`: expo-camera QR. Accepts an appointment UUID, a booking ref, `healthflow://checkin/<x>`, or a URL with `/appointments/<uuid>` or `?ref=`
+  - `scan`: expo-camera QR. Accepts an appointment UUID, a booking ref, `healthflow://checkin/<x>`, or a URL with `/appointments/<uuid>` or `?ref=`. Refs are resolved with `GET /v1/appointments?ref=` (today); a booking at another branch is reported as such
   - `search`: patient search by phone, National ID, MRN or name → today's booking → check in
-  - `walk-in`: patient → doctor → service → priority → `POST /v1/appointments/walk-in`, then shows the ticket number
+  - `walk-in`: patient → doctor (`GET /v1/doctors?clinicId=`, includes non-public doctors) → service (`GET /v1/services` filtered by the doctor's `service_ids`, active, not telemedicine) → priority → `POST /v1/appointments/walk-in` with an `Idempotency-Key` per attempt (reused on retry, so a timeout cannot issue a second ticket; a replay is shown as such), then shows the ticket number
 - **Deep-link routes**: `book/result`, `appointments/[id]`, `review/[id]`, `reports`, `rx` redirect into patient mode. `oauth/callback` is the OIDC redirect.
 
 ## i18n and RTL (LOC-1, LOC-2)
@@ -151,24 +155,30 @@ Client `healthflow-mobile` in realm `healthflow`:
 
 `lib/push.ts` requests notification permission after OTP sign-in and creates the Android channel. It reads the **native device token** (FCM/APNs, via `getDevicePushTokenAsync`), not an Expo push token, and posts it to `POST /v1/portal/devices` when it changes. Token rotation is handled with a listener. A tap on a notification whose `data.path` starts with `/` navigates there. Shared topics are never used.
 
+Patient sign-out (`lib/session.tsx` `signOutPatient`) runs in this order: `POST /v1/portal/devices/unregister {token}` while the access token is still valid, then `POST /v1/auth/logout {refreshToken}`, which revokes only this device's refresh-token family (other devices stay signed in), then clears tokens and the offline cache. Both calls are best effort, so sign-out also works offline. Account deletion also unregisters the push token.
+
 ## Stubbed / not verified
 
 - **Not run on a device or simulator.** Verified offline: `tsc --noEmit` (strict, `noUncheckedIndexedAccess`), `expo config --type public`, `expo export --platform android` (bundle OK), and `expo prebuild` in a scratch copy, which confirmed the generated network-security-config, pin-set, cleartext flags, FLAG_SECURE in `MainActivity.kt`, iOS `NSPinnedDomains`, associated domains, R8 gradle properties and localised `InfoPlist.strings`.
-- Prescription and invoice **PDF** buttons are behind `FEATURES.signedPdfUrls=false` (see the API gaps below). Prescriptions are shown in-app instead.
+- Telemedicine, the AI scribe, complaints, signed PDF links and the new appointment/doctor endpoints were checked against the controller source only, not against a running API.
+- **AI dictation audio** is not recorded in-app (no audio module installed); doctors type or use the keyboard's voice input. The API's `audio` upload path is unused.
+- **Video calls** open the provider's URL in the system browser (expo-web-browser); there is no in-app video SDK, and the passcode cannot be copied to the clipboard (expo-clipboard is not installed), so it is shown as selectable text.
 - Screenshot blocking per screen (needs expo-screen-capture) and root/jailbreak detection: see the security table.
 - The live queue uses polling (doctor 20 s, reception 15 s, patient 30 s). The SSE `/v1/queue/stream` is not consumed, because RN fetch has no streaming body without extra polyfills.
 - App icon, splash and fonts (LOC-3: IBM Plex Sans Arabic, self-hosted) are not added. No assets or expo-font setup exist yet.
 
 ## API gaps and mismatches noticed
 
-1. **No single patient appointment endpoint.** `apps/api/src/modules/portal.ts` has only `GET /v1/portal/appointments?scope=`, so the detail screen searches the upcoming and past lists.
-2. **Patient PDFs need a bearer header.** `GET /v1/portal/prescriptions/:id/pdf` and `/invoices/:id/pdf` (`portal.ts`) cannot be opened in the system browser, and no file-system module is installed. Suggest a short-lived signed URL like `GET /v1/portal/documents/:id/url`.
-3. **Payment return URL is site-only.** It is `${PUBLIC_SITE_URL}/book/result?ref=…` (`payments.ts` `createIntent`), and the app relies on a Universal/App Link on that domain. There is no app-specific `returnUrl`, even when `x-client: app`.
-4. **No encounter lookup by appointment.** The encounter is created at check-in (`appointments.service.ts`), but `GET /v1/patients/:id/encounters` (`emr.ts`) does not return `appointment_id`. The app picks the doctor's newest open encounter for the patient.
-5. **No appointment lookup by booking ref** for QR check-in (`appointments.ts` `GET /v1/appointments` has no `ref` filter). The QR payload format is also unspecified. The app scans today's clinic list.
-6. **Receptionists cannot list doctors.** They lack `staff:view` for `GET /v1/doctors` (`staff.ts`), so walk-in uses the public directory, which contains only `is_public` doctors.
-7. **Logout signs out every device.** `POST /v1/auth/logout` revokes all of the account's refresh tokens (`auth.ts` `logout`: `where account_id = $1`), not just this device's.
-8. **Refresh rotation drops `device_id`.** `auth.ts` `refresh` inserts the rotated token without `device_id`, so the per-device binding sent at OTP verify is lost after the first refresh.
-9. **No device-token unregister endpoint.** Only `POST /v1/portal/devices` exists, so a signed-out device keeps receiving the account's pushes until another account claims the token.
-10. **Consent channel is always `portal`.** `portal.ts` `giveConsent` uses `pt.kind === 'patient' ? 'portal' : 'app'`, which is always `portal` for patient principals, so app consents are recorded as portal.
-11. **Push payload has no deep-link convention** (the app assumes `data.path`). The messaging integration should include one for FR-APP-5 parity with SMS links.
+Resolved in sprints 8–13 and now used by the app: single patient appointment (`GET /v1/portal/appointments/:id`), signed PDF links, `encounter_id` on appointment and queue rows, `GET /v1/appointments?ref=`, `GET /v1/doctors` for receptionists, per-device logout, `device_id` kept on refresh, device-token unregister, and the consent channel (now `app` when `x-client: app`).
+
+Remaining:
+
+1. **Payment return URL is site-only.** It is `${PUBLIC_SITE_URL}/book/result?ref=…` (`payments.ts` `createIntent`), and the app relies on a Universal/App Link on that domain. There is no app-specific `returnUrl`, even when `x-client: app`.
+2. **Push payload has no deep-link convention** (the app assumes `data.path`). The messaging integration should include one for FR-APP-5 parity with SMS links.
+3. **Portal appointment rows do not say whether a visit is a video consultation.** `portal.ts` `GET /v1/portal/appointments[/:id]` has no service type or `is_telemedicine`, so the app calls `GET /v1/portal/appointments/:id/telemedicine` for each shown appointment and treats 400 `not_a_video_consultation` as "in-clinic".
+4. **Video visits cannot be booked in the app.** `public.ts` `GET /v1/public/doctors/:slug` and `GET /v1/public/services` exclude `type = 'telemedicine'`, so the booking wizard never offers them; video visits are booked by staff. The app still maps `telemedicine_requires_online_payment` (`appointments.service.ts` `book`).
+5. **Doctor video list lacks `patient_id` and `encounter_id`.** `telemedicine.ts` `GET /v1/telemedicine` returns neither, so opening the encounter outside **Start** reads today's appointment row for `encounter_id`, and the patient comes from the encounter.
+6. **Public doctor profile returns `photo_key`, not `photo_url`.** `public.ts` `doctor` spreads `doctorsQuery` (which selects `d.photo_key`) without mapping it, so an internal storage key is public and the app derives `/v1/public/doctors/:slug/photo` itself. The list endpoint also exposes `photo_key` next to `photo_url`. `next_available` is computed for the first 60 list rows only.
+7. **No pending-draft lookup.** `ai.ts` has only `GET /v1/ai/drafts/:id`; if the doctor leaves the review screen before deciding, the app cannot find the draft again (it expires after 24 h). A `GET /v1/encounters/:id/ai/drafts?status=pending` would fix this. The dictation route uses `FileInterceptor('audio')`; the app sends JSON, which multer passes through, but this was not run against the API.
+8. **Complaints are write-only for patients.** `events.ts` has `POST /v1/portal/complaints` only, so patients cannot see status or resolution. The portal has no "my clinics" endpoint, so the form lists all clinics from `GET /v1/public/clinics`.
+9. **Expired sessions keep the push token.** When refresh fails (`auth.ts` `refresh`, family revoked or expired) the app can no longer call `devices/unregister`. The API should delete the account's device tokens for that device when it revokes a refresh family (needs `device_tokens.device_id`).

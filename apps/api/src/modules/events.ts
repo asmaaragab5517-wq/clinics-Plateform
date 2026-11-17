@@ -119,6 +119,12 @@ export class EventsController {
     return this.tenancy.system(pt.orgId, (tx) => this.recordComplaint(tx, pt, meta, b));
   }
 
+  @Get('portal/complaints')
+  @PatientAuth()
+  myComplaints(@Auth() p: Principal) {
+    return this.tenancy.run(p, (tx) => tx.query('select id, clinic_id, patient_id, category, description, status, resolution, created_at, resolved_at from complaints order by created_at desc limit 100'));
+  }
+
   private async recordComplaint(tx: Tx, actor: Principal, meta: RequestMeta, b: z.infer<typeof complaintSchema>) {
     const clinic = await tx.maybeOne('select 1 from clinics where id = $1', [b.clinicId]);
     if (!clinic) throw notFound('clinic');

@@ -4680,6 +4680,18 @@
         "tags": [
           "Events"
         ]
+      },
+      "get": {
+        "operationId": "EventsController_myComplaints",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Events"
+        ]
       }
     },
     "/v1/complaints/{id}": {
@@ -4980,6 +4992,20 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai"
+        ]
+      }
+    },
+    "/v1/ai/drafts": {
+      "get": {
+        "operationId": "AiController_drafts",
+        "parameters": [],
+        "responses": {
+          "200": {
             "description": ""
           }
         },

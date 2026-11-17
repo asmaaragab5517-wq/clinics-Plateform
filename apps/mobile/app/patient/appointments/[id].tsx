@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { AppointmentCard } from '../../../components/AppointmentCard';
+import { VideoVisitCard } from '../../../components/VideoVisitCard';
 import { ActionButton, Banner, Button, Empty, ErrorBox, Field, Loading, Muted, Screen, Section, T } from '../../../components/ui';
 import { SlotPicker } from '../../../components/SlotPicker';
 import { readUpcoming } from '../../../lib/cache';
@@ -10,20 +11,12 @@ import { portalApi } from '../../../lib/endpoints';
 import { dateTime } from '../../../lib/format';
 import { useI18n } from '../../../lib/i18n';
 import { useAction, useQuery } from '../../../lib/useQuery';
-import type { PortalAppointment, Slot } from '../../../lib/types';
-
-/** There is no GET /v1/portal/appointments/:id, so the detail is looked up in the upcoming + past lists. */
-async function findAppointment(id: string): Promise<PortalAppointment | null> {
-  const up = await portalApi.appointments('upcoming');
-  const hit = up.find((a) => a.id === id);
-  if (hit) return hit;
-  return (await portalApi.appointments('past')).find((a) => a.id === id) ?? null;
-}
+import type { Slot } from '../../../lib/types';
 
 export default function AppointmentDetail() {
   const { id, booked } = useLocalSearchParams<{ id: string; booked?: string }>();
   const { t, locale } = useI18n();
-  const q = useQuery(id ? `appt:${id}` : null, () => findAppointment(id!), { fallback: async () => (await readUpcoming())?.items.find((a) => a.id === id) ?? null });
+  const q = useQuery(id ? `appt:${id}` : null, () => portalApi.appointment(id!), { fallback: async () => (await readUpcoming())?.items.find((a) => a.id === id) ?? null });
   const [panel, setPanel] = useState<'none' | 'cancel' | 'reschedule'>('none');
   const [reason, setReason] = useState('');
   const [slot, setSlot] = useState<Slot | null>(null);
@@ -51,6 +44,7 @@ export default function AppointmentDetail() {
       {booked ? <Banner kind="success">{t('booking.confirmed')}</Banner> : null}
       {q.fromCache ? <Banner kind="warn">{t('offline.cached')}</Banner> : null}
       <AppointmentCard a={a} live={!q.fromCache} />
+      {!q.fromCache ? <VideoVisitCard a={a} /> : null}
       <Muted ltr>{`${t('appointments.ref')}: ${a.ref}`}</Muted>
       {a.address_lines ? <T style={{ marginTop: 4 }}>{a.address_lines}</T> : null}
       <ErrorBox error={act.error} />
@@ -64,6 +58,7 @@ export default function AppointmentDetail() {
       {a.status === 'booked' ? <ActionButton title={t('appointments.confirm')} loading={act.busy} onPress={() => void act.run(async () => { await portalApi.confirm(a.id); await done(t('appointments.confirmedMsg')); })} /> : null}
       {a.status === 'completed' ? <Button title={t('review.title')} onPress={() => router.push({ pathname: '/patient/review/[id]', params: { id: a.id } })} /> : null}
 
+      <Button kind="ghost" title={t('complaint.fromAppointment')} onPress={() => router.push({ pathname: '/patient/complaint', params: { clinicId: a.clinic_id, patientId: a.patient_id } })} />
       {active ? (
         <>
           <Button kind="secondary" title={t('appointments.reschedule')} onPress={() => setPanel(panel === 'reschedule' ? 'none' : 'reschedule')} />

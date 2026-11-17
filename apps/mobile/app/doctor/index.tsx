@@ -46,7 +46,7 @@ export default function DoctorToday() {
     void act.run(async () => {
       if (tk.status !== 'serving') await staffApi.transition(tk.appointment_id, 'in_consultation');
       await queue.reload();
-      router.push({ pathname: '/doctor/encounter/[appointmentId]', params: { appointmentId: tk.appointment_id, patientId: tk.patient_id } });
+      router.push({ pathname: '/doctor/encounter/[appointmentId]', params: { appointmentId: tk.appointment_id, patientId: tk.patient_id, encounterId: tk.encounter_id ?? undefined } });
     });
 
   return (
@@ -92,13 +92,14 @@ export default function DoctorToday() {
               <StatusBadge label={t(`status.${a.status}`)} tone={statusTone(a.status)} />
             </Row>
             <Muted>{a.services.map((x) => pick(x)).join(', ')}</Muted>
-            {a.status === 'in_consultation' || a.status === 'completed' ? (
-              <Button kind="ghost" title={t('emr.openEncounter')} onPress={() => router.push({ pathname: '/doctor/encounter/[appointmentId]', params: { appointmentId: a.id, patientId: a.patient_id } })} />
+            {a.encounter_id && (a.status === 'in_consultation' || a.status === 'completed') ? (
+              <Button kind="ghost" title={t('emr.openEncounter')} onPress={() => router.push({ pathname: '/doctor/encounter/[appointmentId]', params: { appointmentId: a.id, patientId: a.patient_id, encounterId: a.encounter_id ?? undefined } })} />
             ) : null}
           </Card>
         ))}
         {appts.data && !appts.data.length ? <Empty /> : null}
       </Section>
+      <Button kind="secondary" title={t('video.title')} onPress={() => router.push('/doctor/video')} />
       <Button kind="secondary" title={t('doctor.earnings')} onPress={() => router.push('/doctor/earnings')} />
     </Screen>
   );

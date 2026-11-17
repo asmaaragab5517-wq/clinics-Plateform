@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Switch, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import type { ConsentType } from '@hf/shared';
 import { ActionButton, Banner, Button, Card, Chip, ErrorBox, Loading, Muted, Row, Screen, Section, T, s } from '../../components/ui';
 import { portalApi } from '../../lib/endpoints';
@@ -26,11 +26,13 @@ function SwitchRow({ label, value, onChange, disabled }: { label: string; value:
 /** Settings: language, biometric unlock, notification preferences, consents, account deletion (FR-APP-1/4). */
 export default function Settings() {
   const { t, locale, setLocale } = useI18n();
+  // focus=consents: opened from a video visit that needs the telemedicine consent, so show consents first.
+  const { focus, patientId: focusPatient } = useLocalSearchParams<{ focus?: string; patientId?: string }>();
   const lock = useLock();
   const ses = useSession();
   const me = useQuery('portal:me', portalApi.me);
   const consents = useQuery('consents', portalApi.consents);
-  const [patientId, setPatientId] = useState<string | null>(null);
+  const [patientId, setPatientId] = useState<string | null>(focusPatient ?? null);
   const [bioOk, setBioOk] = useState(false);
   const act = useAction();
   const patients = me.data?.patients ?? [];
@@ -82,9 +84,31 @@ export default function Settings() {
       },
     ]);
 
+  const consentsSection = (
+    <Section title={t('settings.consents')}>
+      <ErrorBox error={consents.error} />
+      {(consents.data?.versions ?? []).map((v) => {
+        const given = consents.data?.consents.find((c) => c.patient_id === pid && c.type === v.type);
+        return (
+          <Card key={v.id}>
+            <SwitchRow label={t(`consent.${v.type}`)} value={!!given?.granted} onChange={(on) => setConsent(v.type, on)} disabled={!pid} />
+            <Muted>{locale === 'en' ? v.text_en || v.text_ar : v.text_ar}</Muted>
+            {given?.needsReconsent ? <Banner kind="warn">{t('settings.reconsent')}</Banner> : null}
+          </Card>
+        );
+      })}
+    </Section>
+  );
+
   return (
     <Screen>
       <ErrorBox error={act.error} />
+      {focus === 'consents' ? (
+        <>
+          <Banner kind="info">{t('tele.consentHint')}</Banner>
+          {consentsSection}
+        </>
+      ) : null}
       <Section title={t('settings.language')}>
         <View style={s.wrap}>
           <Chip label={t('settings.arabic')} selected={locale === 'ar'} onPress={() => changeLanguage('ar')} />
@@ -134,19 +158,7 @@ export default function Settings() {
         ) : null}
       </Section>
 
-      <Section title={t('settings.consents')}>
-        <ErrorBox error={consents.error} />
-        {(consents.data?.versions ?? []).map((v) => {
-          const given = consents.data?.consents.find((c) => c.patient_id === pid && c.type === v.type);
-          return (
-            <Card key={v.id}>
-              <SwitchRow label={t(`consent.${v.type}`)} value={!!given?.granted} onChange={(on) => setConsent(v.type, on)} disabled={!pid} />
-              <Muted>{locale === 'en' ? v.text_en || v.text_ar : v.text_ar}</Muted>
-              {given?.needsReconsent ? <Banner kind="warn">{t('settings.reconsent')}</Banner> : null}
-            </Card>
-          );
-        })}
-      </Section>
+      {focus !== 'consents' ? consentsSection : null}
 
       <Section title={t('settings.account')}>
         {ses.modes.length > 1 ? <Button kind="secondary" title={t('mode.switch')} onPress={() => router.push('/mode')} /> : null}

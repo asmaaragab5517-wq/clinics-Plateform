@@ -48,8 +48,14 @@ export interface DoctorSummary extends Named {
   rating_avg: string | number | null;
   rating_count: number | null;
   specialties: ({ slug: string } & Named)[];
-  clinics: ({ id: string; slug: string; governorate: string } & Named)[];
+  clinics: ({ id: string; slug: string; governorate: string; city?: string | null } & Named)[];
   fee: number | null;
+  /** First bookable slot in the next 14 days (list endpoint only; ISO). */
+  next_available?: string | null;
+  /** Relative, public API path (GET /v1/public/doctors/:slug/photo); list endpoint only. */
+  photo_url?: string | null;
+  /** Internal storage key; the profile endpoint returns it instead of photo_url (README "API gaps"). */
+  photo_key?: string | null;
 }
 export interface DoctorService extends Named {
   id: string;
@@ -71,6 +77,13 @@ export interface Slot {
   date: string;
   localStart: string;
   clinicId: string;
+}
+export interface PublicClinic extends Named {
+  id: string;
+  slug: string;
+  governorate: string | null;
+  city: string | null;
+  address_lines: string | null;
 }
 export interface PublicService extends Named {
   id: string;
@@ -168,6 +181,23 @@ export interface PortalInvoice {
   issued_at: string;
   clinic_name_ar: string;
 }
+/** GET /v1/portal/appointments/:id/telemedicine (telemedicine.ts `status`). */
+export interface TelemedicineStatus {
+  status: 'scheduled' | 'patient_waiting' | 'in_progress' | 'ended' | 'cancelled';
+  opensAt: string;
+  closesAt: string;
+  canJoin: boolean;
+}
+export interface TelemedicineLink {
+  url: string;
+  passcode: string | null;
+  provider: string;
+}
+export type ComplaintCategory = 'waiting_time' | 'staff_behaviour' | 'clinical_care' | 'billing' | 'facility' | 'communication' | 'other';
+export interface SignedLink {
+  url: string;
+  expiresInSeconds: number;
+}
 export interface PortalPackage {
   id: string;
   patient_id: string;
@@ -216,6 +246,8 @@ export interface StaffAppointment {
   doctor_name: string;
   services: ({ id: string } & Named)[];
   ticket_number: number | null;
+  /** Created at check-in; null before (appointments.ts list). */
+  encounter_id: string | null;
 }
 export interface QueueTicket {
   id: string;
@@ -228,6 +260,7 @@ export interface QueueTicket {
   patient_name: string | null;
   appointment_id: string;
   patient_id: string;
+  encounter_id: string | null;
 }
 export interface QueueGroup {
   doctorId: string;
@@ -299,6 +332,8 @@ export interface Encounter {
   status: 'open' | 'signed';
   vitals: Vitals;
   chief_complaint: string;
+  hpi?: string | null;
+  examination?: string | null;
   notes: string;
   diagnoses: { code: string; primary: boolean; note?: string }[];
   allergies: Allergy[];
@@ -351,4 +386,81 @@ export interface CommissionStatement {
   share: number;
   status: 'draft' | 'approved';
   doctor_name: string;
+}
+
+/** GET /v1/doctors (staff.ts): staff directory, now readable by receptionists (schedule:view). */
+export interface StaffDoctor extends Named {
+  id: string;
+  slug: string;
+  title: string | null;
+  is_public: boolean;
+  clinic_ids: string[];
+  specialty_ids: string[];
+  service_ids: string[];
+}
+/** GET /v1/services (catalogue.ts). */
+export interface StaffService extends Named {
+  id: string;
+  code: string;
+  type: string;
+  duration_minutes: number;
+  is_active: boolean;
+}
+
+// ---- telemedicine (doctor)
+export interface DoctorVideoVisit {
+  appointment_id: string;
+  ref: string;
+  start_at: string;
+  end_at: string;
+  appointment_status: AppointmentStatus;
+  doctor_id: string;
+  patient_name: string;
+  status: TelemedicineStatus['status'] | null;
+  patient_joined_at: string | null;
+  admitted_at: string | null;
+  provider: string | null;
+}
+export interface TelemedicineStart extends TelemedicineLink {
+  encounterId: string | null;
+}
+
+// ---- AI scribe (ai.ts, integrations/ai.ts encounterDraftSchema)
+export type DraftVitalKey = 'systolic' | 'diastolic' | 'heartRate' | 'temperatureC' | 'respiratoryRate' | 'spo2' | 'weightKg' | 'heightCm';
+export interface EncounterDraftOutput {
+  chiefComplaint: string;
+  hpi: string;
+  examination: string;
+  notes: string;
+  vitals: Record<DraftVitalKey, number | null>;
+  diagnoses: { code: string; title: string; stated: boolean }[];
+  followUpInDays: number | null;
+  missingInformation: string[];
+}
+export interface AiDraftWarning {
+  field: string;
+  issue: string;
+  value?: unknown;
+}
+export interface AiDraft {
+  id: string;
+  kind: 'encounter_note' | 'patient_summary' | 'rx_instructions';
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  output: EncounterDraftOutput | Record<string, unknown>;
+  warnings: AiDraftWarning[];
+  model?: string;
+  served_model?: string | null;
+  prompt_version?: string;
+  encounter_id: string | null;
+  created_at?: string;
+  decided_at?: string | null;
+}
+export interface ApproveEncounterDraft {
+  chiefComplaint?: string;
+  hpi?: string;
+  examination?: string;
+  notes?: string;
+  vitals?: Vitals;
+  diagnosisCodes?: string[];
+  followUpDate?: string | null;
 }

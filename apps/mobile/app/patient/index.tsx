@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { View, useWindowDimensions } from 'react-native';
 import { AppointmentCard } from '../../components/AppointmentCard';
+import { VideoVisitCard } from '../../components/VideoVisitCard';
 import { Banner, Button, Card, Empty, ErrorBox, Loading, Muted, Screen, Section, T, s } from '../../components/ui';
 import { cacheUpcoming, readUpcoming } from '../../lib/cache';
 import { portalApi } from '../../lib/endpoints';
@@ -17,6 +18,7 @@ const TILES: { key: TKey; path: string }[] = [
   { key: 'patient.packages', path: '/patient/packages' },
   { key: 'patient.family', path: '/patient/family' },
   { key: 'patient.notifications', path: '/patient/notifications' },
+  { key: 'complaint.title', path: '/patient/complaint' },
   { key: 'settings.title', path: '/patient/settings' },
 ];
 
@@ -38,6 +40,7 @@ export default function PatientHome() {
         {upcoming.loading && !upcoming.data ? <Loading /> : null}
         <ErrorBox error={upcoming.error} onRetry={() => void upcoming.reload()} />
         {next ? <AppointmentCard a={next} live={!upcoming.fromCache} /> : upcoming.data ? <Empty text={t('patient.noUpcoming')} /> : null}
+        {next && !upcoming.fromCache ? <VideoVisitCard a={next} /> : null}
         {upcoming.data && upcoming.data.length > 1 ? <Muted>{t('patient.moreUpcoming', { count: upcoming.data.length - 1, date: date(upcoming.data[1]!.start_at) })}</Muted> : null}
         <Button title={t('nav.book')} onPress={() => router.push('/patient/doctors')} style={{ marginTop: 8 }} />
       </Section>

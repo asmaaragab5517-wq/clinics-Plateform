@@ -85,7 +85,7 @@ export class PublicController {
         : [];
       const next = new Map<string, string>();
       for (const s of slots) if (s.available > 0 && !next.has(s.doctorId)) next.set(s.doctorId, s.start);
-      const out = rows.map((r) => ({ ...r, next_available: next.get(r.id as string) ?? null, photo_url: r.photo_key ? `/v1/public/doctors/${r.slug}/photo` : null }));
+      const out = rows.map(({ photo_key, ...r }) => ({ ...r, next_available: next.get(r.id as string) ?? null, photo_url: photo_key ? `/v1/public/doctors/${r.slug}/photo` : null }));
       if (!f.availableBy) return out;
       const limit = zonedToUtc(addDays(f.availableBy, 1), '00:00').toISOString();
       return out.filter((r) => r.next_available && r.next_available < limit).sort((a, b) => a.next_available!.localeCompare(b.next_available!));
@@ -156,12 +156,13 @@ export class PublicController {
       const services = await tx.query(
         `select s.id, s.code, s.name_ar, s.name_en, s.duration_minutes, s.type,
            (select jsonb_agg(jsonb_build_object('clinicId', pl.clinic_id, 'price', pl.price)) from price_list_items pl where pl.service_id = s.id and (pl.doctor_id = $1 or pl.doctor_id is null) and pl.effective_from <= current_date and (pl.effective_to is null or pl.effective_to >= current_date)) as prices
-         from doctor_services ds join services s on s.id = ds.service_id where ds.doctor_id = $1 and s.is_active and s.type <> 'telemedicine' order by s.type, s.code`,
+         from doctor_services ds join services s on s.id = ds.service_id where ds.doctor_id = $1 and s.is_active order by s.type, s.code`,
         [d.id],
       );
       const reviews = await tx.query(`select rating, comment, display_name, created_at from reviews where doctor_id = $1 and status = 'approved' order by created_at desc limit 20`, [d.id]);
       const next = (await this.availability.slots(tx, { doctorIds: [d.id as string], from: localDate(new Date()), days: 14, channel: 'online', leadMinutes: (await this.appointments.policy(tx)).leadMinutes })).find((s) => s.available > 0);
-      return { ...d, ...profile, services, reviews, nextAvailable: next?.start ?? null };
+      const { photo_key, ...rest } = d;
+      return { ...rest, ...profile, services, reviews, nextAvailable: next?.start ?? null, next_available: next?.start ?? null, photo_url: photo_key ? `/v1/public/doctors/${d.slug}/photo` : null };
     });
     if (!r) throw notFound('doctor');
     return r;
@@ -173,7 +174,7 @@ export class PublicController {
     return this.tenancy.run(p, (tx) =>
       tx.query(
         `select s.id, s.code, s.name_ar, s.name_en, s.type, s.duration_minutes, s.vat, pl.clinic_id, pl.price from services s join price_list_items pl on pl.service_id = s.id and pl.doctor_id is null
-         where s.is_active and s.type <> 'telemedicine' and pl.effective_from <= current_date and (pl.effective_to is null or pl.effective_to >= current_date) and ($1::uuid is null or pl.clinic_id = $1)
+         where s.is_active and pl.effective_from <= current_date and (pl.effective_to is null or pl.effective_to >= current_date) and ($1::uuid is null or pl.clinic_id = $1)
          order by s.type, s.name_ar`,
         [clinicId ? uuid(clinicId) : null],
       ),

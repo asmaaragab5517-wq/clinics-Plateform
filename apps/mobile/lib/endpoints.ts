@@ -1,7 +1,11 @@
 import { api, request } from './api';
 import { randomId } from './random';
 import type {
+  AiDraft,
+  ApproveEncounterDraft,
   BookingResponse,
+  ComplaintCategory,
+  DoctorVideoVisit,
   CommissionStatement,
   ConsentsResponse,
   DoctorProfile,
@@ -23,17 +27,24 @@ import type {
   PortalPackage,
   PortalPrescription,
   PortalVisit,
+  PublicClinic,
   PublicService,
   QueueGroup,
   QueuePosition,
   RxLineInput,
   RxTemplate,
   RxWarning,
+  SignedLink,
   Slot,
   Specialty,
   StaffAppointment,
+  StaffDoctor,
   StaffMe,
   StaffPatient,
+  StaffService,
+  TelemedicineLink,
+  TelemedicineStart,
+  TelemedicineStatus,
   Vitals,
 } from './types';
 import type { ConsentType, QueuePriority } from '@hf/shared';
@@ -42,13 +53,16 @@ import type { ConsentType, QueuePriority } from '@hf/shared';
 export const authApi = {
   requestOtp: (phone: string, purpose: 'login' | 'link_family' = 'login') => api.post<OtpRequestResponse>('/v1/auth/otp/request', { phone, purpose }),
   verifyOtp: (phone: string, code: string, deviceId: string) => api.post<OtpVerifyResponse>('/v1/auth/otp/verify', { phone, code, deviceId }),
-  logout: () => api.post<{ ok: true }>('/v1/auth/logout', {}, 'patient'),
+  /** With this device's refresh token only its token family is revoked (auth.ts `logout`); other devices stay signed in. */
+  logout: (refreshToken: string) => api.post<{ ok: true }>('/v1/auth/logout', { refreshToken }, 'patient'),
   staffMe: () => api.get<StaffMe>('/v1/auth/me', undefined, 'staff'),
 };
 
 export const publicApi = {
   specialties: () => api.get<Specialty[]>('/v1/public/specialties'),
-  doctors: (f: { specialty?: string; q?: string; clinicId?: string }) => api.get<DoctorSummary[]>('/v1/public/doctors', f),
+  /** `availableBy` (YYYY-MM-DD) keeps doctors with a free slot up to that day, sorted by next_available. */
+  doctors: (f: { specialty?: string; q?: string; clinicId?: string; city?: string; availableBy?: string }) => api.get<DoctorSummary[]>('/v1/public/doctors', f),
+  clinics: () => api.get<PublicClinic[]>('/v1/public/clinics'),
   doctor: (slug: string) => api.get<DoctorProfile>(`/v1/public/doctors/${encodeURIComponent(slug)}`),
   slots: (q: { doctorId: string; clinicId?: string; serviceId?: string; from?: string; days?: number }) => api.get<Slot[]>('/v1/public/slots', { days: 14, ...q }),
   services: (clinicId?: string) => api.get<PublicService[]>('/v1/public/services', { clinicId }),
@@ -66,6 +80,10 @@ export const portalApi = {
   /** FR-PAT-4: confirm family links created at reception with an OTP (purpose link_family) sent to this phone. */
   confirmLinks: (code: string) => api.post<{ linked: string[] }>('/v1/portal/links/confirm', { code }, 'patient'),
   appointments: (scope: 'upcoming' | 'past') => api.get<PortalAppointment[]>('/v1/portal/appointments', { scope }, 'patient'),
+  appointment: (id: string) => api.get<PortalAppointment>(`/v1/portal/appointments/${id}`, undefined, 'patient'),
+  /** 400 not_a_video_consultation for in-clinic visits (telemedicine.ts). */
+  telemedicine: (id: string) => api.get<TelemedicineStatus>(`/v1/portal/appointments/${id}/telemedicine`, undefined, 'patient'),
+  joinTelemedicine: (id: string) => api.post<TelemedicineLink>(`/v1/portal/appointments/${id}/telemedicine/join`, {}, 'patient'),
   /** Idempotency-Key: create one per booking attempt (newIdempotencyKey) and reuse it on retry. */
   book: (body: { clinicId: string; doctorId: string; serviceId: string; start: string; patientId: string; paymentMode: 'online' | 'at_clinic' }, idempotencyKey: string) =>
     request<BookingResponse>('/v1/portal/bookings', { method: 'POST', body, auth: 'patient', idempotencyKey }),
@@ -77,7 +95,12 @@ export const portalApi = {
   visits: () => api.get<PortalVisit[]>('/v1/portal/visits', undefined, 'patient'),
   documents: () => api.get<PortalDocument[]>('/v1/portal/documents', undefined, 'patient'),
   documentUrl: (id: string) => api.get<{ url: string; expiresInSeconds: number }>(`/v1/portal/documents/${id}/url`, undefined, 'patient'),
+  /** 10-minute signed URLs that the system browser can open without a bearer header (portal.ts). */
+  prescriptionLink: (id: string) => api.get<SignedLink>(`/v1/portal/prescriptions/${id}/link`, undefined, 'patient'),
+  invoiceLink: (id: string) => api.get<SignedLink>(`/v1/portal/invoices/${id}/link`, undefined, 'patient'),
   invoices: () => api.get<PortalInvoice[]>('/v1/portal/invoices', undefined, 'patient'),
+  complaint: (b: { clinicId: string; patientId: string; category: ComplaintCategory; description: string }) =>
+    api.post<{ id: string; created_at: string }>('/v1/portal/complaints', { ...b, channel: 'app' }, 'patient'),
   packages: () => api.get<PortalPackage[]>('/v1/portal/packages', undefined, 'patient'),
   review: (appointmentId: string, rating: number, comment?: string) => api.post('/v1/portal/reviews', { appointmentId, rating, comment: comment || undefined }, 'patient'),
   notifications: () => api.get<PortalNotification[]>('/v1/portal/notifications', undefined, 'patient'),
@@ -88,24 +111,28 @@ export const portalApi = {
   giveConsent: (b: { patientId: string; type: ConsentType; granted: boolean; versionId: string }) => api.post('/v1/portal/consents', b, 'patient'),
   deleteAccount: () => api.post<{ ok: true }>('/v1/portal/account/delete', {}, 'patient'),
   registerDevice: (token: string, platform: 'ios' | 'android' | 'web') => api.post<{ id: string }>('/v1/portal/devices', { token, platform }, 'patient'),
+  unregisterDevice: (token: string) => api.post<{ ok: true }>('/v1/portal/devices/unregister', { token }, 'patient'),
 };
 
 export const staffApi = {
-  appointments: (q: { clinicId?: string; doctorId?: string; patientId?: string; from: string; to: string; status?: string }) => api.get<StaffAppointment[]>('/v1/appointments', q, 'staff'),
+  appointments: (q: { clinicId?: string; doctorId?: string; patientId?: string; from: string; to: string; status?: string; ref?: string }) => api.get<StaffAppointment[]>('/v1/appointments', q, 'staff'),
+  doctors: (clinicId?: string) => api.get<StaffDoctor[]>('/v1/doctors', { clinicId }, 'staff'),
+  services: () => api.get<StaffService[]>('/v1/services', undefined, 'staff'),
   queue: (clinicId: string, doctorId?: string) => api.get<QueueGroup[]>('/v1/queue', { clinicId, doctorId }, 'staff'),
   callNext: (clinicId: string, doctorId: string) => api.post<{ called: { id: string; ticketNumber: number; appointmentId: string } }>('/v1/queue/call-next', { clinicId, doctorId }, 'staff'),
   updateTicket: (id: string, b: { priority?: QueuePriority; status?: 'waiting' | 'skipped' }) => api.patch<{ ok: true }>(`/v1/queue/${id}`, b, 'staff'),
   transition: (id: string, to: 'confirmed' | 'checked_in' | 'in_consultation' | 'completed' | 'no_show' | 'cancelled', reason?: string) =>
     api.post(`/v1/appointments/${id}/transition`, { to, reason }, 'staff'),
   checkIn: (id: string, priority?: QueuePriority) => api.post<{ ticket: { ticket_number: number } | null; packages: unknown[] }>(`/v1/appointments/${id}/check-in`, priority ? { priority } : {}, 'staff'),
-  walkIn: (b: { patientId: string; clinicId: string; doctorId: string; serviceIds: string[]; priority: QueuePriority }) =>
-    api.post<{ ticket: { ticket_number: number } | null }>('/v1/appointments/walk-in', b, 'staff'),
+  /** Idempotency-Key: one per walk-in attempt, reused on retry so a timeout cannot create a second ticket. */
+  walkIn: (b: { patientId: string; clinicId: string; doctorId: string; serviceIds: string[]; priority: QueuePriority }, idempotencyKey: string) =>
+    request<{ ticket: { ticket_number: number } | null; replayed?: boolean }>('/v1/appointments/walk-in', { method: 'POST', body: b, auth: 'staff', idempotencyKey }),
   searchPatients: (q: string) => api.get<PatientSearchRow[]>('/v1/patients', { q }, 'staff'),
   patient: (id: string) => api.get<StaffPatient>(`/v1/patients/${id}`, undefined, 'staff'),
   history: (id: string) => api.get<HistoryItem[]>(`/v1/patients/${id}/history`, undefined, 'staff'),
   encounters: (patientId: string) => api.get<EncounterListRow[]>(`/v1/patients/${patientId}/encounters`, undefined, 'staff'),
   encounter: (id: string) => api.get<Encounter>(`/v1/encounters/${id}`, undefined, 'staff'),
-  updateEncounter: (id: string, b: { vitals?: Vitals; chiefComplaint?: string; notes?: string; diagnoses?: { code: string; primary: boolean }[] }) =>
+  updateEncounter: (id: string, b: { vitals?: Vitals; chiefComplaint?: string; hpi?: string; examination?: string; notes?: string; diagnoses?: { code: string; primary: boolean }[] }) =>
     api.patch<Encounter>(`/v1/encounters/${id}`, b, 'staff'),
   signEncounter: (id: string) => api.post<Encounter>(`/v1/encounters/${id}/sign`, {}, 'staff'),
   icd10: (q: string) => api.get<Icd10[]>('/v1/icd10', { q }, 'staff'),
@@ -115,6 +142,16 @@ export const staffApi = {
     api.post<{ id: string; warnings: RxWarning[] }>(`/v1/encounters/${encounterId}/prescriptions`, { lines: lines.map(({ label: _l, ...l }) => l), notes }, 'staff'),
   issueRx: (id: string, acknowledgeWarnings: boolean) => api.post<{ id: string; shareLink: string }>(`/v1/prescriptions/${id}/issue`, { acknowledgeWarnings }, 'staff'),
   statements: () => api.get<CommissionStatement[]>('/v1/commission-statements', undefined, 'staff'),
+  // Telemedicine (telemedicine.ts)
+  videoVisits: (date: string) => api.get<DoctorVideoVisit[]>('/v1/telemedicine', { date }, 'staff'),
+  startVideo: (appointmentId: string) => api.post<TelemedicineStart>(`/v1/telemedicine/${appointmentId}/start`, {}, 'staff'),
+  endVideo: (appointmentId: string) => api.post<{ ok: true }>(`/v1/telemedicine/${appointmentId}/end`, {}, 'staff'),
+  // AI scribe (ai.ts). Typed dictation only: no audio recording module is installed.
+  dictation: (encounterId: string, text: string, language: 'ar' | 'en' | 'auto') =>
+    request<AiDraft & { transcript: string }>(`/v1/encounters/${encounterId}/ai/dictation`, { method: 'POST', body: { text, language }, auth: 'staff', timeoutMs: 90000 }),
+  aiDraft: (id: string) => api.get<AiDraft>(`/v1/ai/drafts/${id}`, undefined, 'staff'),
+  approveDraft: (id: string, b: ApproveEncounterDraft) => api.post<{ ok: true; applied: unknown }>(`/v1/ai/drafts/${id}/approve`, b, 'staff'),
+  rejectDraft: (id: string) => api.post<{ ok: true }>(`/v1/ai/drafts/${id}/reject`, {}, 'staff'),
 };
 
 export const newIdempotencyKey = () => `app-${randomId()}`;

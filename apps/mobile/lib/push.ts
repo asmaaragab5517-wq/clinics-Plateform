@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { hasPatientSession, platformName } from './api';
 import { portalApi } from './endpoints';
-import { KEYS, getSecret, setSecret } from './storage';
+import { KEYS, deleteSecret, getSecret, setSecret } from './storage';
 
 /**
  * FR-COM-7: per-device push token (FCM on Android, APNs on iOS — the raw device token, not an Expo push token,
@@ -36,6 +36,17 @@ export async function registerForPush(opts: { prompt: boolean }): Promise<'regis
     // No Firebase config (google-services.json) / simulator: push is unavailable, the app keeps working.
     return 'skipped';
   }
+}
+
+/**
+ * Sign-out: detach this device's push token from the patient account (POST /v1/portal/devices/unregister) so a
+ * signed-out phone stops receiving the account's notifications. Must run while the patient token is still valid.
+ * Best effort: offline or an already-expired session must not block signing out.
+ */
+export async function unregisterPush(): Promise<void> {
+  const token = await getSecret(KEYS.pushToken);
+  if (token && hasPatientSession()) await portalApi.unregisterDevice(token).catch(() => undefined);
+  await deleteSecret(KEYS.pushToken);
 }
 
 /** Re-register when FCM/APNs rotates the token; route notification taps carrying a deep link. */

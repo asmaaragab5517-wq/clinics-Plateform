@@ -1,16 +1,17 @@
-import { Banner, Button, Card, Empty, ErrorBox, Loading, Muted, Screen, T } from '../../components/ui';
+import * as WebBrowser from 'expo-web-browser';
+import { ActionButton, Banner, Card, Empty, ErrorBox, Loading, Muted, Screen, T } from '../../components/ui';
 import { cachePrescriptions, readPrescriptions } from '../../lib/cache';
 import { FEATURES } from '../../lib/config';
 import { portalApi } from '../../lib/endpoints';
 import { date } from '../../lib/format';
 import { useI18n } from '../../lib/i18n';
 import { useClinicalScreen } from '../../lib/screenCapture';
-import { useQuery } from '../../lib/useQuery';
+import { useAction, useQuery } from '../../lib/useQuery';
 
 /**
  * Prescriptions (FR-APP-1). The latest ones are cached for offline reading (FR-APP-6).
- * PDF: GET /v1/portal/prescriptions/:id/pdf needs the bearer header, which the in-app browser cannot send;
- * the button is behind FEATURES.signedPdfUrls until the API offers a signed URL (README "Stubbed").
+ * PDF: GET /v1/portal/prescriptions/:id/link returns a 10-minute signed URL, opened in the system browser
+ * (it can save or share the PDF). The link is fetched on tap, never cached.
  */
 export default function Prescriptions() {
   useClinicalScreen('prescriptions');
@@ -19,11 +20,18 @@ export default function Prescriptions() {
     onData: (d) => void cachePrescriptions(d),
     fallback: async () => (await readPrescriptions())?.items ?? null,
   });
+  const pdf = useAction();
+  const openPdf = (id: string) =>
+    void pdf.run(async () => {
+      const { url } = await portalApi.prescriptionLink(id);
+      await WebBrowser.openBrowserAsync(url, { dismissButtonStyle: 'close' });
+    });
   return (
     <Screen refreshing={q.loading} onRefresh={() => void q.reload()}>
       {q.fromCache ? <Banner kind="warn">{t('offline.cached')}</Banner> : null}
       {q.loading && !q.data ? <Loading /> : null}
       <ErrorBox error={q.error} onRetry={() => void q.reload()} />
+      <ErrorBox error={pdf.error} />
       {q.data && !q.data.length ? <Empty /> : null}
       {(q.data ?? []).map((rx) => (
         <Card key={rx.id}>
@@ -36,7 +44,7 @@ export default function Prescriptions() {
               {l.durationDays ? <Muted>{t('rx.durationDays', { days: l.durationDays })}</Muted> : null}
             </Card>
           ))}
-          {FEATURES.signedPdfUrls ? <Button kind="secondary" title={t('rx.openPdf')} onPress={() => undefined} style={{ marginTop: 8 }} /> : null}
+          {FEATURES.signedPdfUrls ? <ActionButton kind="secondary" title={t('rx.openPdf')} onPress={() => openPdf(rx.id)} loading={pdf.busy} style={{ marginTop: 8 }} /> : null}
         </Card>
       ))}
     </Screen>

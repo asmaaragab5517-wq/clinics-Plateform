@@ -140,7 +140,7 @@ export class TelemedicineController {
     const d = date ? parse(zDate, date) : localDate(new Date());
     return this.tenancy.run(s, (tx) =>
       tx.query(
-        `select a.id as appointment_id, a.ref, a.start_at, a.end_at, a.status as appointment_status, a.doctor_id, p.first_name_ar || ' ' || p.family_name_ar as patient_name,
+        `select a.id as appointment_id, a.ref, a.start_at, a.end_at, a.status as appointment_status, a.doctor_id, a.patient_id, (select e.id from encounters e where e.appointment_id = a.id) as encounter_id, p.first_name_ar || ' ' || p.family_name_ar as patient_name,
                 t.status, t.patient_joined_at, t.admitted_at, t.provider
          from appointments a join patients p on p.id = a.patient_id left join telemedicine_sessions t on t.appointment_id = a.id
          where (a.start_at at time zone 'Africa/Cairo')::date = $1::date and ($2::uuid is null or a.doctor_id = $2)

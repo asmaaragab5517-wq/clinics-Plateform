@@ -9,7 +9,7 @@ import { useI18n } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { useAction } from '../../lib/useQuery';
 
-/** QR check-in (FR-APP-3): scan the booking QR (appointment id or booking ref) and check the patient in. */
+/** QR check-in (FR-APP-3): scan the booking QR (appointment id, or booking ref resolved with GET /v1/appointments?ref=) and check the patient in. */
 export default function Scan() {
   const { t } = useI18n();
   const { clinicId } = useSession();
@@ -27,7 +27,12 @@ export default function Scan() {
       .run(async () => {
         const parsed = parseBookingQr(r.data);
         if (!parsed) return setNotice(t('reception.qrUnknown'));
-        const id = parsed.appointmentId ?? (parsed.ref ? await resolveRef(clinicId!, parsed.ref) : null);
+        let id = parsed.appointmentId ?? null;
+        if (!id && parsed.ref) {
+          const hit = await resolveRef(clinicId!, parsed.ref);
+          if (hit && 'otherClinic' in hit) return setNotice(t('reception.qrOtherClinic'));
+          id = hit?.id ?? null;
+        }
         if (!id) return setNotice(t('reception.qrNotToday'));
         const res = await staffApi.checkIn(id);
         setTicket(res.ticket?.ticket_number ?? null);

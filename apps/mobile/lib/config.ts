@@ -14,13 +14,13 @@ export const DEV_STAFF_TOKEN = process.env.EXPO_PUBLIC_ALLOW_DEV_STAFF_TOKEN ===
 export const LINK_DOMAINS: string[] = ((Constants.expoConfig?.extra as { linkDomains?: string[] } | undefined)?.linkDomains ?? []).filter(Boolean);
 
 /**
- * Feature flags for API capabilities that do not exist yet.
- * Prescription/invoice PDFs are served only with a bearer header; the in-app browser cannot send one and no
- * file-system module is installed to save the bytes, so the PDF buttons need a signed-URL endpoint like
- * GET /v1/portal/documents/:id/url. Until then the app shows the prescription in-app (README "Stubbed").
+ * Feature flags for API capabilities.
+ * signedPdfUrls: prescription and invoice PDFs open through 10-minute signed links
+ * (GET /v1/portal/prescriptions/:id/link, /v1/portal/invoices/:id/link) in the system browser, so no bearer
+ * header and no file-system module are needed.
  */
 export const FEATURES = {
-  signedPdfUrls: false,
+  signedPdfUrls: true,
 } as const;
 
 if (!__DEV__ && API_URL.startsWith('http://')) {

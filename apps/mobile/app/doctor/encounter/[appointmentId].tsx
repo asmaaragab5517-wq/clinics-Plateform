@@ -3,7 +3,7 @@ import { Alert, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ageInYears, toWesternDigits } from '@hf/shared';
 import { AllergyBanner } from '../../../components/AllergyBanner';
-import { ActionButton, Banner, Button, Card, Chip, Empty, ErrorBox, Field, H1, ListItem, Loading, Muted, Row, Screen, Section, T, s } from '../../../components/ui';
+import { ActionButton, Banner, Button, Card, Chip, Empty, ErrorBox, Field, H1, ListItem, Loading, Muted, Row, Screen, Section, T, colors, s } from '../../../components/ui';
 import { isApiError } from '../../../lib/api';
 import { staffApi } from '../../../lib/endpoints';
 import { date } from '../../../lib/format';
@@ -11,6 +11,7 @@ import { useI18n, type TKey } from '../../../lib/i18n';
 import { withReauth } from '../../../lib/reauth';
 import { useClinicalScreen } from '../../../lib/screenCapture';
 import { useSession } from '../../../lib/session';
+import { todayRange } from '../../../lib/today';
 import { useAction, useQuery } from '../../../lib/useQuery';
 import type { Drug, Encounter, Icd10, RxLineInput, RxWarning, Vitals } from '../../../lib/types';
 
@@ -27,13 +28,16 @@ const VITALS: { key: keyof Vitals; label: TKey; int: boolean }[] = [
 ];
 
 /**
- * There is no "encounter by appointment" endpoint: the encounter is created at check-in, so we take the
- * patient's open encounter owned by this doctor (newest first). README "API gaps".
+ * The encounter is created at check-in and its id travels with the queue ticket / appointment row (`encounter_id`)
+ * or the telemedicine start response. Without it (e.g. a deep link), the appointment's row in today's schedule is
+ * looked up for its `encounter_id` (GET /v1/appointments lists it). No guessing among the patient's encounters.
  */
-async function findEncounter(patientId: string, doctorId: string): Promise<Encounter | null> {
-  const list = await staffApi.encounters(patientId);
-  const mine = list.find((e) => e.doctor_id === doctorId && e.status === 'open') ?? list.find((e) => e.doctor_id === doctorId);
-  return mine ? staffApi.encounter(mine.id) : null;
+async function findEncounter(p: { encounterId?: string; appointmentId?: string; doctorId: string }): Promise<Encounter | null> {
+  if (p.encounterId) return staffApi.encounter(p.encounterId);
+  if (!p.appointmentId) return null;
+  const r = todayRange();
+  const row = (await staffApi.appointments({ doctorId: p.doctorId, from: r.from, to: r.to })).find((a) => a.id === p.appointmentId);
+  return row?.encounter_id ? staffApi.encounter(row.encounter_id) : null;
 }
 
 const num = (v: string, int: boolean) => {
@@ -44,17 +48,21 @@ const num = (v: string, int: boolean) => {
 /** Patient summary + quick encounter (FR-APP-2): vitals, ICD-10 diagnoses, notes, prescription, sign-off. */
 export default function EncounterScreen() {
   useClinicalScreen('encounter');
-  const { patientId } = useLocalSearchParams<{ appointmentId: string; patientId: string }>();
+  const params = useLocalSearchParams<{ appointmentId: string; patientId?: string; encounterId?: string }>();
   const { t, locale } = useI18n();
   const { staff } = useSession();
   const me = staff!.userId;
+  const enc = useQuery(`encd:${params.encounterId ?? ''}:${params.appointmentId ?? ''}`, () => findEncounter({ encounterId: params.encounterId, appointmentId: params.appointmentId, doctorId: me }));
+  // The telemedicine list has no patient_id, so the patient can also come from the encounter itself.
+  const patientId = params.patientId || enc.data?.patient_id;
   const patient = useQuery(patientId ? `pt:${patientId}` : null, () => staffApi.patient(patientId!));
   const history = useQuery(patientId ? `hist:${patientId}` : null, () => staffApi.history(patientId!));
   const visits = useQuery(patientId ? `enc:${patientId}` : null, () => staffApi.encounters(patientId!));
-  const enc = useQuery(patientId ? `encd:${patientId}` : null, () => findEncounter(patientId!, me));
 
   const [vitals, setVitals] = useState<Record<string, string>>({});
   const [complaint, setComplaint] = useState('');
+  const [hpi, setHpi] = useState('');
+  const [exam, setExam] = useState('');
   const [notes, setNotes] = useState('');
   const [dx, setDx] = useState<{ code: string; title: string }[]>([]);
   const [dxQuery, setDxQuery] = useState('');
@@ -72,6 +80,8 @@ export default function EncounterScreen() {
     if (!e) return;
     setVitals(Object.fromEntries(Object.entries(e.vitals ?? {}).filter(([k]) => k !== 'bmi').map(([k, v]) => [k, v == null ? '' : String(v)])));
     setComplaint(e.chief_complaint ?? '');
+    setHpi(e.hpi ?? '');
+    setExam(e.examination ?? '');
     setNotes(e.notes ?? '');
     setDx((e.diagnoses ?? []).map((d) => ({ code: d.code, title: '' })));
   }, [e]);
@@ -103,6 +113,8 @@ export default function EncounterScreen() {
     await staffApi.updateEncounter(e.id, {
       vitals: Object.keys(vitalsPayload).length ? vitalsPayload : undefined,
       chiefComplaint: complaint,
+      hpi,
+      examination: exam,
       notes,
       diagnoses: dx.map((d, i) => ({ code: d.code, primary: i === 0 })),
     });
@@ -164,7 +176,7 @@ export default function EncounterScreen() {
   const setLine = (i: number, patch: Partial<RxLineInput>) => setLines((l) => l.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const linesValid = lines.length > 0 && lines.every((l) => l.dose.trim() && l.frequency.trim());
 
-  if ((patient.loading && !patient.data) || (enc.loading && !enc.data)) return <Screen><Loading /></Screen>;
+  if ((patientId && patient.loading && !patient.data) || (enc.loading && !enc.data)) return <Screen><Loading /></Screen>;
   const p = patient.data;
 
   return (
@@ -209,7 +221,24 @@ export default function EncounterScreen() {
               ))}
             </View>
           </Section>
+          <Card style={{ borderColor: colors.info }}>
+            <T style={{ fontWeight: '700' }}>{t('ai.scribeTitle')}</T>
+            <Muted>{t('ai.scribeBody')}</Muted>
+            <Button
+              kind="secondary"
+              title={t('ai.dictate')}
+              style={{ marginTop: 8, marginBottom: 0 }}
+              onPress={() =>
+                void act.run(async () => {
+                  await save(); // keep typed edits: an approved draft only overwrites the fields it fills
+                  router.push({ pathname: '/doctor/dictation/[encounterId]', params: { encounterId: e.id } });
+                })
+              }
+            />
+          </Card>
           <Field label={t('emr.chiefComplaint')} value={complaint} onChangeText={setComplaint} multiline />
+          <Field label={t('ai.field.hpi')} value={hpi} onChangeText={setHpi} multiline />
+          <Field label={t('ai.field.examination')} value={exam} onChangeText={setExam} multiline />
           <Field label={t('emr.notes')} value={notes} onChangeText={setNotes} multiline />
 
           <Section title={t('emr.diagnoses')}>

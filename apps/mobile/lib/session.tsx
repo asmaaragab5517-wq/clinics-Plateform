@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, OfflineError, loadSessions, onSessionExpired, setPatientTokens, setStaffTokens, getStaffTokens, type PatientTokens } from './api';
+import { ApiError, OfflineError, getPatientRefreshToken, loadSessions, onSessionExpired, setPatientTokens, setStaffTokens, getStaffTokens, type PatientTokens } from './api';
 import { clearPatientCache } from './cache';
 import { authApi } from './endpoints';
 import { logoutKeycloak, type StaffTokens } from './oidc';
-import { KEYS, deleteSecret, getSecret, setSecret } from './storage';
+import { unregisterPush } from './push';
+import { KEYS, getSecret, setSecret } from './storage';
 import type { StaffMe } from './types';
 
 /**
@@ -148,11 +149,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [fetchMe, hasPatient, setMode],
   );
 
+  /**
+   * Patient sign-out on this device only: unregister the push token first (needs the still-valid access token),
+   * then revoke this device's refresh-token family (other devices keep their sessions), then wipe local state.
+   */
   const signOutPatient = useCallback(async (opts: { remote?: boolean } = {}) => {
-    if (opts.remote !== false) await authApi.logout().catch(() => undefined);
+    await unregisterPush();
+    const refreshToken = getPatientRefreshToken();
+    if (opts.remote !== false && refreshToken) await authApi.logout(refreshToken).catch(() => undefined);
     await setPatientTokens(null);
     await clearPatientCache();
-    await deleteSecret(KEYS.pushToken);
     setHasPatient(false);
   }, []);
 

@@ -124,7 +124,10 @@ export class AuthService {
     await this.tenancy.system(orgId, (tx) =>
       refreshToken
         ? tx.query('update refresh_tokens set revoked_at = now() where account_id = $1 and revoked_at is null and family = (select family from refresh_tokens where token_hash = $2)', [accountId, this.tokens.hashRefresh(refreshToken)])
-        : tx.query('update refresh_tokens set revoked_at = now() where account_id = $1 and revoked_at is null', [accountId]),
+        : tx.query('update refresh_tokens set revoked_at = now() where account_id = $1 and revoked_at is null', [accountId]).then(() =>
+            // Signing out everywhere also stops push to every device of the account.
+            tx.query('delete from device_tokens where account_id = $1', [accountId]),
+          ),
     );
     return { ok: true };
   }

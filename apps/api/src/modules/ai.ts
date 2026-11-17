@@ -242,6 +242,22 @@ export class AiController {
     return this.tenancy.run(s, (tx) => this.saveDraft(tx, s, meta, { clinicId: pre.rx.clinic_id, patientId: pre.rx.patient_id, prescriptionId: pre.rx.id, kind: 'rx_instructions', source: 'record', result, warnings }));
   }
 
+  /** The doctor's own drafts for an encounter or prescription (to resume a review). */
+  @Get('ai/drafts')
+  @Staff('emr:view')
+  drafts(@Auth() p: Principal, @Query() q: Record<string, string>) {
+    const s = asStaff(p);
+    const b = parse(z.object({ encounterId: z.string().uuid().optional(), prescriptionId: z.string().uuid().optional(), status: z.enum(['pending', 'approved', 'rejected', 'expired']).default('pending') }), q);
+    return this.tenancy.run(s, (tx) =>
+      tx.query(
+        `select id, kind, status, output, warnings, encounter_id, prescription_id, created_at from ai_drafts
+         where doctor_id = $1 and status = $2 and ($3::uuid is null or encounter_id = $3) and ($4::uuid is null or prescription_id = $4)
+           and (status <> 'pending' or created_at > now() - interval '24 hours') order by created_at desc limit 50`,
+        [s.userId, b.status, b.encounterId ?? null, b.prescriptionId ?? null],
+      ),
+    );
+  }
+
   @Get('ai/drafts/:id')
   @Staff('emr:view')
   async draft(@Auth() p: Principal, @Param('id') id: string) {

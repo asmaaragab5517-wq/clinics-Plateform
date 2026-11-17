@@ -15,3 +15,12 @@ export const plainDate = (ymd: string) => {
 
 export const patientName = (p: { first_name_ar: string; father_name_ar?: string | null; family_name_ar?: string | null; name_en?: string | null }, locale: Locale) =>
   locale === 'en' && p.name_en ? p.name_en : [p.first_name_ar, p.father_name_ar, p.family_name_ar].filter(Boolean).join(' ');
+
+/** Countdown as H:MM:SS (Western digits), for waiting-room timers. */
+export const countdown = (ms: number) => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+};

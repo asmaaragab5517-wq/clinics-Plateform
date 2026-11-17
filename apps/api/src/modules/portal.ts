@@ -136,7 +136,8 @@ export class PortalController {
         `select a.id, a.ref, a.patient_id, a.clinic_id, a.doctor_id, a.start_at, a.end_at, a.status, a.payment_mode, a.hold_expires_at,
                 c.name_ar as clinic_name_ar, c.name_en as clinic_name_en, c.address_lines, u.name_ar as doctor_name_ar, u.name_en as doctor_name_en,
                 (select ticket_number from queue_tickets q where q.appointment_id = a.id) as ticket_number,
-                (select checkout_url from payment_intents i where i.appointment_id = a.id and i.status = 'pending' limit 1) as checkout_url
+                (select checkout_url from payment_intents i where i.appointment_id = a.id and i.status = 'pending' limit 1) as checkout_url,
+                exists (select 1 from appointment_services x join services sv on sv.id = x.service_id where x.appointment_id = a.id and sv.type = 'telemedicine') as is_video
          from appointments a join clinics c on c.id = a.clinic_id join users u on u.id = a.doctor_id
          where ${scope === 'past' ? `a.start_at < now() or a.status in ('completed','no_show','cancelled')` : `a.start_at >= now() - interval '3 hours' and a.status not in ('completed','no_show','cancelled')`}
          order by a.start_at ${scope === 'past' ? 'desc' : 'asc'} limit 100`,
@@ -270,7 +271,8 @@ export class PortalController {
         `select a.id, a.ref, a.patient_id, a.clinic_id, a.doctor_id, a.start_at, a.end_at, a.status, a.payment_mode, a.hold_expires_at,
                 c.name_ar as clinic_name_ar, c.name_en as clinic_name_en, c.address_lines, u.name_ar as doctor_name_ar, u.name_en as doctor_name_en,
                 (select ticket_number from queue_tickets q where q.appointment_id = a.id) as ticket_number,
-                (select checkout_url from payment_intents i where i.appointment_id = a.id and i.status = 'pending' limit 1) as checkout_url
+                (select checkout_url from payment_intents i where i.appointment_id = a.id and i.status = 'pending' limit 1) as checkout_url,
+                exists (select 1 from appointment_services x join services sv on sv.id = x.service_id where x.appointment_id = a.id and sv.type = 'telemedicine') as is_video
          from appointments a join clinics c on c.id = a.clinic_id join users u on u.id = a.doctor_id where a.id = $1`,
         [uuid(id)],
       ),

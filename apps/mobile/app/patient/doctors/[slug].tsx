@@ -1,4 +1,6 @@
+import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { DoctorAvatar, doctorPhotoPath } from '../../../components/DoctorAvatar';
 import { Button, Card, Empty, ErrorBox, H1, Loading, Muted, Row, Screen, Section, T } from '../../../components/ui';
 import { publicApi } from '../../../lib/endpoints';
 import { dateTime, money } from '../../../lib/format';
@@ -15,7 +17,12 @@ export default function DoctorProfileScreen() {
   const bio = locale === 'en' ? doc.bio_en || doc.bio_ar : doc.bio_ar || doc.bio_en;
   return (
     <Screen footer={<Button title={t('nav.book')} onPress={() => router.push({ pathname: '/patient/book/[slug]', params: { slug: doc.slug } })} />}>
-      <H1>{[doc.title, pick(doc)].filter(Boolean).join(' ')}</H1>
+      <Row style={{ alignItems: 'center', marginBottom: 8 }}>
+        <DoctorAvatar path={doctorPhotoPath(doc)} name={pick(doc)} size={72} />
+        <View style={{ flex: 1 }}>
+          <H1>{[doc.title, pick(doc)].filter(Boolean).join(' ')}</H1>
+        </View>
+      </Row>
       <Muted>{doc.specialties.map((x) => pick(x)).join(' · ')}</Muted>
       {doc.rating_avg != null ? <T style={{ marginTop: 6 }}>{`${t('doctor.rating')}: ${Number(doc.rating_avg).toFixed(1)} (${doc.rating_count ?? 0})`}</T> : null}
       {doc.syndicate_number ? <T ltr>{`${t('doctor.syndicate')} ${doc.syndicate_number}`}</T> : null}
