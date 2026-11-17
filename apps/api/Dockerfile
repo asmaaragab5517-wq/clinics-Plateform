@@ -8,7 +8,10 @@ COPY apps/api ./apps/api
 COPY apps/worker ./apps/worker
 RUN pnpm install --frozen-lockfile --filter "@hf/api..." --filter "@hf/worker..."
 RUN pnpm --filter "@hf/worker..." build
-RUN pnpm deploy --filter @hf/worker --prod --legacy /out/worker && pnpm deploy --filter @hf/api --prod --legacy /out/api
+# Production dependencies only, from the same lockfile (exact versions the tests ran against), offline from the store.
+RUN rm -rf node_modules packages/*/node_modules apps/*/node_modules \
+  && pnpm install --frozen-lockfile --prod --offline --filter "@hf/api..." --filter "@hf/worker..." \
+  && rm -rf packages/*/src apps/*/src packages/*/test apps/*/test
 
 FROM node:22-bookworm-slim
 # Chromium for HTML→PDF with Arabic fonts (fonts are also embedded by @hf/documents).
@@ -16,12 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends chromium fonts-
   && rm -rf /var/lib/apt/lists/* && useradd -r -u 10001 app
 ENV NODE_ENV=production CHROMIUM_PATH=/usr/bin/chromium
 WORKDIR /srv
-COPY --from=build /out/api ./apps/api
-COPY --from=build /out/worker ./apps/worker
-COPY --from=build /repo/packages/db/dist ./packages/db/dist
-COPY --from=build /repo/packages/db/migrations ./packages/db/migrations
-COPY --from=build /repo/packages/db/package.json ./packages/db/package.json
-COPY --from=build /out/api/node_modules ./packages/db/node_modules
+# The workspace layout is kept so pnpm's node_modules links resolve (packages/*, apps/api, apps/worker).
+COPY --from=build /repo/package.json ./package.json
+COPY --from=build /repo/node_modules ./node_modules
+COPY --from=build /repo/packages ./packages
+COPY --from=build /repo/apps/api ./apps/api
+COPY --from=build /repo/apps/worker ./apps/worker
 USER app
 EXPOSE 4000
 ENTRYPOINT ["/usr/bin/tini", "--"]
