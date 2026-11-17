@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ARABIC_WEEKDAYS, WEEK_ORDER, addDays, startOfWeek, weekdayOf, zonedToUtc } from '@hf/shared';
-import { Alert, Bdi, Button, Dialog, PageHeader, Select, StatusBadge, Tabs, cx } from '@hf/ui';
+import { Alert, Bdi, Button, PageHeader, Select, StatusBadge, Tabs, cx } from '@hf/ui';
+import { Dialog } from '@/components/dialog';
 import { ErrorAlert, Loading, TextField } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';

@@ -33,7 +33,59 @@ function Figure({ ox }: { ox: number }) {
   );
 }
 
-export function BodyChart({ markers, onChange, readOnly }: { markers: Marker[]; onChange: (m: Marker[]) => void; readOnly?: boolean }) {
+/**
+ * Rasterise the rendered chart (FR-EMR-2): computed colours and fonts are inlined into a clone of the live SVG so the
+ * PNG looks like the screen without the stylesheet, then the SVG is drawn onto a canvas and exported as a data URL.
+ */
+export async function bodyChartPng(svg: SVGSVGElement, scale = 2): Promise<string> {
+  const vb = svg.viewBox.baseVal;
+  const w = vb?.width || svg.clientWidth || 260;
+  const h = vb?.height || svg.clientHeight || 300;
+  const clone = svg.cloneNode(true) as SVGSVGElement;
+  const src = svg.querySelectorAll('*');
+  const dst = clone.querySelectorAll('*');
+  src.forEach((el, i) => {
+    const d = dst[i];
+    if (!d) return;
+    const cs = getComputedStyle(el);
+    for (const prop of ['fill', 'stroke', 'stroke-width', 'font-size', 'font-weight', 'font-family', 'text-anchor']) {
+      const v = cs.getPropertyValue(prop);
+      if (v) d.setAttribute(prop, v);
+    }
+    d.removeAttribute('class');
+  });
+  clone.removeAttribute('class');
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', String(w * scale));
+  clone.setAttribute('height', String(h * scale));
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('x', '0');
+  bg.setAttribute('y', '0');
+  bg.setAttribute('width', String(w));
+  bg.setAttribute('height', String(h));
+  bg.setAttribute('fill', getComputedStyle(svg).backgroundColor || '#ffffff');
+  clone.insertBefore(bg, clone.firstChild);
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml;charset=utf-8' }));
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('svg_render_failed'));
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = w * scale;
+    canvas.height = h * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no_canvas');
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/png');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export function BodyChart({ markers, onChange, readOnly, svgRef }: { markers: Marker[]; onChange: (m: Marker[]) => void; readOnly?: boolean; svgRef?: React.Ref<SVGSVGElement> }) {
   const { t } = useI18n();
   const W = 260;
   const H = 300;
@@ -52,7 +104,7 @@ export function BodyChart({ markers, onChange, readOnly }: { markers: Marker[]; 
   }
   return (
     <div className="flex flex-col gap-3 md:flex-row" dir="ltr">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-80 w-auto shrink-0 cursor-crosshair rounded-xl border border-border bg-surface" onClick={add} role="img" aria-label={t('enc.bodyChartLabel')}>
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="h-80 w-auto shrink-0 cursor-crosshair rounded-xl border border-border bg-surface" onClick={add} role="img" aria-label={t('enc.bodyChartLabel')}>
         <Figure ox={5} />
         <Figure ox={135} />
         <text x={65} y={298} textAnchor="middle" className="fill-muted text-[10px]">

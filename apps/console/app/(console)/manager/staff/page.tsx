@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { ROLES } from '@hf/shared';
-import { Alert, Badge, Bdi, Button, DateText, Dialog, PageHeader, Select, Table } from '@hf/ui';
+import { Alert, Badge, Bdi, Button, DateText, PageHeader, Select, Table } from '@hf/ui';
+import { Dialog } from '@/components/dialog';
 import { Check, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';

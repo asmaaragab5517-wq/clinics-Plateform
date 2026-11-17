@@ -188,6 +188,11 @@ function PreferencesForm({ patientId }: { patientId: string }) {
 export function PrivacyView() {
   const { locale, me } = usePortal();
   const [patientId, setPatientId] = useState(me.patients[0]?.id ?? '');
+  // Deep link (e.g. from a video visit): ?patient=<id>#consent-telemedicine.
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('patient');
+    if (p && me.patients.some((x) => x.id === p)) setPatientId(p);
+  }, [me.patients]);
   return (
     <PortalPage title={t(locale, 'portal.nav.privacy')}>
       {me.patients.length === 0 ? (
@@ -209,6 +214,13 @@ function ConsentsCard({ patientId }: { patientId: string }) {
   const { data, loading, error, reload } = useBffData<{ versions: ConsentVersion[]; consents: ConsentState[] }>('/api/portal/consents', locale);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+
+  // The consent list loads after the page, so the browser cannot scroll to #consent-<type> on its own.
+  const loaded = !!data;
+  useEffect(() => {
+    if (!loaded || !window.location.hash.startsWith('#consent-')) return;
+    document.getElementById(decodeURIComponent(window.location.hash.slice(1)))?.scrollIntoView({ block: 'start' });
+  }, [loaded]);
 
   async function record(v: ConsentVersion, granted: boolean) {
     setBusy(v.type);
@@ -237,11 +249,12 @@ function ConsentsCard({ patientId }: { patientId: string }) {
             const c = data?.consents.find((x) => x.patient_id === patientId && x.type === v.type);
             const reconsent = !!c?.needsReconsent;
             return (
-              <li key={v.id} className="rounded-xl border border-border p-3">
+              <li key={v.id} id={`consent-${v.type}`} className="scroll-mt-4 rounded-xl border border-border p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="font-medium">{tDyn(locale, label(`consentType.${v.type}`, ''), v.type)}</h3>
                   {c ? <Badge tone={c.granted ? 'success' : 'neutral'}>{t(locale, c.granted ? 'consents.granted' : 'consents.withdrawn')}</Badge> : <Badge>{t(locale, 'consents.notGiven')}</Badge>}
                 </div>
+                {has(`consentInfo.${v.type}`) && <p className="mb-2 text-sm">{tDyn(locale, `consentInfo.${v.type}`)}</p>}
                 {reconsent && (
                   <div className="mb-2">
                     <Alert tone="warning">{t(locale, 'consents.needsReconsent')}</Alert>

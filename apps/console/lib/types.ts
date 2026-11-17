@@ -52,6 +52,7 @@ export interface AppointmentRow {
   doctor_name: string;
   services: { id: string; name_ar: string; name_en: string }[];
   ticket_number: number | null;
+  encounter_id?: string | null;
 }
 
 export interface QueueTicket {
@@ -65,6 +66,7 @@ export interface QueueTicket {
   patient_name: string | null;
   appointment_id: string;
   patient_id: string;
+  encounter_id?: string | null;
 }
 
 export interface QueueGroup {

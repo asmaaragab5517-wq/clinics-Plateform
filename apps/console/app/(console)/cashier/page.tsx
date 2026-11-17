@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { DENOMINATIONS, addDays, VAT_STATUSES, computeBill, countCash, formatMoney, type VatStatus } from '@hf/shared';
+import { DENOMINATIONS, addDays, VAT_STATUSES, computeBill, countCash, formatMoney, splitCoverage, type VatStatus } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, DateText, Input, Money, PageHeader, Select, Table, Tabs } from '@hf/ui';
 import { DataState, FileLink, Section, SelectField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
+import { coverageLabel, coverageValidOn, type Coverage, type Payer } from '@/components/insurance';
 import { PatientSearch } from '@/components/patient-search';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
@@ -162,7 +163,18 @@ function NewBill({ initialPatientId, initialAppointmentId }: { initialPatientId:
   const pkgs = useApi<PackageRow[]>('/packages');
   const apptRange = { from: dayRange(addDays(todayCairo(), -30)).from, to: dayRange(todayCairo(), 2).to };
   const appts = useApi<AppointmentRow[]>(patient ? `/appointments${qs({ clinicId, patientId: patient.id, ...apptRange })}` : null);
+  const coverages = useApi<Coverage[]>(patient ? `/insurance/patients/${patient.id}/coverages` : null);
+  const payers = useApi<Payer[]>(patient ? '/insurance/payers' : null);
+  const validCoverages = (coverages.data ?? []).filter((c) => coverageValidOn(c));
+  const [coverageId, setCoverageId] = useState('');
+  const [approvalNumber, setApprovalNumber] = useState('');
+  const coverage = validCoverages.find((c) => c.id === coverageId);
+  const plan = coverage ? payers.data?.flatMap((p) => p.plans).find((p) => p.id === coverage.plan_id) : undefined;
   const a = useAction();
+  useEffect(() => {
+    setCoverageId('');
+    setApprovalNumber('');
+  }, [patient?.id]);
 
   useEffect(() => {
     if (!initialPatientId) return;
@@ -202,11 +214,22 @@ function NewBill({ initialPatientId, initialAppointmentId }: { initialPatientId:
   const preview = useMemo(() => {
     try {
       const ready = lines.filter((l) => unitOf(l) !== null);
-      return computeBill(ready.map((l) => ({ qty: l.qty, unitPrice: unitOf(l)!, discount: discountOf(l), vat: vatOf(l) })));
+      const totals = computeBill(ready.map((l) => ({ qty: l.qty, unitPrice: unitOf(l)!, discount: discountOf(l), vat: vatOf(l) })));
+      // Display only: the API computes the authoritative split from the plan when the bill is created.
+      const split = plan
+        ? splitCoverage(
+            { coveragePercent: Number(plan.coverage_percent), copayFixed: plan.copay_fixed, typeOverrides: plan.type_overrides, excludedServiceIds: plan.excluded_service_ids },
+            ready.map((l, i) => {
+              const sid = l.kind === 'service' ? l.serviceId || null : null;
+              return { serviceId: sid, serviceType: sid ? (services.find((x) => x.id === sid)?.type ?? null) : null, total: totals.lines[i]!.total };
+            }),
+          )
+        : null;
+      return { ...totals, split };
     } catch {
       return null;
     }
-  }, [lines, services, pkgs.data, priceOf]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lines, services, pkgs.data, priceOf, plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit() {
     if (!patient) return;
@@ -214,6 +237,8 @@ function NewBill({ initialPatientId, initialAppointmentId }: { initialPatientId:
       clinicId,
       patientId: patient.id,
       appointmentId: appointmentId || undefined,
+      coverageId: coverageId || undefined,
+      approvalNumber: coverageId && approvalNumber.trim() ? approvalNumber.trim() : undefined,
       lines: lines.map((l) => ({
         serviceId: l.kind === 'service' ? l.serviceId || undefined : undefined,
         packageId: l.kind === 'package' ? l.packageId || undefined : undefined,
@@ -241,6 +266,21 @@ function NewBill({ initialPatientId, initialAppointmentId }: { initialPatientId:
             </div>
           ) : (
             <PatientSearch id="bill-patient" onSelect={(p) => setPatient({ id: p.id, name: `${patientName(p, locale)} · ${p.mrn}` })} compact />
+          )}
+          {patient && validCoverages.length > 0 && (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <SelectField label={t('ins.coverage')} value={coverageId} onChange={(e) => setCoverageId(e.target.value)} placeholder={t('ins.selfPay')} options={validCoverages.map((c) => ({ value: c.id, label: `${coverageLabel(c, locale)} · ${c.member_number}` }))} />
+              {coverage && (
+                <TextField
+                  label={t('ins.approvalNumber')}
+                  value={approvalNumber}
+                  onChange={(e) => setApprovalNumber(e.target.value)}
+                  required={coverage.requires_approval}
+                  hint={coverage.requires_approval ? t('ins.approvalRequired') : t('ins.approvalOptional')}
+                  dir="ltr"
+                />
+              )}
+            </div>
           )}
           {patient && (
             <div className="mt-3">
@@ -311,10 +351,22 @@ function NewBill({ initialPatientId, initialAppointmentId }: { initialPatientId:
                   <dd className="num">{formatMoney(v, locale)}</dd>
                 </div>
               ))}
+              {preview.split && (
+                <>
+                  <div className="flex justify-between border-t border-border pt-1">
+                    <dt className="text-muted">{t('ins.insurerShare')}</dt>
+                    <dd className="num">{formatMoney(preview.split.insurer, locale)}</dd>
+                  </div>
+                  <div className="flex justify-between font-bold">
+                    <dt>{t('ins.patientShare')}</dt>
+                    <dd className="num">{formatMoney(preview.split.patient, locale)}</dd>
+                  </div>
+                </>
+              )}
             </dl>
           )}
           {a.error && <Alert tone="danger">{a.error}</Alert>}
-          <Button disabled={!patient || a.busy} onClick={() => void submit()}>
+          <Button disabled={!patient || a.busy || (!!coverage?.requires_approval && !approvalNumber.trim())} onClick={() => void submit()}>
             {t('cash.createDraft')}
           </Button>
         </div>

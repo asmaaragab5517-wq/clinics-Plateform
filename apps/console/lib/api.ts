@@ -35,7 +35,12 @@ export interface RequestOptions {
   form?: FormData;
   idempotencyKey?: string;
   signal?: AbortSignal;
+  /** BFF prefix: the staff proxy by default, `/api/platform/v1` for the platform-admin area. */
+  base?: string;
 }
+
+export const STAFF_BASE = '/api/v1';
+export const PLATFORM_BASE = '/api/platform/v1';
 
 export function csrfHeaders(): Record<string, string> {
   return { 'x-csrf-token': readCookie('hf_csrf') ?? '' };
@@ -54,9 +59,10 @@ export async function api<T>(path: string, init: RequestOptions = {}): Promise<T
     headers['content-type'] = 'application/json';
     body = JSON.stringify(init.body);
   }
+  const base = init.base ?? STAFF_BASE;
   let res: Response;
   try {
-    res = await fetch(`/api/v1${path}`, { method, headers, body, credentials: 'same-origin', cache: 'no-store', signal: init.signal });
+    res = await fetch(`${base}${path}`, { method, headers, body, credentials: 'same-origin', cache: 'no-store', signal: init.signal });
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
     throw new ApiError(0, 'network_error');
@@ -73,7 +79,9 @@ export async function api<T>(path: string, init: RequestOptions = {}): Promise<T
   if (!res.ok) {
     const j = (parsed ?? {}) as { error?: unknown; details?: unknown };
     const code = typeof j.error === 'string' ? j.error : `http_${res.status}`;
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && base === PLATFORM_BASE) {
+      if (res.status === 401) window.dispatchEvent(new CustomEvent('hf:platform-unauthorized'));
+    } else if (typeof window !== 'undefined') {
       if (res.status === 401 && code === 'session_locked') window.dispatchEvent(new CustomEvent('hf:locked'));
       if (res.status === 401 && code === 'unauthorized') window.dispatchEvent(new CustomEvent('hf:unauthorized'));
     }
@@ -88,6 +96,11 @@ export const patch = <T>(path: string, body: unknown) => api<T>(path, { method: 
 export const put = <T>(path: string, body: unknown) => api<T>(path, { method: 'PUT', body });
 export const del = <T>(path: string) => api<T>(path, { method: 'DELETE' });
 export const upload = <T>(path: string, form: FormData) => api<T>(path, { method: 'POST', form });
+
+/** Platform-admin BFF (separate session cookie). */
+export const pGet = <T>(path: string, signal?: AbortSignal) => api<T>(path, { signal, base: PLATFORM_BASE });
+export const pPost = <T>(path: string, body: unknown = {}) => api<T>(path, { method: 'POST', body, base: PLATFORM_BASE });
+export const pPatch = <T>(path: string, body: unknown) => api<T>(path, { method: 'PATCH', body, base: PLATFORM_BASE });
 
 /** Build a query string, dropping empty values. */
 export function qs(params: Record<string, string | number | boolean | null | undefined>): string {

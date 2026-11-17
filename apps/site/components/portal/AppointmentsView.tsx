@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { Alert, Bdi, Button, Card, Dialog, EmptyState, Field, Spinner, StatusBadge, Tabs, Textarea } from '@hf/ui';
 import { BffError, bff, errorText } from '@/lib/bff';
@@ -8,10 +9,13 @@ import { t, type Locale } from '@/lib/i18n';
 import type { PortalAppointment, QueueInfo, Slot } from '@/lib/types';
 import { SlotPicker } from './SlotPicker';
 import { NoPatients, PortalPage, usePatientName, usePortal } from './PortalShell';
+import { VideoVisit } from './VideoVisit';
 import { mmss, useBffData, useNow } from './hooks';
 
 type Scope = 'upcoming' | 'past';
 type DialogState = { kind: 'cancel' | 'reschedule' | 'rate'; appt: PortalAppointment } | null;
+
+const TERMINAL = ['cancelled', 'completed', 'no_show'];
 
 function safeUrl(url: string | null): string | null {
   if (!url) return null;
@@ -81,36 +85,88 @@ export function AppointmentsView() {
         )}
       </div>
 
-      <Dialog open={dialog?.kind === 'cancel'} onClose={() => setDialog(null)} title={t(locale, 'appt.cancelTitle')}>
+      <AppointmentDialogs locale={locale} dialog={dialog} close={() => setDialog(null)} done={done} onRated={(id) => setRated((s) => new Set(s).add(id))} />
+    </PortalPage>
+  );
+}
+
+function AppointmentDialogs({ locale, dialog, close, done, onRated }: { locale: Locale; dialog: DialogState; close: () => void; done: (msg: string) => void; onRated: (id: string) => void }) {
+  return (
+    <>
+      <Dialog open={dialog?.kind === 'cancel'} onClose={close} title={t(locale, 'appt.cancelTitle')}>
         {dialog?.kind === 'cancel' && <CancelForm locale={locale} a={dialog.appt} onDone={() => done(t(locale, 'appt.cancelled'))} />}
       </Dialog>
-      <Dialog open={dialog?.kind === 'reschedule'} onClose={() => setDialog(null)} title={t(locale, 'appt.rescheduleTitle')}>
+      <Dialog open={dialog?.kind === 'reschedule'} onClose={close} title={t(locale, 'appt.rescheduleTitle')}>
         {dialog?.kind === 'reschedule' && <RescheduleForm locale={locale} a={dialog.appt} onDone={() => done(t(locale, 'appt.rescheduled'))} />}
       </Dialog>
-      <Dialog open={dialog?.kind === 'rate'} onClose={() => setDialog(null)} title={t(locale, 'review.title')}>
+      <Dialog open={dialog?.kind === 'rate'} onClose={close} title={t(locale, 'review.title')}>
         {dialog?.kind === 'rate' && (
           <RateForm
             locale={locale}
             a={dialog.appt}
             onDone={() => {
-              setRated((s) => new Set(s).add(dialog.appt.id));
+              onRated(dialog.appt.id);
               done(t(locale, 'review.thanks'));
             }}
           />
         )}
       </Dialog>
+    </>
+  );
+}
+
+/** Single appointment (deep link from messages, the booking confirmation and the app). */
+export function AppointmentDetailView({ id }: { id: string }) {
+  const { locale } = usePortal();
+  const { data, loading, error, reload } = useBffData<PortalAppointment>(`/api/portal/appointments/${encodeURIComponent(id)}`, locale);
+  const [dialog, setDialog] = useState<DialogState>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [rated, setRated] = useState(false);
+  const done = (msg: string) => {
+    setDialog(null);
+    setNotice(msg);
+    void reload();
+  };
+  const past = !!data && (TERMINAL.includes(data.status) || new Date(data.end_at).getTime() < Date.now() - 3 * 3600_000);
+  return (
+    <PortalPage
+      title={t(locale, 'appt.detailTitle')}
+      actions={
+        <Link href={`/${locale}/portal`} className="link text-sm">
+          {t(locale, 'appt.backToList')}
+        </Link>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        {notice && <Alert tone="success">{notice}</Alert>}
+        {loading && !data ? (
+          <Spinner label={t(locale, 'common.loading')} />
+        ) : error || !data ? (
+          <Alert>{errorText(locale, error)}</Alert>
+        ) : (
+          <>
+            <AppointmentCard locale={locale} a={data} past={past} rated={rated} detail onAction={(kind) => setDialog({ kind, appt: data })} onDone={done} />
+            <p className="text-sm">
+              <Link href={`/${locale}/portal/complaints?clinic=${encodeURIComponent(data.clinic_id)}&patient=${encodeURIComponent(data.patient_id)}`} className="link">
+                {t(locale, 'complaint.fromAppointment')}
+              </Link>
+            </p>
+          </>
+        )}
+      </div>
+      <AppointmentDialogs locale={locale} dialog={dialog} close={() => setDialog(null)} done={done} onRated={() => setRated(true)} />
     </PortalPage>
   );
 }
 
-function AppointmentCard({ locale, a, past, rated, onAction, onDone }: { locale: Locale; a: PortalAppointment; past: boolean; rated: boolean; onAction: (k: 'cancel' | 'reschedule' | 'rate') => void; onDone: (msg: string) => void }) {
+function AppointmentCard({ locale, a, past, rated, detail, onAction, onDone }: { locale: Locale; a: PortalAppointment; past: boolean; rated: boolean; detail?: boolean; onAction: (k: 'cancel' | 'reschedule' | 'rate') => void; onDone: (msg: string) => void }) {
   const patientName = usePatientName();
   const now = useNow();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const checkout = safeUrl(a.checkout_url);
   const holdLeft = a.hold_expires_at ? new Date(a.hold_expires_at).getTime() - now : 0;
-  const active = !past && !['cancelled', 'completed', 'no_show'].includes(a.status);
+  const active = !past && !TERMINAL.includes(a.status);
   const inClinic = a.status === 'checked_in' || a.status === 'in_consultation';
 
   async function confirm() {
@@ -134,6 +190,11 @@ function AppointmentCard({ locale, a, past, rated, onAction, onDone }: { locale:
             <Bdi>{pick(locale, a.doctor_name_ar, a.doctor_name_en)}</Bdi>
           </p>
           <p className="text-sm text-muted">{pick(locale, a.clinic_name_ar, a.clinic_name_en)}</p>
+          {detail && a.address_lines && (
+            <p dir="auto" className="text-sm text-muted">
+              {a.address_lines}
+            </p>
+          )}
           <p className="num mt-1 font-medium">{dateTime(a.start_at, locale)}</p>
         </div>
         <div className="flex flex-col items-end gap-1 text-sm">
@@ -151,6 +212,7 @@ function AppointmentCard({ locale, a, past, rated, onAction, onDone }: { locale:
           <span className="num font-bold">{mmss(holdLeft)}</span>
         </Alert>
       )}
+      {active && <VideoVisit locale={locale} a={a} />}
       {inClinic && <QueueStatus locale={locale} a={a} />}
       {error && <Alert>{error}</Alert>}
 
@@ -184,6 +246,15 @@ function AppointmentCard({ locale, a, past, rated, onAction, onDone }: { locale:
           <Button size="sm" variant="secondary" onClick={() => onAction('rate')}>
             {t(locale, 'appt.rate')}
           </Button>
+        )}
+        {!detail && (
+          <Link href={`/${locale}/portal/appointments/${encodeURIComponent(a.id)}`} className="btn-secondary btn-sm">
+            {t(locale, 'appt.details')}
+            <span className="sr-only">
+              {' · '}
+              {pick(locale, a.doctor_name_ar, a.doctor_name_en)} · {dateTime(a.start_at, locale)}
+            </span>
+          </Link>
         )}
       </div>
     </Card>

@@ -26,6 +26,7 @@ export const NAV: NavGroup[] = [
     items: [
       { href: '/doctor', label: 'nav.doctor', roles: ['doctor'] },
       { href: '/nurse', label: 'nav.nurse', anyOf: ['emr:create'], roles: ['nurse', 'doctor', 'clinic_manager'] },
+      { href: '/quality/report', label: 'nav.reportIncident', anyOf: ['quality:create'] },
     ],
   },
   {
@@ -33,6 +34,16 @@ export const NAV: NavGroup[] = [
     items: [
       { href: '/cashier', label: 'nav.cashier', anyOf: ['bill:view', 'shift:view'] },
       { href: '/cashier/refunds', label: 'nav.refunds', anyOf: ['refund:view', 'refund:approve'] },
+      { href: '/finance/insurance', label: 'nav.insurance', anyOf: ['bill:approve', 'settings:edit'] },
+      { href: '/finance/claims', label: 'nav.claims', anyOf: ['bill:approve', 'bill:export'] },
+      { href: '/finance/eta', label: 'nav.eta', anyOf: ['bill:approve', 'bill:export'] },
+    ],
+  },
+  {
+    label: 'nav.group.quality',
+    items: [
+      { href: '/quality/complaints', label: 'nav.complaints', anyOf: ['quality:view'] },
+      { href: '/quality/incidents', label: 'nav.incidents', anyOf: ['quality:view'] },
     ],
   },
   {
@@ -59,6 +70,11 @@ export const NAV: NavGroup[] = [
       { href: '/admin/imports', label: 'nav.imports', anyOf: ['import:view'] },
       { href: '/admin/privacy', label: 'nav.privacy', anyOf: ['privacy:view'] },
       { href: '/admin/audit', label: 'nav.audit', anyOf: ['audit:view'] },
+      { href: '/admin/ai', label: 'nav.ai', anyOf: ['settings:view'] },
+      { href: '/admin/integrations', label: 'nav.integrations', anyOf: ['integration:view'] },
+      { href: '/admin/api-keys', label: 'nav.apiKeys', anyOf: ['integration:view'] },
+      { href: '/admin/subscription', label: 'nav.subscription', anyOf: ['settings:view'] },
+      { href: '/admin/support', label: 'nav.supportAccess', anyOf: ['settings:view'] },
     ],
   },
 ];

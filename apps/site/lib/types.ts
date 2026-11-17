@@ -47,6 +47,7 @@ export interface DoctorClinicRef extends Named {
   id: string;
   slug: string;
   governorate: string;
+  city?: string | null;
 }
 
 export interface Doctor extends Named {
@@ -63,6 +64,10 @@ export interface Doctor extends Named {
   specialties: SpecialtyRef[];
   clinics: DoctorClinicRef[];
   fee: Num;
+  /** Listing only: first free online slot in the next 14 days (ISO). */
+  next_available?: string | null;
+  /** Listing only: API-relative photo path; the site serves it from /api/public/doctors/:slug/photo. */
+  photo_url?: string | null;
 }
 
 export interface DoctorService extends Named {
@@ -134,7 +139,8 @@ export interface PublicOrg extends Named {
   id: string;
   slug: string;
   branding: Record<string, unknown> | null;
-  booking: { requireOnlinePayment?: boolean; holdMinutes?: number; cancellationCutoffHours?: number } | null;
+  /** Effective booking policy (defaults merged with the organisation's overrides). */
+  booking: { requireOnlinePayment?: boolean; holdMinutes?: number; cancellationCutoffHours?: number; leadMinutes?: number; maxReschedules?: number; depositPercent?: number } | null;
   digit_style: string | null;
 }
 
@@ -286,3 +292,25 @@ export interface ConsentState {
   created_at: string;
   needsReconsent: boolean;
 }
+
+export interface ShareLink {
+  url: string;
+  expiresInSeconds: number;
+}
+
+/** GET /v1/portal/appointments/:id/telemedicine (FR-TEL-4). */
+export interface TelemedicineStatus {
+  status: string;
+  opensAt: string;
+  closesAt: string;
+  canJoin: boolean;
+}
+
+export interface TelemedicineJoin {
+  url: string;
+  passcode: string | null;
+  provider: string;
+}
+
+export const COMPLAINT_CATEGORIES = ['waiting_time', 'staff_behaviour', 'clinical_care', 'billing', 'facility', 'communication', 'other'] as const;
+export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];

@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { GOVERNORATES, toWesternDigits } from '@hf/shared';
+import { GOVERNORATES, addDays, localDate, toWesternDigits } from '@hf/shared';
 import { Card } from '@hf/ui';
 import { DoctorCard, Unavailable } from '@/components/site/bits';
 import { JsonLd } from '@/components/site/JsonLd';
+import { LocationFilter } from '@/components/site/LocationFilter';
 import { publicList } from '@/lib/api';
-import { nameOf } from '@/lib/format';
+import { citiesOf, nameOf } from '@/lib/format';
 import { asLocale, getT, t } from '@/lib/i18n';
 import { physicianLd } from '@/lib/ld';
 import { pageMetadata } from '@/lib/seo';
@@ -23,12 +24,22 @@ const egp = (v: SP[string]) => {
   return str(v) && Number.isFinite(n) && n >= 0 ? Math.round(n) : undefined;
 };
 
+/** The API computes "next available" over 14 days, so "available by" is offered from today to today + 13 (clinic time). */
+const AVAILABILITY_DAYS = 14;
+
 /** FR-WEB-2 filters, all in the query string so results are server-rendered and shareable. */
 function parseFilters(sp: SP) {
   const rating = Number(str(sp.rating));
+  const governorate = GOVERNORATES.some((g) => g.slug === str(sp.governorate)) ? str(sp.governorate) : undefined;
+  const today = localDate(new Date());
+  const by = toWesternDigits(str(sp.availableBy));
   return {
     specialty: str(sp.specialty).slice(0, 80) || undefined,
-    governorate: GOVERNORATES.some((g) => g.slug === str(sp.governorate)) ? str(sp.governorate) : undefined,
+    governorate,
+    // A city is accepted only together with its governorate (cities repeat across governorates).
+    city: governorate && citiesOf(governorate).some((c) => c.ar === str(sp.city)) ? str(sp.city) : undefined,
+    availableBy: /^\d{4}-\d{2}-\d{2}$/.test(by) && by >= today && by <= addDays(today, AVAILABILITY_DAYS - 1) ? by : undefined,
+    today,
     clinicId: UUID.test(str(sp.clinic)) ? str(sp.clinic) : undefined,
     gender: str(sp.gender) === 'male' || str(sp.gender) === 'female' ? str(sp.gender) : undefined,
     minFeeEgp: egp(sp.minFee),
@@ -51,6 +62,8 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
     publicList<Doctor>('public/doctors', {
       specialty: f.specialty,
       governorate: f.governorate,
+      city: f.city,
+      availableBy: f.availableBy,
       clinicId: f.clinicId,
       gender: f.gender,
       minFee: f.minFeeEgp !== undefined ? f.minFeeEgp * 100 : undefined,
@@ -89,18 +102,15 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
                 ))}
               </select>
             </div>
+            <LocationFilter locale={locale} governorate={f.governorate} city={f.city} className={selectCls} />
             <div className="flex flex-col gap-1">
-              <label htmlFor="f-gov" className="text-sm font-medium">
-                {tt('filter.governorate')}
+              <label htmlFor="f-by" className="text-sm font-medium">
+                {tt('filter.availableBy')}
               </label>
-              <select id="f-gov" name="governorate" defaultValue={f.governorate ?? ''} className={selectCls}>
-                <option value="">{tt('site.all')}</option>
-                {GOVERNORATES.map((g) => (
-                  <option key={g.slug} value={g.slug}>
-                    {g[locale]}
-                  </option>
-                ))}
-              </select>
+              <input id="f-by" name="availableBy" type="date" min={f.today} max={addDays(f.today, AVAILABILITY_DAYS - 1)} defaultValue={f.availableBy} aria-describedby="f-by-hint" className={selectCls} />
+              <span id="f-by-hint" className="text-xs text-muted">
+                {tt('filter.availableByHint')}
+              </span>
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="f-clinic" className="text-sm font-medium">

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { get } from './api';
+import { get, pGet } from './api';
 
 export interface ApiState<T> {
   data: T | undefined;
@@ -12,7 +12,7 @@ export interface ApiState<T> {
 }
 
 /** GET a BFF path; `null` disables the request. */
-export function useApi<T>(path: string | null): ApiState<T> {
+export function useApi<T>(path: string | null, platform = false): ApiState<T> {
   const [data, setData] = useState<T | undefined>(undefined);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState<boolean>(!!path);
@@ -25,7 +25,7 @@ export function useApi<T>(path: string | null): ApiState<T> {
     const ac = new AbortController();
     setLoading(true);
     setError(null);
-    get<T>(path, ac.signal).then(
+    (platform ? pGet<T> : get<T>)(path, ac.signal).then(
       (d) => {
         setData(d);
         setLoading(false);
@@ -37,7 +37,7 @@ export function useApi<T>(path: string | null): ApiState<T> {
       },
     );
     return () => ac.abort();
-  }, [path, n]);
+  }, [path, n, platform]);
   const reload = useCallback(() => setN((x) => x + 1), []);
   return { data, error, loading, reload, setData };
 }

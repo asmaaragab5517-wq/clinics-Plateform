@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { QUEUE_PRIORITIES } from '@hf/shared';
-import { Alert, Bdi, Button, Dialog, cx } from '@hf/ui';
+import { Alert, Bdi, Button, cx } from '@hf/ui';
+import { Dialog } from './dialog';
 import { ApiError, newKey, post, qs } from '@/lib/api';
 import { useClinicDoctors, useServices } from '@/lib/data';
 import { useApi } from '@/lib/hooks';

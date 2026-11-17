@@ -1,7 +1,8 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { Alert, Button, Dialog, EmptyState, Field, Input, Select, Spinner, Textarea, cx } from '@hf/ui';
+import { Alert, Button, EmptyState, Field, Input, Select, Spinner, Textarea, cx } from '@hf/ui';
+import { Dialog } from './dialog';
 import { useI18n } from './i18n';
 
 export function ErrorAlert({ error }: { error: unknown }) {

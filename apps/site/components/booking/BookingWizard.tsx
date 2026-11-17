@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatDate, formatTime12 } from '@hf/shared';
-import { Alert, Bdi, Button, Card, Spinner, cx } from '@hf/ui';
-import { BffError, bff, clearSession, errorText, loadSession, newIdempotencyKey, saveSession } from '@/lib/bff';
-import { dateTime, doctorTitle, money, nameOf, num } from '@/lib/format';
+import { Alert, Badge, Bdi, Button, Card, Spinner, cx } from '@hf/ui';
+import { BffError, bff, clearSession, errorText, loadSession, newIdempotencyKey, newUuid, saveSession, trackFunnel } from '@/lib/bff';
+import { dateTime, doctorPhotoSrc, doctorTitle, money, nameOf, nextAvailableText, num } from '@/lib/format';
 import { t, type Locale } from '@/lib/i18n';
 import type { BookingResult, Clinic, Doctor, DoctorDetail, Named, PortalMe, PublicOrg, Slot, Specialty } from '@/lib/types';
 import { OtpSignIn } from '../portal/OtpSignIn';
+import { DoctorPhoto } from '../site/DoctorPhoto';
+import { NextAvailable } from '../site/bits';
 import { PatientForm } from '../portal/PatientForm';
 import { SlotPicker } from '../portal/SlotPicker';
 import { mmss, patientName, useBffData, useNow } from '../portal/hooks';
@@ -31,11 +33,17 @@ interface State {
   patientId?: string;
   patientLabel?: string;
   paymentMode?: 'online' | 'at_clinic';
+  /** The chosen service is a video consultation (services.type = 'telemedicine'): online payment only. */
+  video?: boolean;
   idemKey?: string;
   result?: BookingResult;
+  /** One anonymous funnel session per wizard run (FR-WEB-3 abandoned-booking tracking). */
+  funnelId?: string;
 }
 
 const EMPTY: State = { v: 1, step: 0 };
+
+export const isVideoService = (s: { type?: string | null }) => s.type === 'telemedicine';
 
 function servicePrice(s: DoctorDetail['services'][number], clinicId?: string): number | null {
   const prices = s.prices ?? [];
@@ -65,10 +73,12 @@ export function BookingWizard({ locale, clinics, specialties, initial }: { local
     const saved = loadSession<State>(STORE_KEY);
     const fromUrl = initial.doctor || initial.clinic || initial.specialty;
     if (saved?.v === 1 && (!fromUrl || (initial.doctor && saved.doctorSlug === initial.doctor))) {
-      setS(saved);
+      setS({ ...saved, funnelId: saved.funnelId ?? newUuid() });
       if (saved.step > 0) setResumed(true);
     } else if (fromUrl) {
-      setS({ ...EMPTY, clinicId: initial.clinic, specialty: initial.specialty, doctorSlug: initial.doctor, step: initial.doctor ? 1 : 0 });
+      setS({ ...EMPTY, clinicId: initial.clinic, specialty: initial.specialty, doctorSlug: initial.doctor, step: initial.doctor ? 1 : 0, funnelId: newUuid() });
+    } else {
+      setS({ ...EMPTY, funnelId: newUuid() });
     }
     setHydrated(true);
   }, [initial.doctor, initial.clinic, initial.specialty]);
@@ -76,6 +86,17 @@ export function BookingWizard({ locale, clinics, specialties, initial }: { local
   useEffect(() => {
     if (hydrated) saveSession(STORE_KEY, s);
   }, [s, hydrated]);
+
+  // Report each step reached, once per step and wizard session (best-effort; the API keeps the furthest step).
+  const tracked = useRef('');
+  useEffect(() => {
+    if (!hydrated || !s.funnelId) return;
+    const step = STEPS[s.step]!;
+    const key = `${s.funnelId}:${step}`;
+    if (tracked.current === key) return;
+    tracked.current = key;
+    trackFunnel({ sessionId: s.funnelId, step, doctorId: s.doctorId, clinicId: s.clinicId, appointmentId: s.step === 5 ? s.result?.appointment.id : undefined });
+  }, [hydrated, s.funnelId, s.step, s.doctorId, s.clinicId, s.result]);
 
   const update = useCallback((patch: Partial<State>) => setS((prev) => ({ ...prev, ...patch })), []);
   const go = useCallback((step: Step) => {
@@ -87,7 +108,7 @@ export function BookingWizard({ locale, clinics, specialties, initial }: { local
     clearSession(STORE_KEY);
     setResumed(false);
     setError(null);
-    setS(EMPTY);
+    setS({ ...EMPTY, funnelId: newUuid() });
   };
 
   if (!hydrated) return <Spinner label={t(locale, 'common.loading')} />;
@@ -219,11 +240,13 @@ function DoctorStep({ locale, clinics, specialties, s, update, next }: StepProps
               return (
                 <li key={d.id}>
                   <label className={cx('flex cursor-pointer items-start gap-3 rounded-xl border p-3', checked ? 'border-primary bg-primary/5' : 'border-border hover:border-primary')}>
-                    <input type="radio" name="bw-doctor" className="mt-1" checked={checked} onChange={() => update({ doctorSlug: d.slug, doctorId: d.id, doctor: { name_ar: d.name_ar, name_en: d.name_en }, serviceId: undefined, slot: undefined })} />
-                    <span className="flex flex-col">
+                    <input type="radio" name="bw-doctor" className="mt-1" checked={checked} onChange={() => update({ doctorSlug: d.slug, doctorId: d.id, doctor: { name_ar: d.name_ar, name_en: d.name_en }, serviceId: undefined, service: undefined, video: undefined, slot: undefined })} />
+                    <DoctorPhoto name={nameOf(locale, d)} src={doctorPhotoSrc(d)} />
+                    <span className="flex min-w-0 flex-col items-start gap-0.5">
                       <Bdi className="font-medium">{nameOf(locale, d)}</Bdi>
                       <span className="text-sm text-muted">{[doctorTitle(locale, d.title), ...d.specialties.map((x) => nameOf(locale, x))].filter(Boolean).join(' · ')}</span>
                       {num(d.fee) !== null && <span className="num text-sm">{money(num(d.fee), locale)}</span>}
+                      <NextAvailable iso={d.next_available} locale={locale} />
                     </span>
                   </label>
                 </li>
@@ -257,9 +280,13 @@ function ServiceStep({ locale, s, update, back, next }: StepProps & { back: () =
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted">
-        <Bdi className="font-medium text-fg">{nameOf(locale, d)}</Bdi>
-      </p>
+      <div className="flex flex-col gap-1">
+        <Bdi className="font-medium">{nameOf(locale, d)}</Bdi>
+        <p className="text-sm">
+          <span className="text-muted">{t(locale, 'doctor.nextAvailable')}: </span>
+          {d.nextAvailable ? <span className="num font-medium">{nextAvailableText(d.nextAvailable, locale)}</span> : t(locale, 'doctor.noAvailability')}
+        </p>
+      </div>
       {d.clinics.length > 1 && (
         <fieldset>
           <legend className="mb-2 font-medium">{t(locale, 'booking.chooseClinic')}</legend>
@@ -289,10 +316,18 @@ function ServiceStep({ locale, s, update, back, next }: StepProps & { back: () =
                 <li key={sv.id}>
                   <label className={cx('flex cursor-pointer items-center justify-between gap-3 rounded-xl border p-3', checked ? 'border-primary bg-primary/5' : 'border-border hover:border-primary')}>
                     <span className="flex items-center gap-3">
-                      <input type="radio" name="bw-service" checked={checked} onChange={() => update({ serviceId: sv.id, service: { name_ar: sv.name_ar, name_en: sv.name_en }, price, slot: undefined })} />
+                      <input type="radio" name="bw-service" checked={checked} aria-describedby={isVideoService(sv) ? `bw-video-${sv.id}` : undefined} onChange={() => update({ serviceId: sv.id, service: { name_ar: sv.name_ar, name_en: sv.name_en }, price, video: isVideoService(sv), slot: undefined })} />
                       <span>
-                        <span className="block font-medium">{nameOf(locale, sv)}</span>
+                        <span className="flex flex-wrap items-center gap-2 font-medium">
+                          {nameOf(locale, sv)}
+                          {isVideoService(sv) && <Badge tone="primary">{t(locale, 'booking.videoBadge')}</Badge>}
+                        </span>
                         <span className="num text-sm text-muted">{t(locale, 'services.minutes', { minutes: sv.duration_minutes })}</span>
+                        {isVideoService(sv) && (
+                          <span id={`bw-video-${sv.id}`} className="block text-xs text-muted">
+                            {t(locale, 'booking.videoNote')}
+                          </span>
+                        )}
                       </span>
                     </span>
                     {price !== null && <span className="num font-bold">{money(price, locale)}</span>}
@@ -409,7 +444,8 @@ function PatientStep({ locale, s, update, back, next }: StepProps & { back: () =
 function PaymentStep({ locale, s, update, back, done, slotTaken }: StepProps & { back: () => void; done: (r: BookingResult) => void; slotTaken: (msg: string) => void }) {
   const { data: org } = useBffData<PublicOrg>('/api/public/org', locale, { redirectOn401: false });
   const me = useBffData<PortalMe>('/api/portal/me', locale, { redirectOn401: false });
-  const onlineOnly = !!org?.booking?.requireOnlinePayment;
+  // Video consultations are always paid online (API: telemedicine_requires_online_payment).
+  const onlineOnly = !!org?.booking?.requireOnlinePayment || !!s.video;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mode = onlineOnly ? 'online' : s.paymentMode ?? 'online';
@@ -420,7 +456,7 @@ function PaymentStep({ locale, s, update, back, done, slotTaken }: StepProps & {
     setBusy(true);
     setError(null);
     const idemKey = s.idemKey ?? newIdempotencyKey();
-    if (!s.idemKey) update({ idemKey });
+    update({ idemKey, paymentMode: mode });
     try {
       const r = await bff<BookingResult>('/api/portal/bookings', {
         json: { clinicId: s.clinicId, doctorId: s.doctorId, serviceId: s.serviceId, start: s.slot.start, patientId: s.patientId, paymentMode: mode },
@@ -446,7 +482,7 @@ function PaymentStep({ locale, s, update, back, done, slotTaken }: StepProps & {
     <div className="flex flex-col gap-4">
       <fieldset>
         <legend className="mb-2 font-medium">{t(locale, 'booking.paymentMethod')}</legend>
-        {onlineOnly && <p className="mb-2 text-sm text-muted">{t(locale, 'booking.onlineRequired')}</p>}
+        {onlineOnly && <p className="mb-2 text-sm text-muted">{t(locale, s.video ? 'booking.videoOnlineOnly' : 'booking.onlineRequired')}</p>}
         <div className="flex flex-col gap-2 sm:flex-row">
           {(['online', 'at_clinic'] as const).map((m) => (
             <label key={m} className={cx('flex flex-1 cursor-pointer items-center gap-2 rounded-xl border p-3', mode === m ? 'border-primary bg-primary/5' : 'border-border', onlineOnly && m === 'at_clinic' && 'cursor-not-allowed opacity-50')}>
@@ -462,7 +498,14 @@ function PaymentStep({ locale, s, update, back, done, slotTaken }: StepProps & {
         </h3>
         <dl className="grid grid-cols-3 gap-2 text-sm">
           {s.doctor && row(t(locale, 'booking.doctor'), <Bdi>{nameOf(locale, s.doctor)}</Bdi>)}
-          {s.service && row(t(locale, 'booking.service'), nameOf(locale, s.service))}
+          {s.service &&
+            row(
+              t(locale, 'booking.service'),
+              <span className="flex flex-wrap items-center gap-2">
+                {nameOf(locale, s.service)}
+                {s.video && <Badge tone="primary">{t(locale, 'booking.videoBadge')}</Badge>}
+              </span>,
+            )}
           {s.slot && row(t(locale, 'booking.when'), <span className="num">{dateTime(s.slot.start, locale)}</span>)}
           {row(t(locale, 'booking.patient'), <Bdi>{patient ? patientName(patient, locale) : s.patientLabel ?? ''}</Bdi>)}
           {s.price !== undefined && s.price !== null && row(t(locale, 'booking.price'), <span className="num">{money(s.price, locale)}</span>)}
@@ -523,7 +566,8 @@ function DoneStep({ locale, s, reset }: { locale: Locale; s: State; reset: () =>
         <dt className="text-muted">{t(locale, 'booking.when')}</dt>
         <dd className="num col-span-2">{`${formatDate(start)} ${formatTime12(start, locale)}`}</dd>
       </dl>
-      {!awaitingPayment && s.paymentMode === 'at_clinic' && <p className="text-sm text-muted">{t(locale, 'booking.payAtClinicNote')}</p>}
+      {!awaitingPayment && s.paymentMode === 'at_clinic' && !s.video && <p className="text-sm text-muted">{t(locale, 'booking.payAtClinicNote')}</p>}
+      {s.video && <Alert tone="info">{t(locale, 'booking.videoDoneNote')}</Alert>}
       <div className="flex flex-wrap gap-2">
         {awaitingPayment && left > 0 && (
           <Button type="button" size="lg" onClick={pay} disabled={redirecting}>
@@ -535,6 +579,9 @@ function DoneStep({ locale, s, reset }: { locale: Locale; s: State; reset: () =>
             {t(locale, 'booking.addToCalendar')}
           </a>
         )}
+        <a href={`/${locale}/portal/appointments/${encodeURIComponent(r.appointment.id)}`} className="btn-secondary">
+          {t(locale, 'booking.viewAppointment')}
+        </a>
         <a href={`/${locale}/portal`} className="btn-secondary">
           {t(locale, 'booking.goToAccount')}
         </a>

@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { GOVERNORATES, decodeNationalId, normalisePhone, toWesternDigits } from '@hf/shared';
-import { Alert, Bdi, Button, Dialog } from '@hf/ui';
+import { Alert, Bdi, Button } from '@hf/ui';
+import { Dialog } from './dialog';
 import { ApiError, post } from '@/lib/api';
 import { ageFrom, isoDate, patientName } from '@/lib/format';
 import type { PatientRow } from '@/lib/types';

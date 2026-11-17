@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { Alert, Badge, Bdi, Card } from '@hf/ui';
-import { doctorTitle, governorateName, money, nameOf, num } from '@/lib/format';
+import { doctorPhotoSrc, doctorTitle, governorateName, money, nameOf, nextAvailableText, num } from '@/lib/format';
 import { getT, t, type Locale } from '@/lib/i18n';
 import type { Clinic, Doctor } from '@/lib/types';
+import { DoctorPhoto } from './DoctorPhoto';
 
 export function Unavailable({ locale }: { locale: Locale }) {
   return <Alert tone="warning">{t(locale, 'site.unavailable')}</Alert>;
@@ -42,12 +43,17 @@ export function Stars({ value, count, locale }: { value: number | null; count?: 
   );
 }
 
-export function Avatar({ name }: { name: string }) {
-  const initials = name.replace(/^(\u062F\.|Dr\.?)\s*/u, '').trim().slice(0, 1);
-  return (
-    <span aria-hidden className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 font-display text-xl font-bold text-primary">
-      {initials}
-    </span>
+/** FR-WEB-2 "next available" badge for listings. */
+export function NextAvailable({ iso, locale }: { iso: string | null | undefined; locale: Locale }) {
+  if (iso === undefined) return null;
+  return iso ? (
+    <Badge tone="success">
+      <span className="sr-only">{t(locale, 'doctor.nextAvailable')}: </span>
+      <span aria-hidden>{t(locale, 'doctor.nextAvailableShort')} </span>
+      <span className="num">{nextAvailableText(iso, locale)}</span>
+    </Badge>
+  ) : (
+    <Badge>{t(locale, 'doctor.noAvailabilityShort')}</Badge>
   );
 }
 
@@ -58,7 +64,7 @@ export function DoctorCard({ doctor, locale }: { doctor: Doctor; locale: Locale 
   return (
     <Card className="flex h-full flex-col gap-3">
       <div className="flex items-start gap-3">
-        <Avatar name={name} />
+        <DoctorPhoto name={name} src={doctorPhotoSrc(doctor)} />
         <div className="min-w-0">
           <h3 className="font-bold">
             <Link href={`/${locale}/doctors/${doctor.slug}`} className="hover:text-primary">
@@ -69,6 +75,9 @@ export function DoctorCard({ doctor, locale }: { doctor: Doctor; locale: Locale 
             {[doctorTitle(locale, doctor.title), ...doctor.specialties.map((s) => nameOf(locale, s))].filter(Boolean).join(' · ')}
           </p>
           <Stars value={num(doctor.rating_avg)} count={doctor.rating_count} locale={locale} />
+          <div className="mt-1">
+            <NextAvailable iso={doctor.next_available} locale={locale} />
+          </div>
         </div>
       </div>
       {doctor.clinics.length > 0 && (

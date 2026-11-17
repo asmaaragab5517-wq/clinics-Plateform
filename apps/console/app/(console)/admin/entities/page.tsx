@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Badge, Button, Dialog, PageHeader, Table } from '@hf/ui';
+import { Alert, Badge, Button, PageHeader, Table } from '@hf/ui';
+import { Dialog } from '@/components/dialog';
 import { DataState, Section, SelectField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';

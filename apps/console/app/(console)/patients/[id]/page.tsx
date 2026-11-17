@@ -6,11 +6,13 @@ import { CONSENT_TYPES, formatMoney, type AppointmentStatus } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, DateText, Money, PageHeader, StatusBadge, Table, Tabs } from '@hf/ui';
 import { Check, DataState, ErrorAlert, Loading, ReasonDialog, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
+import { PatientCoverages } from '@/components/insurance';
 import { PatientSearch } from '@/components/patient-search';
+import { SignaturePad } from '@/components/signature-pad';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
 import { ApiError, get, patch, post, upload } from '@/lib/api';
-import { useApi, useLocalState } from '@/lib/hooks';
+import { useApi } from '@/lib/hooks';
 import { ageFrom, isoDate, num, patientName } from '@/lib/format';
 import type { BillRow, EncounterListRow, PatientRow } from '@/lib/types';
 
@@ -41,7 +43,7 @@ interface PatientDetail {
   consents: { type: string; granted: boolean; created_at: string; version_id: string }[];
 }
 
-type Tab = 'overview' | 'timeline' | 'encounters' | 'history' | 'documents' | 'consents' | 'messages' | 'billing' | 'merge';
+type Tab = 'overview' | 'timeline' | 'encounters' | 'history' | 'documents' | 'consents' | 'insurance' | 'messages' | 'billing' | 'merge';
 
 export default function PatientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -56,6 +58,7 @@ export default function PatientPage({ params }: { params: Promise<{ id: string }
     { value: 'history', label: t('pat.tab.history'), show: can('emr:view') },
     { value: 'documents', label: t('pat.tab.documents'), show: can('emr:view') },
     { value: 'consents', label: t('pat.tab.consents'), show: true },
+    { value: 'insurance', label: t('pat.tab.insurance'), show: true },
     { value: 'messages', label: t('pat.tab.messages'), show: can('message:view') },
     { value: 'billing', label: t('pat.tab.billing'), show: can('bill:view') },
     { value: 'merge', label: t('pat.tab.merge'), show: can('patient:edit') },
@@ -108,6 +111,7 @@ export default function PatientPage({ params }: { params: Promise<{ id: string }
           {tab === 'history' && <History id={id} />}
           {tab === 'documents' && <Documents id={id} />}
           {tab === 'consents' && <Consents pt={pt} onSaved={p.reload} />}
+          {tab === 'insurance' && <PatientCoverages patientId={pt.id} />}
           {tab === 'messages' && <Messages id={id} />}
           {tab === 'billing' && <Billing id={id} />}
           {tab === 'merge' && <Merge pt={pt} />}
@@ -541,6 +545,8 @@ function Consents({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
   const toast = useToast();
   const current = Object.fromEntries(pt.consents.map((c) => [c.type, c.granted]));
   const [v, setV] = useState<Record<string, boolean>>(Object.fromEntries(CONSENT_TYPES.map((c) => [c, !!current[c]])));
+  const [signature, setSignature] = useState<string | null>(null);
+  const [sigKey, setSigKey] = useState(0);
   const a = useAction();
   return (
     <Section title={t('pat.tab.consents')}>
@@ -572,9 +578,11 @@ function Consents({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
             onSubmit={async (e) => {
               e.preventDefault();
               const changed = Object.fromEntries(Object.entries(v).filter(([k, val]) => current[k] !== val || current[k] === undefined));
-              const r = await a.run(() => post(`/patients/${pt.id}/consents`, { consents: changed }));
+              const r = await a.run(() => post(`/patients/${pt.id}/consents`, { consents: changed, signatureDataUrl: signature ?? undefined }));
               if (r) {
                 toast(t('common.saved'));
+                setSignature(null);
+                setSigKey((k) => k + 1);
                 onSaved();
               }
             }}
@@ -583,6 +591,7 @@ function Consents({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
             {CONSENT_TYPES.map((c) => (
               <Check key={c} label={t(`consent.${c}`)} checked={!!v[c]} onChange={(x) => setV({ ...v, [c]: x })} />
             ))}
+            <SignaturePad key={sigKey} label={t('sig.label')} onChange={setSignature} />
             {a.error && <Alert tone="danger">{a.error}</Alert>}
             <Button type="submit" disabled={a.busy} className="self-start">
               {t('consent.record')}
@@ -690,7 +699,8 @@ function Merge({ pt }: { pt: PatientDetail }) {
   const toast = useToast();
   const [source, setSource] = useState<PatientRow | null>(null);
   const [asking, setAsking] = useState(false);
-  const [merges, setMerges] = useLocalState<{ id: string; source: string; name: string; at: string }[]>(`hf_merges_${pt.id}`, []);
+  const mq = useApi<{ id: string; source_patient_id: string; target_patient_id: string; reason: string; merged_at: string; unmerged_at: string | null; can_unmerge: boolean }[]>(`/patients/${pt.id}/merges`);
+  const merges = (mq.data ?? []).filter((m) => !m.unmerged_at && m.target_patient_id === pt.id);
   const a = useAction();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -712,28 +722,35 @@ function Merge({ pt }: { pt: PatientDetail }) {
         </div>
       </Section>
       <Section title={t('merge.recent')}>
-        {merges.length === 0 ? (
+        {mq.error ? (
+          <ErrorAlert error={mq.error} />
+        ) : merges.length === 0 ? (
           <p className="text-sm text-muted">{t('merge.none')}</p>
         ) : (
           <ul className="flex flex-col gap-2 text-sm">
             {merges.map((m) => (
               <li key={m.id} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
                 <span>
-                  <Bdi>{m.name}</Bdi> · <DateText value={m.at} locale={locale} />
+                  <Link className="underline" href={`/patients/${m.source_patient_id}`}>
+                    {t('merge.mergedRecord')}
+                  </Link>{' '}
+                  · <DateText value={m.merged_at} locale={locale} /> · <span dir="auto">{m.reason}</span>
                 </span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={async () => {
-                    const r = await a.run(() => post(`/patients/merges/${m.id}/unmerge`));
-                    if (r) {
-                      toast(t('merge.unmerged'));
-                      setMerges(merges.filter((x) => x.id !== m.id));
-                    }
-                  }}
-                >
-                  {t('merge.unmerge')}
-                </Button>
+                {m.can_unmerge && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={async () => {
+                      const r = await a.run(() => post(`/patients/merges/${m.id}/unmerge`));
+                      if (r) {
+                        toast(t('merge.unmerged'));
+                        mq.reload();
+                      }
+                    }}
+                  >
+                    {t('merge.unmerge')}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -746,8 +763,8 @@ function Merge({ pt }: { pt: PatientDetail }) {
         onClose={() => setAsking(false)}
         onSubmit={async (reason) => {
           if (!source) return;
-          const m = await post<{ id: string }>(`/patients/${pt.id}/merge`, { sourcePatientId: source.id, reason });
-          setMerges([{ id: m.id, source: source.id, name: patientName(source, locale), at: new Date().toISOString() }, ...merges]);
+          await post<{ id: string }>(`/patients/${pt.id}/merge`, { sourcePatientId: source.id, reason });
+          mq.reload();
           toast(t('merge.done'));
           setSource(null);
         }}

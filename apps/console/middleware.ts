@@ -59,7 +59,7 @@ export function middleware(req: NextRequest) {
   res.headers.set('X-Frame-Options', 'DENY');
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('Referrer-Policy', 'no-referrer');
-  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  res.headers.set('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(), payment=(), usb=()');
   res.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   if (!pathname.startsWith('/api/')) res.headers.set('Cache-Control', 'no-store');
 

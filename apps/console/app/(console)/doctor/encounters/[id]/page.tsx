@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useEffect, useMemo, useState } from 'react';
+import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Badge, Bdi, Button, DateText, Input, PageHeader, Select, Textarea } from '@hf/ui';
-import { BODY_IMAGE, BodyChart, type Marker } from '@/components/body-chart';
+import { AiSummaryDraft, ScribePanel, useAiEnabled, type EncounterApplied } from '@/components/ai';
+import { BODY_IMAGE, BodyChart, bodyChartPng, type Marker } from '@/components/body-chart';
 import { Check, DataState, FileLink, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { PrescriptionBuilder, ReauthDialog, type RxSummary } from '@/components/prescription-builder';
 import { useSession, useShortcuts } from '@/components/session';
 import { useToast } from '@/components/toast';
-import { ApiError, patch, post, qs, reauthenticate, upload } from '@/lib/api';
+import { ApiError, get, patch, post, qs, reauthenticate, upload } from '@/lib/api';
 import { useServices } from '@/lib/data';
 import { useApi, useDebounced, useLocalState } from '@/lib/hooks';
 import { biName } from '@/lib/format';
@@ -30,7 +31,7 @@ interface Encounter {
   diagnoses: { code: string; primary: boolean; note?: string }[];
   problems: { text: string; status: 'active' | 'resolved' }[];
   observations: { name: string; value: string }[];
-  body_chart: { image: string; shapes: Marker[] } | null;
+  body_chart: { image: string; shapes: Marker[]; pngKey?: string } | null;
   follow_up: { date: string; serviceId?: string; note?: string } | null;
   patient_summary: string | null;
   created_at: string;
@@ -120,6 +121,11 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
   const [summary, setSummary] = useState(e.patient_summary ?? '');
   const save = useAction();
   const { active: services } = useServices();
+  const aiEnabled = useAiEnabled();
+  const chartRef = useRef<SVGSVGElement>(null);
+  // Last body chart sent to the API: the rendered PNG is only re-uploaded when the markers change.
+  const savedChart = useRef(JSON.stringify((e.body_chart?.shapes ?? []).filter((x) => x.type === 'marker')));
+  const [hasPng, setHasPng] = useState(!!e.body_chart?.pngKey);
 
   useEffect(() => setDirty(true), [vitals, cc, hpi, exam, notes, dx, problems, obs, markers, fu]);
   useEffect(() => setDirty(false), []);
@@ -151,12 +157,37 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
   );
 
   async function doSave(quiet = false) {
-    const r = await save.run(() => patch(`/encounters/${e.id}`, body));
+    const chartJson = JSON.stringify(markers);
+    let pngDataUrl: string | undefined;
+    if (chartRef.current && chartJson !== savedChart.current) {
+      try {
+        pngDataUrl = await bodyChartPng(chartRef.current);
+      } catch {
+        pngDataUrl = undefined; // vector shapes are still saved; the image is regenerated on the next save
+      }
+    }
+    const payload = pngDataUrl ? { ...body, bodyChart: { ...body.bodyChart, pngDataUrl } } : body;
+    const r = await save.run(() => patch(`/encounters/${e.id}`, payload));
     if (r) {
       setDirty(false);
+      if (pngDataUrl) {
+        savedChart.current = chartJson;
+        setHasPng(true);
+      }
       if (!quiet) toast(t('common.saved'));
     }
     return !!r;
+  }
+
+  /** Apply AI-approved values to the editor so a later save does not overwrite them with stale text. */
+  function applyAi(v: EncounterApplied) {
+    if (v.chiefComplaint !== undefined) setCc(v.chiefComplaint);
+    if (v.hpi !== undefined) setHpi(v.hpi);
+    if (v.examination !== undefined) setExam(v.examination);
+    if (v.notes !== undefined) setNotes(v.notes);
+    if (v.vitals) setVitals((cur) => ({ ...cur, ...Object.fromEntries(Object.entries(v.vitals!).map(([k, n]) => [k, String(n)])) }));
+    if (v.diagnoses) setDx(v.diagnoses);
+    if (v.followUpDate !== undefined) setFu((cur) => ({ ...cur, date: v.followUpDate ?? '' }));
   }
 
   async function sign() {
@@ -234,6 +265,11 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
             ))}
           </Select>
         </label>
+      )}
+      {editable && aiEnabled && can('emr:approve') && (
+        <Section title={t('ai.scribeTitle')}>
+          <ScribePanel encounterId={e.id} current={{ chiefComplaint: cc, hpi, examination: exam, notes, vitals, diagnoses: dx, followUpDate: fu.date }} onApplied={applyAi} />
+        </Section>
       )}
       {has('vitals') && (
         <Section title={t('emr.vitals')}>
@@ -324,8 +360,24 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
         </Section>
       )}
       {has('bodyChart') && (
-        <Section title={t('enc.bodyChart')}>
-          <BodyChart markers={markers} onChange={setMarkers} readOnly={!editable} />
+        <Section
+          title={t('enc.bodyChart')}
+          actions={
+            hasPng && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={async () => {
+                  const r = await save.run(() => get<{ url: string }>(`/encounters/${e.id}/body-chart.png`));
+                  if (r) window.open(r.url, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                {t('enc.bodyChartImage')}
+              </Button>
+            )
+          }
+        >
+          <BodyChart markers={markers} onChange={setMarkers} readOnly={!editable} svgRef={chartRef} />
         </Section>
       )}
       {has('orders') && <Orders e={e} editable={mine && can('emr:create')} reload={reload} />}
@@ -355,6 +407,7 @@ function Editor({ e, reload }: { e: Encounter; reload: () => void }) {
               {t('enc.shareSummary')}
             </Button>
           </form>
+          {aiEnabled && can('emr:approve') && <div className="mt-3"><AiSummaryDraft encounterId={e.id} current={summary} onApplied={setSummary} /></div>}
         </Section>
       )}
       {e.status === 'signed' && (

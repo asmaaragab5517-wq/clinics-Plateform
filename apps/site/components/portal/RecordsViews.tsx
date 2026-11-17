@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import { Alert, Badge, Bdi, Button, Card, EmptyState, Field, Input, Spinner, Table } from '@hf/ui';
-import { bff, errorText } from '@/lib/bff';
+import { BffError, bff, errorText } from '@/lib/bff';
 import { dateOnly, money, pick } from '@/lib/format';
 import { has, t, tDyn, type Locale } from '@/lib/i18n';
-import type { PortalDocument, PortalInvoice, PortalPackage, PortalPrescription, PortalVisit } from '@/lib/types';
+import type { PortalDocument, PortalInvoice, PortalPackage, PortalPrescription, PortalVisit, ShareLink } from '@/lib/types';
 import { NoPatients, PatientSelect, PortalPage, usePatientName, usePortal } from './PortalShell';
-import { useBffData } from './hooks';
+import { redirectToSignIn, useBffData } from './hooks';
 
 function Loader<T>({ state, empty, children }: { state: { data: T[] | null; loading: boolean; error: unknown }; empty: string; children: (rows: T[]) => React.ReactNode }) {
   const { locale } = usePortal();
@@ -17,11 +17,63 @@ function Loader<T>({ state, empty, children }: { state: { data: T[] | null; load
   return <>{children(state.data)}</>;
 }
 
-/** Binary downloads go through the BFF proxy, which streams the PDF with Cache-Control: no-store. */
-function DownloadLink({ href, label, filename }: { href: string; label: string; filename: string }) {
+type ShareKind = 'rx' | 'invoice';
+
+/** Rewrites the API's signed link (…/v1/share/<kind>/<token>) to the site's same-origin opener; null if it has another shape. */
+function sameOriginShare(url: string, kind: ShareKind): string | null {
+  try {
+    const m = /\/v1\/share\/(rx|invoice)\/([^/?#]+)$/.exec(new URL(url, window.location.href).pathname);
+    return m && m[1] === kind ? `/api/share/${kind}/${encodeURIComponent(decodeURIComponent(m[2]!))}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * PDF download. Prefers the API's short-lived signed link (served through /api/share so the browser stays on this origin);
+ * falls back to the BFF stream (`/pdf`, Cache-Control: no-store) when the link endpoint is unavailable or without JavaScript.
+ */
+function SignedDownload({ kind, id, label, filename }: { kind: ShareKind; id: string; label: string; filename: string }) {
+  const { locale } = usePortal();
+  const [busy, setBusy] = useState(false);
+  const base = `/api/portal/${kind === 'rx' ? 'prescriptions' : 'invoices'}/${encodeURIComponent(id)}`;
+  const fallback = `${base}/pdf`;
+
+  async function download() {
+    setBusy(true);
+    let href = fallback;
+    try {
+      const r = await bff<ShareLink>(`${base}/link`);
+      href = sameOriginShare(r.url, kind) ?? fallback;
+    } catch (e) {
+      if (e instanceof BffError && e.code === 'unauthorized') {
+        redirectToSignIn(locale);
+        return;
+      }
+      /* no signed link (older API or transient error): use the BFF stream */
+    }
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setBusy(false);
+  }
+
   return (
-    <a href={href} download={filename} className="btn-secondary btn-sm">
-      {label}
+    <a
+      href={fallback}
+      download={filename}
+      aria-disabled={busy || undefined}
+      className="btn-secondary btn-sm"
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        if (!busy) void download();
+      }}
+    >
+      {busy ? t(locale, 'common.loading') : label}
     </a>
   );
 }
@@ -51,7 +103,7 @@ export function PrescriptionsView() {
                         )}
                       </p>
                     </div>
-                    <DownloadLink href={`/api/portal/prescriptions/${rx.id}/pdf`} filename={`prescription-${rx.id.slice(0, 8)}.pdf`} label={t(locale, 'rx.download')} />
+                    <SignedDownload kind="rx" id={rx.id} filename={`prescription-${rx.id.slice(0, 8)}.pdf`} label={t(locale, 'rx.download')} />
                   </div>
                   {!!rx.lines?.length && (
                     <ul className="list-disc ps-5 text-sm">
@@ -305,7 +357,7 @@ export function InvoicesView() {
                     <Badge tone={b.status === 'paid' ? 'success' : b.status === 'partially_paid' || b.status === 'issued' ? 'warning' : 'neutral'}>{has(`billStatus.${b.status}`) ? tDyn(locale, `billStatus.${b.status}`) : b.status}</Badge>
                   </td>
                   <td className="text-end">
-                    <DownloadLink href={`/api/portal/invoices/${b.id}/pdf`} filename={`invoice-${b.number}.pdf`} label={t(locale, 'invoices.download')} />
+                    <SignedDownload kind="invoice" id={b.id} filename={`invoice-${b.number}.pdf`} label={t(locale, 'invoices.download')} />
                   </td>
                 </tr>
               ))}

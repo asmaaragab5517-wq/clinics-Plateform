@@ -33,6 +33,7 @@ export const PORTAL_NAV: [string, Key][] = [
   ['/family', 'portal.nav.family'],
   ['/notifications', 'portal.nav.notifications'],
   ['/privacy', 'portal.nav.privacy'],
+  ['/complaints', 'portal.nav.complaints'],
 ];
 
 /** Loads the account once for every portal page; any 401 goes to sign-in. Data is fetched client-side through the no-store BFF. */
@@ -52,7 +53,7 @@ export function PortalProvider({ locale, children }: { locale: Locale; children:
         <nav aria-label={t(locale, 'nav.portal')} className="rounded-xl border border-border bg-surface p-2">
           <ul className="flex gap-1 overflow-x-auto lg:flex-col">
             {PORTAL_NAV.map(([href, key]) => {
-              const active = href ? pathname.startsWith(base + href) : pathname === base;
+              const active = href ? pathname.startsWith(base + href) : pathname === base || pathname.startsWith(`${base}/appointments/`);
               return (
                 <li key={href} className="shrink-0">
                   <Link href={base + href} aria-current={active ? 'page' : undefined} className={cx('block rounded-lg px-3 py-2 text-sm', active ? 'bg-primary/10 font-bold text-primary' : 'hover:bg-bg')}>
@@ -86,26 +87,29 @@ export function PortalProvider({ locale, children }: { locale: Locale; children:
   );
 }
 
+/** Signs out this browser only by default; "all devices" also ends the account's sessions in the app and other browsers. */
 export function SignOutButton({ locale }: { locale: Locale }) {
   const [busy, setBusy] = useState(false);
+  const signOut = async (allDevices: boolean) => {
+    if (allDevices && !window.confirm(t(locale, 'portal.signOutAllConfirm'))) return;
+    setBusy(true);
+    await bff('/api/auth/logout', { method: 'POST', json: { allDevices } }).catch(() => null);
+    try {
+      window.sessionStorage.clear();
+    } catch {
+      /* ignore */
+    }
+    window.location.replace(`/${locale}`);
+  };
   return (
-    <button
-      type="button"
-      className="link self-start"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        await bff('/api/auth/logout', { method: 'POST' }).catch(() => null);
-        try {
-          window.sessionStorage.clear();
-        } catch {
-          /* ignore */
-        }
-        window.location.replace(`/${locale}`);
-      }}
-    >
-      {t(locale, 'nav.signOut')}
-    </button>
+    <div className="flex flex-col items-start gap-1">
+      <button type="button" className="link" disabled={busy} onClick={() => void signOut(false)}>
+        {t(locale, 'nav.signOut')}
+      </button>
+      <button type="button" className="link text-xs" disabled={busy} onClick={() => void signOut(true)}>
+        {t(locale, 'portal.signOutAll')}
+      </button>
+    </div>
   );
 }
 

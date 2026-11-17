@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { use, useState } from 'react';
 import { formatMoney, type PaymentMethod } from '@hf/shared';
-import { Alert, Badge, Bdi, Button, DateText, Dialog, Money, PageHeader, Table } from '@hf/ui';
+import { Alert, Badge, Bdi, Button, DateText, Money, PageHeader, Table } from '@hf/ui';
+import { Dialog } from '@/components/dialog';
 import { DataState, FileLink, ReasonDialog, Section, SelectField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';
 import { useSession, useShortcuts } from '@/components/session';
@@ -16,6 +17,9 @@ import type { BillRow } from '@/lib/types';
 interface BillDetail extends BillRow {
   credited: number;
   balance: number;
+  insurer_share: number;
+  coverage_id: string | null;
+  approval_number: string | null;
   void_reason: string | null;
   lines: { id: string; description: string; qty: number; unit_price: number; discount: number; vat: number; total: number; vat_status: string }[];
   payments: { id: string; method: PaymentMethod; amount: number; refunded: number; reference: string | null; card_last4: string | null; receipt_number: string | null; status: string; created_at: string }[];
@@ -133,6 +137,13 @@ export default function BillPage({ params }: { params: Promise<{ id: string }> }
                     ['cash.credited', formatMoney(num(bill.credited), locale)],
                     ['bill.paid', formatMoney(num(bill.paid) - num(bill.refunded), locale)],
                     ['bill.balance', formatMoney(num(bill.balance), locale)],
+                    ...(num(bill.insurer_share) > 0 || bill.coverage_id
+                      ? ([
+                          ['ins.insurerShare', formatMoney(num(bill.insurer_share), locale)],
+                          ['ins.patientDue', formatMoney(patientDue(bill), locale)],
+                          ['ins.approvalNumber', bill.approval_number ?? '—'],
+                        ] as const)
+                      : []),
                   ] as const
                 ).map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-2">
@@ -231,11 +242,19 @@ export default function BillPage({ params }: { params: Promise<{ id: string }> }
   );
 }
 
+/** What the patient still owes: the insurer share is collected through claims (FR-BIL-11). Mirrors the API's check. */
+function patientDue(b: BillDetail): number {
+  const share = num(b.insurer_share);
+  if (share <= 0) return num(b.balance);
+  const patientPaid = b.payments.filter((p) => (p.method as string) !== 'insurance' && p.status === 'captured').reduce((a, p) => a + num(p.amount) - num(p.refunded), 0);
+  return Math.max(0, Math.min(num(b.balance), num(b.total) - num(b.credited) - share - patientPaid));
+}
+
 function PaymentDialog({ open, bill, onClose, onPaid }: { open: boolean; bill: BillDetail; onClose: () => void; onPaid: () => void }) {
   const { t, locale } = useI18n();
   const toast = useToast();
   const [method, setMethod] = useState<Exclude<PaymentMethod, 'healthpay'>>('cash');
-  const [amount, setAmount] = useState(egpInput(num(bill.balance)));
+  const [amount, setAmount] = useState(egpInput(patientDue(bill)));
   const [reference, setReference] = useState('');
   const [last4, setLast4] = useState('');
   const [pkg, setPkg] = useState('');
@@ -273,7 +292,14 @@ function PaymentDialog({ open, bill, onClose, onPaid }: { open: boolean; bill: B
       >
         <p className="text-sm">
           {t('bill.balance')}: <strong className="num">{formatMoney(num(bill.balance), locale)}</strong>
+          {num(bill.insurer_share) > 0 && (
+            <>
+              {' · '}
+              {t('ins.patientDue')}: <strong className="num">{formatMoney(patientDue(bill), locale)}</strong>
+            </>
+          )}
         </p>
+        {num(bill.insurer_share) > 0 && <p className="text-xs text-muted">{t('ins.payPatientShareOnly')}</p>}
         <SelectField label={t('cash.method')} value={method} onChange={(e) => setMethod(e.target.value as typeof method)} options={(['cash', 'card_at_clinic', 'bank_transfer', 'package_balance'] as const).map((m) => ({ value: m, label: t(`method.${m}`) }))} />
         <TextField label={t('cash.amount')} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" dir="ltr" required autoFocus />
         {method === 'card_at_clinic' && (

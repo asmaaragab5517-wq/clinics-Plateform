@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Badge, Bdi, Button, Dialog, Input, Select } from '@hf/ui';
+import { AiRxWording, useAiEnabled, type RxLineWording } from './ai';
+import { Alert, Badge, Bdi, Button, Input, Select } from '@hf/ui';
+import { Dialog } from './dialog';
 import { ApiError, post, qs, reauthenticate } from '@/lib/api';
 import { useApi, useDebounced } from '@/lib/hooks';
 import { translate } from '@/lib/i18n';
@@ -34,8 +36,23 @@ interface Line {
 
 interface Warning {
   line: number;
-  kind: 'allergy' | 'duplicate_ingredient' | 'free_text';
+  kind: 'allergy' | 'duplicate_ingredient' | 'free_text' | 'interaction';
+  severity?: 'minor' | 'moderate' | 'major' | 'contraindicated' | string;
   detail: string;
+}
+
+const SEVERITY_RANK: Record<string, number> = { contraindicated: 0, major: 1, moderate: 2, minor: 3 };
+const KIND_RANK: Record<string, number> = { allergy: 0, interaction: 1, duplicate_ingredient: 2, free_text: 3 };
+
+function warningTone(w: Warning): 'danger' | 'warning' | 'neutral' {
+  if (w.kind === 'allergy') return 'danger';
+  if (w.kind === 'interaction') return w.severity === 'contraindicated' || w.severity === 'major' ? 'danger' : w.severity === 'moderate' ? 'warning' : 'neutral';
+  return w.kind === 'free_text' ? 'neutral' : 'warning';
+}
+
+/** Most dangerous first: allergies, then interactions by severity. */
+function sortWarnings(ws: Warning[]): Warning[] {
+  return [...ws].sort((a, b) => (KIND_RANK[a.kind] ?? 9) - (KIND_RANK[b.kind] ?? 9) || (SEVERITY_RANK[a.severity ?? ''] ?? 9) - (SEVERITY_RANK[b.severity ?? ''] ?? 9) || a.line - b.line);
 }
 
 export interface RxSummary {
@@ -90,7 +107,9 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
   const toast = useToast();
   const [lines, setLines] = useState<Line[]>([blank()]);
   const [notes, setNotes] = useState('');
-  const [draft, setDraft] = useState<{ id: string; warnings: Warning[] } | null>(null);
+  const [draft, setDraft] = useState<{ id: string; warnings: Warning[]; lines?: RxLineWording[] } | null>(null);
+  const aiEnabled = useAiEnabled();
+  const [aiFirst, setAiFirst] = useState(false);
   const [ack, setAck] = useState(false);
   const [reauth, setReauth] = useState<null | (() => Promise<void>)>(null);
   const [tplName, setTplName] = useState('');
@@ -128,6 +147,7 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
     }
   }
 
+  const needsAck = !!draft && draft.warnings.some((w) => w.kind !== 'free_text');
   return (
     <Section title={t('rx.title')}>
       <div className="flex flex-col gap-4">
@@ -146,6 +166,7 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
                       <FileLink href={`/prescriptions/${p.id}/pdf?size=A4`}>{t('rx.printA4')}</FileLink>
                     </>
                   )}
+                  {p.status === 'draft' && editable && aiEnabled && p.id !== draft?.id && <AiRxWording prescriptionId={p.id} lines={null} onApplied={onChanged} />}
                   {p.status === 'draft' && editable && (
                     <Button size="sm" onClick={() => void issue(p.id, false)}>
                       {t('rx.issue')}
@@ -168,9 +189,10 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
               }
               const r = await a.run(() => post<{ id: string; warnings: Warning[] }>(`/encounters/${encounterId}/prescriptions`, body));
               if (r) {
-                setDraft(r);
+                const kept = lines.filter((l) => l.drugId || l.freeText?.trim());
+                setDraft({ ...r, lines: kept.map((l) => ({ label: l.drugLabel ?? l.freeText ?? '', instructionsAr: l.instructionsAr, instructionsEn: l.instructionsEn })) });
                 onChanged();
-                if (!r.warnings.some((w) => w.kind !== 'free_text')) void issue(r.id, false);
+                if (!aiFirst && !r.warnings.some((w) => w.kind !== 'free_text')) void issue(r.id, false);
               }
             }}
           >
@@ -270,25 +292,31 @@ export function PrescriptionBuilder({ encounterId, prescriptions, onChanged, edi
               </Button>
             </div>
             <TextField label={t('rx.notes')} value={notes} onChange={(e) => setNotes(e.target.value)} dir="auto" />
+            {aiEnabled && <Check label={t('rx.aiFirst')} checked={aiFirst} onChange={setAiFirst} />}
             {a.error && <Alert tone="danger">{a.error}</Alert>}
             <Button type="submit" disabled={a.busy} className="self-start">
-              {t('rx.createAndIssue')}
+              {aiFirst ? t('rx.createDraft') : t('rx.createAndIssue')}
             </Button>
           </form>
         )}
         {draft && (
-          <div className="flex flex-col gap-3 rounded-xl border border-warning/40 p-3">
-            <Alert tone="warning">{t('rx.warningsTitle')}</Alert>
-            <ul className="flex flex-col gap-1 text-sm">
-              {draft.warnings.map((w, i) => (
-                <li key={i}>
-                  <Badge tone={w.kind === 'allergy' ? 'danger' : 'warning'}>{t(`rx.warn.${w.kind}`)}</Badge> {t('rx.line', { n: w.line + 1 })}: <bdi dir="ltr">{w.detail}</bdi>
-                </li>
-              ))}
-            </ul>
-            <Check label={t('rx.acknowledge')} checked={ack} onChange={setAck} />
+          <div className={`flex flex-col gap-3 rounded-xl border p-3 ${needsAck ? 'border-warning/40' : 'border-border'}`}>
+            {needsAck ? <Alert tone="warning">{t('rx.warningsTitle')}</Alert> : <Alert tone="info">{t('rx.draftReady')}</Alert>}
+            {draft.warnings.length > 0 && (
+              <ul className="flex flex-col gap-1 text-sm">
+                {sortWarnings(draft.warnings).map((w, i) => (
+                  <li key={i} className="flex flex-wrap items-center gap-1">
+                    <Badge tone={warningTone(w)}>{t(`rx.warn.${w.kind}`)}</Badge>
+                    {w.kind === 'interaction' && w.severity && <Badge tone={warningTone(w)}>{t(`rx.severity.${w.severity}`)}</Badge>}
+                    <span>{t('rx.line', { n: w.line + 1 })}:</span> <bdi dir="auto">{w.kind === 'free_text' ? t('rx.freeTextUnchecked') : w.detail}</bdi>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {aiEnabled && <AiRxWording prescriptionId={draft.id} lines={draft.lines ?? null} onApplied={onChanged} />}
+            {needsAck && <Check label={t('rx.acknowledge')} checked={ack} onChange={setAck} />}
             <div className="flex gap-2">
-              <Button disabled={!ack} onClick={() => void issue(draft.id, true)}>
+              <Button disabled={needsAck && !ack} onClick={() => void issue(draft.id, needsAck)}>
                 {t('rx.issue')}
               </Button>
               <Button variant="secondary" onClick={() => setDraft(null)}>

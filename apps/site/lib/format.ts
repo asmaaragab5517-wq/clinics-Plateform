@@ -1,5 +1,5 @@
-import { GOVERNORATES, formatDate, formatMoney, formatTime12 } from '@hf/shared';
-import { has, tDyn, type Locale } from './i18n';
+import { GOVERNORATES, addDays, formatDate, formatMoney, formatTime12, localDate } from '@hf/shared';
+import { has, t, tDyn, type Locale } from './i18n';
 import type { Named, Num } from './types';
 
 /** Bilingual record → display name; Arabic is the fallback (LOC-1). */
@@ -81,4 +81,31 @@ export function listSep(locale: Locale): string {
 /** Defensive defaults so a partial API payload never crashes a page. */
 export function normDoctor<T extends { specialties?: unknown; clinics?: unknown }>(d: T): T {
   return { ...d, specialties: Array.isArray(d.specialties) ? d.specialties : [], clinics: Array.isArray(d.clinics) ? d.clinics : [] };
+}
+
+/** "Today 3:00 PM", "Tomorrow 9:30 AM" or "Tue 18/11 3:00 PM" in clinic time (FR-WEB-2 next available). */
+export function nextAvailableText(iso: string, locale: Locale, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = localDate(d);
+  const today = localDate(now);
+  const time = formatTime12(d, locale);
+  if (day === today) return t(locale, 'doctor.availableToday', { time });
+  if (day === addDays(today, 1)) return t(locale, 'doctor.availableTomorrow', { time });
+  return `${dayLabel(day, locale)} ${time}`;
+}
+
+/** Same-origin URL of a doctor's public photo, or null when the doctor has none (initial fallback). */
+export function doctorPhotoSrc(d: { slug: string; photo_url?: string | null; photo_key?: string | null }): string | null {
+  return d.photo_url || d.photo_key ? `/api/public/doctors/${encodeURIComponent(d.slug)}/photo` : null;
+}
+
+/** Cities of a governorate (LOC-7). Clinics store the Arabic city name, which is also the filter value. */
+export function citiesOf(governorate: string | null | undefined): { ar: string; en: string }[] {
+  return GOVERNORATES.find((g) => g.slug === governorate)?.cities ?? [];
+}
+
+/** Initial of a doctor's name without the "Dr." / "\u062F." prefix (photo fallback). */
+export function initialOf(name: string): string {
+  return name.replace(/^(\u062F\.|Dr\.?)\s*/u, '').trim().slice(0, 1);
 }

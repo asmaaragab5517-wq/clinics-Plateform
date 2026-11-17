@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge, Bdi, Card, Table } from '@hf/ui';
-import { Avatar, Breadcrumbs, Section, Stars, Unavailable } from '@/components/site/bits';
+import { Breadcrumbs, Section, Stars, Unavailable } from '@/components/site/bits';
+import { DoctorPhoto } from '@/components/site/DoctorPhoto';
 import { JsonLd } from '@/components/site/JsonLd';
 import { publicGet } from '@/lib/api';
-import { dateOnly, dateTime, doctorTitle, listSep, money, nameOf, normDoctor, num, pick } from '@/lib/format';
+import { dateOnly, dateTime, doctorPhotoSrc, doctorTitle, listSep, money, nameOf, normDoctor, num, pick } from '@/lib/format';
 import { asLocale, getT, has, t, tDyn } from '@/lib/i18n';
 import { physicianLd } from '@/lib/ld';
 import { excerpt, pageMetadata } from '@/lib/seo';
@@ -59,7 +60,7 @@ export default async function DoctorPage({ params }: Props) {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
           <div className="flex items-start gap-4">
-            <Avatar name={name} />
+            <DoctorPhoto name={name} src={doctorPhotoSrc(d)} size="lg" />
             <div>
               <h1 className="text-2xl font-bold">
                 <Bdi>{name}</Bdi>
