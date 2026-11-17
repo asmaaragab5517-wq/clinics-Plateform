@@ -17,6 +17,9 @@ must be closed before go-live.
   nodemailer 10.4.0, zod 4.6.7 (API and shared; the AI module already uses the zod 4 API). Blocked because updating the lockfile
   re-checks packages locked before the 7-day minimum release age was introduced (turbo 2.11.11 binaries, @tybys/wasm-util);
   the install succeeds once those are 7 days old, or with an owner-approved exemption. picomatch needs a documented audit exception.
+- Lighthouse performance (mobile, median of 3) in CI: home 93, doctor profile 96, doctors list 90 (one earlier run 86).
+  The doctors list sits at the target on GitHub's 2-vCPU runners and may fail occasionally; locally it scores 95–97.
+  Confirm on the staging deploy behind the CDN before treating it as a product issue.
 - Deploy to staging/production waits for `STAGING_APP_ID`, `PRODUCTION_APP_ID` and `DO_TOKEN` (docs/runbooks/deploy.md).
 
 ## Product/API
