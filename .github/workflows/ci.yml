@@ -62,6 +62,63 @@ jobs:
       - run: pnpm --filter @hf/console build
       - run: pnpm --filter @hf/mobile typecheck
 
+  gate:
+    name: Quality gate (NFR-2 smoke, axe, RTL, Lighthouse)
+    runs-on: ubuntu-latest
+    needs: [test, web]
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 20
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      DATABASE_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+      DATABASE_APP_PASSWORD: hf_api_ci
+      DATABASE_URL: postgres://hf_api:hf_api_ci@localhost:5432/postgres
+      REDIS_URL: redis://localhost:6379
+      AUTH_DEV_SECRET: ci-only-dev-secret-not-for-production-0123456789
+      OTP_DEV_ECHO: "true"
+      RATE_LIMIT_PUBLIC_PER_MIN: "10000000"
+      CHROMIUM_PATH: /usr/bin/google-chrome
+      API_URL: http://localhost:4000
+      ORG_SLUG: demo
+      AUTH_MODE: dev
+      SESSION_SECRET: ci-only-session-secret-0123456789abcdef
+      COOKIE_INSECURE: "1"
+      TURBO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build --filter=@hf/api --filter=@hf/site --filter=@hf/console
+      - name: Migrate and seed demo data
+        run: pnpm --filter @hf/db migrate && pnpm --filter @hf/db seed
+      - name: Start API, site and console
+        run: |
+          (cd apps/api && nohup node dist/main.js > ../../api.log 2>&1 &)
+          (cd apps/site && nohup pnpm start > ../../site.log 2>&1 &)
+          (cd apps/console && CONSOLE_URL=http://localhost:3001 nohup pnpm start > ../../console.log 2>&1 &)
+          npx --yes wait-on -t 120000 http-get://localhost:4000/v1/public/org http-get://localhost:3000/ar http-get://localhost:3001/login
+      - name: NFR-2 smoke (public read path)
+        run: API=http://localhost:4000 VUS=100 DURATION=30 node scripts/perf.mjs
+      - name: Accessibility, RTL and Lighthouse
+        run: OUT=ui-report node packages/ui-tests/run.mjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gate
+          path: |
+            ui-report
+            api.log
+            site.log
+            console.log
+
   security:
     name: Security scanning (SEC-9)
     runs-on: ubuntu-latest
