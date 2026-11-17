@@ -91,7 +91,11 @@ if (process.env.LIGHTHOUSE !== '0') {
   const chrome = await launch({ chromePath: executablePath, chromeFlags: ['--headless=new', '--no-sandbox'] });
   try {
     for (const p of ['/ar', '/ar/doctors', `/ar/doctors/${SLUG}`]) {
-      const r = await lighthouse(`${SITE}${p}`, { port: chrome.port, output: 'json', onlyCategories: ['performance', 'accessibility', 'seo', 'best-practices'], logLevel: 'error' });
+      // Median of three runs per page, as Lighthouse recommends: single runs vary a lot on shared CI runners.
+      const runs = [];
+      for (let i = 0; i < 3; i++) runs.push(await lighthouse(`${SITE}${p}`, { port: chrome.port, output: 'json', onlyCategories: ['performance', 'accessibility', 'seo', 'best-practices'], logLevel: 'error' }));
+      runs.sort((x, y) => x.lhr.categories.performance.score - y.lhr.categories.performance.score);
+      const r = runs[1];
       const c = r.lhr.categories;
       const s = { path: p, performance: Math.round(c.performance.score * 100), accessibility: Math.round(c.accessibility.score * 100), seo: Math.round(c.seo.score * 100), bestPractices: Math.round(c['best-practices'].score * 100), lcpMs: Math.round(r.lhr.audits['largest-contentful-paint'].numericValue) };
       lighthouseScores.push(s);
