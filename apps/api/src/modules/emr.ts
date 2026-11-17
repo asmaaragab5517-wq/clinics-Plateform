@@ -123,6 +123,15 @@ export class EmrController {
         if (known.length !== new Set(b.diagnoses.map((d) => d.code)).size) throw badRequest('unknown_icd10_code');
       }
       const vitals = b.vitals ? withBmi({ ...e.vitals, ...b.vitals }) : null;
+      // FR-EMR-2: body chart kept as vector JSON plus a rendered PNG in private storage.
+      if (b.bodyChart?.pngDataUrl) {
+        const png = Buffer.from(b.bodyChart.pngDataUrl.split(',')[1] ?? '', 'base64');
+        if (sniffMime(png) !== 'image/png') throw badRequest('invalid_png');
+        const key = `org/${s.orgId}/patients/${e.patient_id}/bodychart-${id}-${Date.now()}.png`;
+        await this.storage.put(key, png, 'image/png');
+        const { pngDataUrl: _drop, ...rest } = b.bodyChart;
+        b.bodyChart = { ...rest, pngKey: key } as typeof b.bodyChart;
+      }
       return tx.one(
         `update encounters set vitals = coalesce($2, vitals), chief_complaint = coalesce($3, chief_complaint), hpi = coalesce($4, hpi), examination = coalesce($5, examination),
            notes = coalesce($6, notes), diagnoses = coalesce($7, diagnoses), problems = coalesce($8, problems), observations = coalesce($9, observations),
@@ -203,6 +212,18 @@ export class EmrController {
       await tx.query('update encounters set patient_summary = $2 where id = $1', [id, b.text]);
       return { ok: true };
     });
+  }
+
+  @Get('encounters/:id/body-chart.png')
+  @Staff()
+  async bodyChartPng(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
+    const s = asStaff(p);
+    const key = await this.tenancy.run(s, async (tx) => {
+      const e = await this.load(tx, s, id, meta, 'emr.body_chart');
+      return (e as unknown as { body_chart: { pngKey?: string } | null }).body_chart?.pngKey ?? null;
+    });
+    if (!key) throw notFound('body_chart');
+    return { url: await this.storage.signedUrl(key, 300), expiresInSeconds: 300 };
   }
 
   @Get('encounters/:id/summary.pdf')

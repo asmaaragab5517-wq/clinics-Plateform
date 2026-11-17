@@ -170,6 +170,7 @@ export async function retention(c: JobContext) {
   await forEachOrg(c, 'retention', async (org) => {
     await c.tenancy.system(org, async (tx) => {
       await tx.query(`delete from otp_codes where expires_at < now() - interval '1 day'`);
+      await tx.query(`delete from booking_funnel where updated_at < now() - interval '30 days'`);
       await tx.query(`delete from refresh_tokens where expires_at < now() - interval '7 days'`);
       await tx.query(`update messages set body = null where body is not null and created_at < now() - interval '90 days'`);
       const abandoned = await tx.query<{ id: string }>(`select id from appointments where status = 'cancelled' and cancel_reason = 'hold_expired' and created_at < now() - interval '30 days' limit 1000`);

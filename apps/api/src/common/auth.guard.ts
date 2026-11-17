@@ -8,6 +8,7 @@ import { forbidden } from './errors';
 import type { Principal } from './principal';
 import { Tenancy } from './services';
 import { TokenService } from './tokens';
+import { RateLimiter } from './rate-limit';
 import { UnauthorizedException } from '@nestjs/common';
 
 const unauthorized = () => new UnauthorizedException({ error: 'unauthorized' });
@@ -24,6 +25,7 @@ export class AuthGuard implements CanActivate {
     private readonly tokens: TokenService,
     private readonly tenancy: Tenancy,
     @Inject(CONFIG) private readonly cfg: Config,
+    private readonly limiter: RateLimiter,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -42,6 +44,8 @@ export class AuthGuard implements CanActivate {
     }
 
     if (access === 'public') {
+      // SEC-5: per-IP limit on anonymous traffic (search, booking wizard, OTP endpoints add their own stricter limits).
+      await this.limiter.hit(`pub:${req.ip ?? 'unknown'}`, this.cfg.RATE_LIMIT_PUBLIC_PER_MIN, 60);
       // A signed-in patient may call public routes; otherwise resolve organisation from header/default.
       const patient = bearer ? await this.patient(bearer) : null;
       req.principal = patient ?? { kind: 'public', orgId: await this.resolveOrg(req) };
@@ -51,6 +55,7 @@ export class AuthGuard implements CanActivate {
     if (access === 'patient') {
       const p = bearer ? await this.patient(bearer) : null;
       if (!p) throw unauthorized();
+      await this.limiter.hit(`pat:${(p as { accountId: string }).accountId}`, this.cfg.RATE_LIMIT_PATIENT_PER_MIN, 60);
       req.principal = p;
       return true;
     }

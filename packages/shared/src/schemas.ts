@@ -214,7 +214,9 @@ export const encounterUpdateSchema = z.object({
   diagnoses: z.array(z.object({ code: z.string().max(10), primary: z.boolean().default(false), note: z.string().max(500).optional() })).optional(),
   problems: z.array(z.object({ text: z.string().max(500), status: z.enum(['active', 'resolved']).default('active') })).optional(),
   observations: z.array(z.object({ name: z.string().max(200), value: z.string().max(500) })).optional(),
-  bodyChart: z.object({ image: z.string().max(50), shapes: z.array(z.record(z.unknown())).max(500) }).optional(),
+  bodyChart: z
+    .object({ image: z.string().max(50), shapes: z.array(z.record(z.unknown())).max(500), pngDataUrl: z.string().max(400_000).regex(/^data:image\/png;base64,/).optional() })
+    .optional(),
   followUp: z.object({ date: zDate, serviceId: zUuid.optional(), note: z.string().max(500).optional() }).nullable().optional(),
 });
 

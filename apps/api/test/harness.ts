@@ -34,6 +34,8 @@ export async function startHarness(dbName: string): Promise<Harness> {
     CHROMIUM_PATH: CHROMIUM,
     API_PUBLIC_URL: 'http://api.test',
     PUBLIC_SITE_URL: 'http://site.test',
+    RATE_LIMIT_PUBLIC_PER_MIN: '100000',
+    RATE_LIMIT_PATIENT_PER_MIN: '100000',
   } as NodeJS.ProcessEnv);
   const app = await createApp(cfg, { logger: false });
   await app.init();

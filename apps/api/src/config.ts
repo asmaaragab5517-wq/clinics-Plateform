@@ -47,6 +47,8 @@ const schema = z.object({
   CLAMD_HOST: z.string().default('localhost'),
   CLAMD_PORT: z.coerce.number().default(3310),
   CHROMIUM_PATH: z.string().optional(),
+  RATE_LIMIT_PUBLIC_PER_MIN: z.coerce.number().int().positive().default(240),
+  RATE_LIMIT_PATIENT_PER_MIN: z.coerce.number().int().positive().default(300),
 });
 
 export type Config = z.infer<typeof schema> & { isProd: boolean };

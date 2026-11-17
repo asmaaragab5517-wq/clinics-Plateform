@@ -1,6 +1,8 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { STORAGE, type Storage } from '../integrations/storage';
 import { z } from 'zod';
-import { localDate, zDate } from '@hf/shared';
+import { addDays, localDate, zDate, zonedToUtc } from '@hf/shared';
 import { Auth, Public } from '../common/decorators';
 import { notFound } from '../common/errors';
 import type { Principal } from '../common/principal';
@@ -12,7 +14,12 @@ import { AppointmentsService } from './appointments.service';
 /** Public site API (BR-12, FR-WEB-*): catalogue data only, never PHI. Cacheable. */
 @Controller('v1/public')
 export class PublicController {
-  constructor(private readonly tenancy: Tenancy, private readonly availability: AvailabilityService, private readonly appointments: AppointmentsService) {}
+  constructor(
+    private readonly tenancy: Tenancy,
+    private readonly availability: AvailabilityService,
+    private readonly appointments: AppointmentsService,
+    @Inject(STORAGE) private readonly storage: Storage,
+  ) {}
 
   @Get('org')
   @Public()
@@ -65,31 +72,77 @@ export class PublicController {
   @Public()
   doctors(@Auth() p: Principal, @Query() q: Record<string, string>) {
     const f = parse(
-      z.object({ specialty: z.string().optional(), governorate: z.string().optional(), clinicId: z.string().uuid().optional(), gender: z.enum(['male', 'female']).optional(), minFee: z.coerce.number().int().optional(), maxFee: z.coerce.number().int().optional(), minRating: z.coerce.number().optional(), q: z.string().max(60).optional() }),
+      z.object({ specialty: z.string().optional(), governorate: z.string().optional(), city: z.string().max(80).optional(), clinicId: z.string().uuid().optional(), gender: z.enum(['male', 'female']).optional(), minFee: z.coerce.number().int().optional(), maxFee: z.coerce.number().int().optional(), minRating: z.coerce.number().optional(), q: z.string().max(60).optional(), availableBy: zDate.optional() }),
       q,
     );
-    return this.tenancy.run(p, (tx) => this.doctorsQuery(tx, f));
+    return this.tenancy.run(p, async (tx) => {
+      const rows = await this.doctorsQuery(tx, f);
+      // FR-WEB-2 "next available": one availability pass for all listed doctors (14 days).
+      const policy = await this.appointments.policy(tx);
+      const today = localDate(new Date());
+      const slots = rows.length
+        ? await this.availability.slots(tx, { doctorIds: rows.slice(0, 60).map((r) => r.id as string), clinicId: f.clinicId, from: today, days: 14, channel: 'online', leadMinutes: policy.leadMinutes })
+        : [];
+      const next = new Map<string, string>();
+      for (const s of slots) if (s.available > 0 && !next.has(s.doctorId)) next.set(s.doctorId, s.start);
+      const out = rows.map((r) => ({ ...r, next_available: next.get(r.id as string) ?? null, photo_url: r.photo_key ? `/v1/public/doctors/${r.slug}/photo` : null }));
+      if (!f.availableBy) return out;
+      const limit = zonedToUtc(addDays(f.availableBy, 1), '00:00').toISOString();
+      return out.filter((r) => r.next_available && r.next_available < limit).sort((a, b) => a.next_available!.localeCompare(b.next_available!));
+    });
   }
 
-  private doctorsQuery(tx: import('@hf/db').Tx, f: { specialty?: string; governorate?: string; clinicId?: string; gender?: string; minFee?: number; maxFee?: number; minRating?: number; q?: string }) {
+  /** Public doctor photo (not PHI); streamed from private storage with long caching. */
+  @Get('doctors/:slug/photo')
+  @Public()
+  async photo(@Auth() p: Principal, @Param('slug') slug: string, @Res() res: Response) {
+    const d = await this.tenancy.run(p, (tx) => tx.maybeOne<{ photo_key: string | null }>('select photo_key from doctor_profiles where slug = $1 and is_public', [slug.slice(0, 80)]));
+    const obj = d?.photo_key ? await this.storage.get(d.photo_key) : null;
+    if (!obj) throw notFound('photo');
+    res.setHeader('content-type', obj.contentType).setHeader('cache-control', 'public, max-age=86400').send(obj.body);
+  }
+
+  /** FR-WEB-3 abandoned-booking tracking: the wizard reports its furthest step per anonymous session. */
+  @Post('booking-funnel')
+  @Public()
+  @HttpCode(204)
+  async funnel(@Auth() p: Principal, @Body() body: unknown, @Req() req: Request) {
+    const steps = ['doctor', 'service', 'slot', 'patient', 'payment', 'done'] as const;
+    const b = parse(z.object({ sessionId: z.string().uuid(), step: z.enum(steps), doctorId: z.string().uuid().optional(), clinicId: z.string().uuid().optional(), appointmentId: z.string().uuid().optional() }), body);
+    const channel = req.headers['x-client'] === 'app' ? 'app' : 'site';
+    await this.tenancy.system(p.orgId, (tx) =>
+      tx.query(
+        `insert into booking_funnel (organisation_id, session_id, channel, step, step_index, doctor_id, clinic_id, appointment_id) values (app_org(), $1,$2,$3,$4,$5,$6,$7)
+         on conflict (organisation_id, session_id) do update set
+           step = case when excluded.step_index > booking_funnel.step_index then excluded.step else booking_funnel.step end,
+           step_index = greatest(excluded.step_index, booking_funnel.step_index),
+           doctor_id = coalesce(excluded.doctor_id, booking_funnel.doctor_id), clinic_id = coalesce(excluded.clinic_id, booking_funnel.clinic_id),
+           appointment_id = coalesce(excluded.appointment_id, booking_funnel.appointment_id), updated_at = now()`,
+        [b.sessionId, channel, b.step, steps.indexOf(b.step), b.doctorId ?? null, b.clinicId ?? null, b.appointmentId ?? null],
+      ),
+    );
+  }
+
+  private doctorsQuery(tx: import('@hf/db').Tx, f: { specialty?: string; governorate?: string; city?: string; clinicId?: string; gender?: string; minFee?: number; maxFee?: number; minRating?: number; q?: string }) {
     return tx.query(
       `select * from (
          select u.id, d.slug, u.name_ar, u.name_en, d.title, d.gender, d.languages, d.bio_ar, d.bio_en, d.photo_key, d.rating_avg, d.rating_count,
            coalesce((select jsonb_agg(jsonb_build_object('slug', s.slug, 'name_ar', s.name_ar, 'name_en', s.name_en)) from doctor_specialties ds join specialties s on s.id = ds.specialty_id where ds.doctor_id = u.id), '[]') as specialties,
-           coalesce((select jsonb_agg(distinct jsonb_build_object('id', c.id, 'slug', c.slug, 'name_ar', c.name_ar, 'name_en', c.name_en, 'governorate', c.governorate)) from doctor_sessions ses join clinics c on c.id = ses.clinic_id where ses.doctor_id = u.id and ses.is_active), '[]') as clinics,
+           coalesce((select jsonb_agg(distinct jsonb_build_object('id', c.id, 'slug', c.slug, 'name_ar', c.name_ar, 'name_en', c.name_en, 'governorate', c.governorate, 'city', c.city)) from doctor_sessions ses join clinics c on c.id = ses.clinic_id where ses.doctor_id = u.id and ses.is_active), '[]') as clinics,
            (select min(pl.price) from price_list_items pl join services sv on sv.id = pl.service_id where sv.type = 'consultation' and (pl.doctor_id = u.id or pl.doctor_id is null)
               and pl.service_id in (select service_id from doctor_services where doctor_id = u.id) and pl.effective_from <= current_date and (pl.effective_to is null or pl.effective_to >= current_date)) as fee
          from users u join doctor_profiles d on d.user_id = u.id where d.is_public
        ) x
        where ($1::text is null or x.specialties @> jsonb_build_array(jsonb_build_object('slug', $1::text)) or exists (select 1 from jsonb_array_elements(x.specialties) e where e->>'slug' = $1))
          and ($2::text is null or exists (select 1 from jsonb_array_elements(x.clinics) e where e->>'governorate' = $2))
+         and ($9::text is null or exists (select 1 from jsonb_array_elements(x.clinics) e where e->>'city' = $9))
          and ($3::text is null or exists (select 1 from jsonb_array_elements(x.clinics) e where e->>'id' = $3))
          and ($4::text is null or x.gender = $4)
          and ($5::int is null or x.fee >= $5) and ($6::int is null or x.fee <= $6)
          and ($7::numeric is null or coalesce(x.rating_avg, 0) >= $7)
          and ($8::text is null or x.name_ar ilike '%' || $8 || '%' or x.name_en ilike '%' || $8 || '%')
        order by x.rating_avg desc nulls last, x.name_ar`,
-      [f.specialty ?? null, f.governorate ?? null, f.clinicId ?? null, f.gender ?? null, f.minFee ?? null, f.maxFee ?? null, f.minRating ?? null, f.q ?? null],
+      [f.specialty ?? null, f.governorate ?? null, f.clinicId ?? null, f.gender ?? null, f.minFee ?? null, f.maxFee ?? null, f.minRating ?? null, f.q ?? null, f.city ?? null],
     );
   }
 

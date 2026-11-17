@@ -37,6 +37,13 @@ describe('R1 acceptance: online patient journey (SRS §11.1)', () => {
     ctx.doctorId = d.id;
     const detail = await h.http().get(`/v1/public/doctors/${d.slug}`).set('x-org', 'demo');
     ctx.serviceId = detail.body.services.find((s: { type: string }) => s.type === 'consultation').id;
+    expect(d.next_available).toBeTruthy();
+    const byCity = await h.http().get('/v1/public/doctors?city=' + encodeURIComponent('مدينة نصر')).set('x-org', 'demo');
+    expect(byCity.body.every((x: { clinics: { city: string }[] }) => x.clinics.some((c) => c.city === 'مدينة نصر'))).toBe(true);
+    const soon = await h.http().get(`/v1/public/doctors?availableBy=${new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10)}`).set('x-org', 'demo');
+    expect(soon.body.length).toBeGreaterThan(0);
+    const sid = '0198f0c4-0000-7000-8000-000000000001';
+    for (const step of ['doctor', 'service', 'slot']) await h.http().post('/v1/public/booking-funnel').set('x-org', 'demo').send({ sessionId: sid, step }).expect(204);
     const slots = await h.http().get(`/v1/public/slots?doctorId=${d.id}&serviceId=${ctx.serviceId}`).set('x-org', 'demo');
     expect(slots.body.length).toBeGreaterThan(0);
     ctx.start = slots.body[0].start;
@@ -260,6 +267,7 @@ describe('Reports, privacy and audit (SRS §11.5, §11.7)', () => {
     expect(wide.body.appointments.total).toBe(appts.n);
     const manager = await h.http().get(`/v1/reports/dashboard?from=${today}&to=${today}`).set(auth(h.staff.reception));
     expect(manager.status).toBe(403);
+    expect(wide.body.bookingFunnel.started).toBeGreaterThanOrEqual(1);
     const csv = await h.http().get(`/v1/reports/export?report=daily-appointments&format=csv&date=${today}`).set(auth(h.staff.director));
     expect(csv.text).toContain('# ');
   });

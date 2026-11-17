@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { STORAGE, sniffMime, type Storage } from '../integrations/storage';
 import { z } from 'zod';
 import { CONSENT_TYPES, decodeNationalId, medicalHistoryItemSchema, normalisePhone, normaliseArabic, patientSchema, toWesternDigits } from '@hf/shared';
 import { Auth, Meta, Staff } from '../common/decorators';
@@ -26,6 +27,7 @@ export class PatientsController {
     private readonly svc: PatientsService,
     private readonly audit: AuditService,
     private readonly messaging: MessagingService,
+    @Inject(STORAGE) private readonly storage: Storage,
   ) {}
 
   /** Search by phone, National ID, MRN or Arabic/English name (LOC-8 normalisation). */
@@ -263,11 +265,18 @@ export class PatientsController {
     return this.tenancy.run(p, async (tx) => {
       const exists = await tx.maybeOne('select 1 from patients where id = $1', [uuid(id)]);
       if (!exists) throw notFound('patient');
-      return this.recordConsents(tx, p, meta, id, b.consents, 'reception');
+      let signatureKey: string | null = null;
+      if (b.signatureDataUrl) {
+        const img = Buffer.from(b.signatureDataUrl.split(',')[1] ?? '', 'base64');
+        if (sniffMime(img) !== 'image/png') throw badRequest('invalid_signature_image');
+        signatureKey = `org/${p.orgId}/patients/${id}/consent-signature-${Date.now()}.png`;
+        await this.storage.put(signatureKey, img, 'image/png');
+      }
+      return this.recordConsents(tx, p, meta, id, b.consents, 'reception', signatureKey);
     });
   }
 
-  private async recordConsents(tx: import('@hf/db').Tx, p: Principal, meta: RequestMeta, patientId: string, consents: Partial<Record<(typeof CONSENT_TYPES)[number], boolean>>, channel: string) {
+  private async recordConsents(tx: import('@hf/db').Tx, p: Principal, meta: RequestMeta, patientId: string, consents: Partial<Record<(typeof CONSENT_TYPES)[number], boolean>>, channel: string, signatureKey: string | null = null) {
     const out = [];
     for (const [type, granted] of Object.entries(consents)) {
       if (granted === undefined) continue;
@@ -275,8 +284,8 @@ export class PatientsController {
       if (!v) throw badRequest('no_consent_version', type);
       out.push(
         await tx.one(
-          `insert into consents (organisation_id, patient_id, version_id, type, granted, channel, ip, device, recorded_by) values (app_org(), $1,$2,$3,$4,$5,$6::inet,$7,$8) returning id, type, granted`,
-          [patientId, v.id, type, granted, channel, meta.ip, meta.userAgent?.slice(0, 200) ?? null, p.kind === 'staff' ? p.userId : null],
+          `insert into consents (organisation_id, patient_id, version_id, type, granted, channel, ip, device, recorded_by, signature_key) values (app_org(), $1,$2,$3,$4,$5,$6::inet,$7,$8,$9) returning id, type, granted`,
+          [patientId, v.id, type, granted, channel, meta.ip, meta.userAgent?.slice(0, 200) ?? null, p.kind === 'staff' ? p.userId : null, signatureKey],
         ),
       );
       if (type === 'messaging' || type === 'marketing') {

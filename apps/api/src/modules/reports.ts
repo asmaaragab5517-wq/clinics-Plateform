@@ -51,6 +51,14 @@ export class ReportsController {
       tx.one(`select coalesce(sum(amount),0)::int as amount, count(*)::int as n from refunds where status = 'completed' and completed_at >= $1 and completed_at < $2 and ($3::uuid is null or clinic_id = $3)`, [fromTs, toTs, r.clinicId ?? null]),
       tx.one(`select coalesce(sum(total - credited - (paid - refunded)), 0)::bigint as amount, count(*)::int as bills from bills where status in ('issued','partially_paid') and ($1::uuid is null or clinic_id = $1)`, [r.clinicId ?? null]),
     ]);
+    const funnelRows = await tx.query<{ step: string; n: number }>(
+      `select step, count(*)::int as n from booking_funnel where started_at >= $1 and started_at < $2 and ($3::uuid is null or clinic_id = $3) group by step`,
+      [fromTs, toTs, r.clinicId ?? null],
+    );
+    const order = ['doctor', 'service', 'slot', 'patient', 'payment', 'done'];
+    const reached = order.map((s, i) => ({ step: s, sessions: funnelRows.filter((f) => order.indexOf(f.step) >= i).reduce((a, f) => a + f.n, 0) }));
+    const started = reached[0]!.sessions;
+    const funnel = { started, completed: reached[5]!.sessions, completionRate: started ? Math.round((reached[5]!.sessions / started) * 1000) / 10 : 0, steps: reached };
     const statusMap = Object.fromEntries(byStatus.map((s) => [s.status, s.n]));
     const attended = (statusMap.completed ?? 0) + (statusMap.no_show ?? 0);
     const utilisation = await this.utilisation(tx, r);
@@ -69,6 +77,7 @@ export class ReportsController {
       topServices,
       topDiagnoses: diagnoses,
       sms,
+      bookingFunnel: funnel,
     };
   }
 

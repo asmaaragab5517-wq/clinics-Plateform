@@ -5,6 +5,7 @@ import { AuthGuard } from './common/auth.guard';
 import { AllExceptionsFilter } from './common/errors';
 import { AuditService, Tenancy, dbProviders } from './common/services';
 import { TokenService } from './common/tokens';
+import { RateLimiter } from './common/rate-limit';
 import { EventBus } from './integrations/events';
 import { FakeHealthPayClient, HEALTHPAY, HttpHealthPayClient } from './integrations/healthpay';
 import { FakeIdentityAdmin, IDENTITY_ADMIN, KeycloakAdmin } from './integrations/keycloak';
@@ -48,6 +49,7 @@ export function coreProviders(cfg: Config): Provider[] {
     ...dbProviders(),
     Tenancy,
     AuditService,
+    RateLimiter,
     TokenService,
     EventBus,
     { provide: HEALTHPAY, useClass: cfg.HEALTHPAY_MODE === 'http' ? HttpHealthPayClient : FakeHealthPayClient },
