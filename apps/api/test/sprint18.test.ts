@@ -66,7 +66,7 @@ describe('Sprint 18 API follow-ups', () => {
     const list = await h.http().get('/v1/portal/payers').set(auth(ctx.token));
     expect(list.body.find((x: { id: string }) => x.id === payer.body.id).plans).toEqual([{ id: plan.body.id, name: 'Silver' }]);
 
-    const other = await h.http().post('/v1/portal/coverages').set(auth(ctx.token)).send({ patientId: h.env.demo.patientIds?.[0] ?? '00000000-0000-7000-8000-000000000000', planId: plan.body.id, memberNumber: 'AX-1', validFrom: '2026-01-01' });
+    const other = await h.http().post('/v1/portal/coverages').set(auth(ctx.token)).send({ patientId: '00000000-0000-7000-8000-000000000000', planId: plan.body.id, memberNumber: 'AX-1', validFrom: '2026-01-01' });
     expect(other.status).toBe(403);
     const sub = await h.http().post('/v1/portal/coverages').set(auth(ctx.token)).send({ patientId: ctx.patient, planId: plan.body.id, memberNumber: 'AX-12345', validFrom: '2026-01-01' });
     expect(sub.status, JSON.stringify(sub.body)).toBe(201);
@@ -84,6 +84,16 @@ describe('Sprint 18 API follow-ups', () => {
     const task = await admin.query(`select status from tasks where kind = 'coverage_verify' and entity_id = $1`, [sub.body.id]);
     expect(task.rows[0].status).toBe('done');
     await h.http().post(`/v1/portal/coverages/${sub.body.id}/withdraw`).set(auth(ctx.token)).expect(404); // verified cover cannot be withdrawn by the patient
+
+    // Withdrawn and rejected submissions are told apart, and withdrawing closes the reception task.
+    const w = await h.http().post('/v1/portal/coverages').set(auth(ctx.token)).send({ patientId: ctx.patient, planId: plan.body.id, memberNumber: 'AX-W', validFrom: '2026-01-01' });
+    await h.http().post(`/v1/portal/coverages/${w.body.id}/withdraw`).set(auth(ctx.token)).expect(200);
+    await h.http().post(`/v1/portal/coverages/${w.body.id}/withdraw`).set(auth(ctx.token)).expect(404);
+    expect((await admin.query(`select status from tasks where kind = 'coverage_verify' and entity_id = $1`, [w.body.id])).rows[0].status).toBe('done');
+    const rj = await h.http().post('/v1/portal/coverages').set(auth(ctx.token)).send({ patientId: ctx.patient, planId: plan.body.id, memberNumber: 'AX-R', validFrom: '2026-01-01' });
+    await h.http().post(`/v1/insurance/coverages/${rj.body.id}/verify`).set(auth(h.staff.reception)).send({ approve: false }).expect(200);
+    const statuses = Object.fromEntries((await h.http().get('/v1/portal/coverages').set(auth(ctx.token))).body.map((c: { id: string; status: string }) => [c.id, c.status]));
+    expect([statuses[sub.body.id], statuses[w.body.id], statuses[rj.body.id]]).toEqual(['verified', 'withdrawn', 'rejected']);
 
     const plan2 = await h.http().patch(`/v1/insurance/plans/${plan.body.id}`).set(auth(h.staff.owner)).send({ name: 'Silver Plus', annualLimit: 5000000, typeOverrides: { procedure: 30 } });
     expect(plan2.body).toMatchObject({ name: 'Silver Plus', type_overrides: { procedure: 30 } });

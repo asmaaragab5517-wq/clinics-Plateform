@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 import type { AppointmentStatus } from '@hf/shared';
-import { Card, Muted, Row, StatusBadge, T } from './ui';
+import { Card, Muted, Row, StatusBadge, T, colors } from './ui';
 import { portalApi } from '../lib/endpoints';
 import { dateTime } from '../lib/format';
 import { useI18n } from '../lib/i18n';
@@ -36,12 +36,21 @@ export function AppointmentCard({ a, live = false }: { a: PortalAppointment; liv
   const doctor = pick({ name_ar: a.doctor_name_ar, name_en: a.doctor_name_en });
   const clinic = pick({ name_ar: a.clinic_name_ar, name_en: a.clinic_name_en });
   return (
-    <Card onPress={() => router.push({ pathname: '/patient/appointments/[id]', params: { id: a.id } })} accessibilityLabel={[doctor, dateTime(a.start_at, locale), t(`status.${a.status}`)].join(', ')}>
+    <Card
+      onPress={() => router.push({ pathname: '/patient/appointments/[id]', params: { id: a.id } })}
+      accessibilityLabel={[doctor, a.is_video ? t('tele.title') : null, dateTime(a.start_at, locale), t(`status.${a.status}`)].filter(Boolean).join(', ')}
+    >
       <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
         <T style={{ fontWeight: '700', flex: 1 }}>{doctor}</T>
         <StatusBadge label={t(`status.${a.status}`)} tone={statusTone(a.status)} />
       </Row>
       <Muted>{clinic}</Muted>
+      {a.is_video ? (
+        <Row style={{ alignItems: 'center', marginTop: 4 }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.info, marginEnd: 6 }} />
+          <T style={{ color: colors.info, fontWeight: '600' }}>{t('tele.title')}</T>
+        </Row>
+      ) : null}
       <T style={{ marginTop: 6 }}>{dateTime(a.start_at, locale)}</T>
       {checkedIn ? (
         <View style={{ marginTop: 8 }}>

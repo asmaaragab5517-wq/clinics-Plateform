@@ -34,8 +34,8 @@ function countdown(ms: number, locale: Locale): string {
 }
 
 /**
- * FR-TEL-4 video visit card. Renders nothing for in-clinic appointments (the API answers 400 not_a_video_consultation),
- * because the appointment list does not say which appointments are video consultations.
+ * FR-TEL-4 video visit card. Renders nothing for in-clinic appointments (the API answers 400 not_a_video_consultation).
+ * Callers skip it when the appointment row says `is_video: false`; older APIs without the flag still rely on the 400.
  */
 export function VideoVisit({ locale, a }: { locale: Locale; a: PortalAppointment }) {
   const st = useBffData<TelemedicineStatus>(`/api/portal/appointments/${encodeURIComponent(a.id)}/telemedicine`, locale);

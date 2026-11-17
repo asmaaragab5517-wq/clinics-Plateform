@@ -110,7 +110,7 @@ export class InsuranceController {
             `update patient_coverages set verified_at = now(), verified_by = $2, member_number = coalesce($3, member_number) where id = $1 and verified_at is null returning patient_id`,
             [uuid(id), asStaff(p).userId, b.memberNumber ?? null],
           )
-        : await tx.maybeOne<{ patient_id: string }>(`update patient_coverages set is_active = false where id = $1 and verified_at is null returning patient_id`, [uuid(id)]);
+        : await tx.maybeOne<{ patient_id: string }>(`update patient_coverages set is_active = false, rejected_at = now() where id = $1 and verified_at is null and is_active returning patient_id`, [uuid(id)]);
       if (!r) throw notFound('coverage');
       await tx.query(`update tasks set status = 'done' where kind = 'coverage_verify' and entity_id = $1`, [id]);
       await this.audit.record(tx, p, meta, { action: b.approve ? 'insurance.coverage_verify' : 'insurance.coverage_reject', entity: 'patient_coverage', entityId: id, patientId: r.patient_id });

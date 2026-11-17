@@ -14,13 +14,13 @@ const JOINABLE = ['booked', 'confirmed', 'checked_in', 'in_consultation'];
 
 /**
  * Video visit (FR-TEL-4): waiting-room countdown, telemedicine consent check, Join.
- * Renders nothing for in-clinic visits: the portal appointment row has no service type, so the status endpoint's
- * 400 `not_a_video_consultation` is what tells them apart (README "API gaps").
+ * Renders nothing for in-clinic visits. Rows with `is_video: false` skip the status call; rows without the flag (older
+ * APIs, offline cache) still rely on the status endpoint's 400 `not_a_video_consultation`.
  * Join opens the provider URL in the system browser (expo-web-browser) and shows the passcode in-app.
  */
 export function VideoVisitCard({ a }: { a: PortalAppointment }) {
   const { t, locale } = useI18n();
-  const tele = useQuery(`tele:${a.id}:${a.status}`, () => portalApi.telemedicine(a.id));
+  const tele = useQuery(a.is_video === false ? null : `tele:${a.id}:${a.status}`, () => portalApi.telemedicine(a.id));
   const isVideo = !!tele.data;
   const consents = useQuery(isVideo ? 'consents' : null, portalApi.consents);
   const [now, setNow] = useState(Date.now());

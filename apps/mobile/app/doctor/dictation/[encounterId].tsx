@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Linking, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
-import { ActionButton, Banner, Button, Chip, ErrorBox, Field, Muted, Row, Screen, Section, T, colors, s } from '../../../components/ui';
+import { ActionButton, Banner, Button, Chip, ErrorBox, Field, ListItem, Loading, Muted, Row, Screen, Section, StatusBadge, T, colors, s } from '../../../components/ui';
 import { isApiError } from '../../../lib/api';
 import { DICTATION_RECORDING, MAX_AUDIO_BYTES, MAX_RECORDING_MS, MIN_RECORDING_MS, clock, dictationForm, type DictationLanguage } from '../../../lib/dictation';
 import { staffApi } from '../../../lib/endpoints';
-import { useI18n, type TKey } from '../../../lib/i18n';
+import { dateTime } from '../../../lib/format';
+import { hasKey, useI18n, type TKey } from '../../../lib/i18n';
 import { useClinicalScreen } from '../../../lib/screenCapture';
-import { useAction } from '../../../lib/useQuery';
+import { useAction, useQuery } from '../../../lib/useQuery';
+import type { AiDraft, EncounterDraftOutput } from '../../../lib/types';
 
 const LANGS: { id: DictationLanguage; key: TKey }[] = [
   { id: 'auto', key: 'ai.langAuto' },
@@ -26,6 +28,8 @@ type Permission = 'unknown' | 'granted' | 'denied' | 'blocked';
  * Either way the result is a draft that the doctor reviews on the next screen; nothing is written yet.
  * Dictation is PHI: the text lives only in component state, the recording only in the app's private cache until it
  * is uploaded or discarded, and nothing is logged (SEC-11).
+ * Drafts for this visit that the doctor has not decided yet (GET /v1/ai/drafts?encounterId=&status=pending, own drafts,
+ * last 24 h) are listed first so one can be reopened in the review screen; the list refreshes when the screen regains focus.
  */
 export default function Dictation() {
   useClinicalScreen('dictation');
@@ -160,6 +164,7 @@ export default function Dictation() {
   return (
     <Screen>
       <Banner kind="info">{t('ai.dictationIntro')}</Banner>
+      {encounterId ? <PendingDrafts encounterId={encounterId} /> : null}
       <Section title={t('ai.language')}>
         <View style={s.wrap}>
           {LANGS.map((l) => (
@@ -247,5 +252,45 @@ export default function Dictation() {
         }}
       />
     </Screen>
+  );
+}
+
+/** Short preview of a draft: the chief complaint of a visit note, else nothing. */
+function preview(d: AiDraft): string | null {
+  const cc = d.kind === 'encounter_note' ? (d.output as Partial<EncounterDraftOutput>).chiefComplaint : null;
+  if (typeof cc !== 'string' || !cc.trim()) return null;
+  const one = cc.trim().replace(/\s+/g, ' ');
+  return one.length > 80 ? `${one.slice(0, 79)}…` : one;
+}
+
+/** The doctor's pending AI drafts for this visit; tapping one reopens it in the draft review screen. */
+function PendingDrafts({ encounterId }: { encounterId: string }) {
+  const { t, locale } = useI18n();
+  const q = useQuery(`ai-drafts:${encounterId}`, () => staffApi.aiDrafts({ encounterId, status: 'pending' }));
+  const rows = (q.data ?? []).filter((d) => d.status === 'pending');
+  if (q.loading && !q.data) return <Loading />;
+  // 404 from an API without the list endpoint: nothing to show.
+  if (q.error) return isApiError(q.error) && q.error.status === 404 ? null : <ErrorBox error={q.error} onRetry={() => void q.reload()} />;
+  if (!rows.length) return null;
+  return (
+    <Section title={t('ai.pendingTitle')}>
+      <Muted style={{ marginBottom: 8 }}>{t('ai.pendingBody')}</Muted>
+      {rows.map((d) => {
+        const kind = `ai.kind.${d.kind}`;
+        const title = hasKey(kind) ? t(kind) : t('ai.draftBadgeTitle');
+        const warnings = d.warnings?.length ?? 0;
+        const subtitle = [d.created_at ? t('ai.pendingCreated', { time: dateTime(d.created_at, locale) }) : null, preview(d), warnings ? t('ai.pendingWarnings', { count: warnings }) : null].filter(Boolean).join('\n');
+        return (
+          <ListItem
+            key={d.id}
+            title={title}
+            subtitle={subtitle}
+            end={<StatusBadge label={t('ai.status.pending')} tone="warn" />}
+            accessibilityLabel={[t('ai.pendingOpen'), title, subtitle].join(', ')}
+            onPress={() => router.push({ pathname: '/doctor/draft/[id]', params: { id: d.id } })}
+          />
+        );
+      })}
+    </Section>
   );
 }

@@ -1,7 +1,6 @@
 import '@fontsource/ibm-plex-sans-arabic/400.css';
 import '@fontsource/ibm-plex-sans-arabic/500.css';
 import '@fontsource/ibm-plex-sans-arabic/700.css';
-import '@fontsource/cairo/700.css';
 import '@hf/ui/styles.css';
 import '../globals.css';
 import type { Metadata, Viewport } from 'next';
@@ -9,6 +8,7 @@ import { SiteFooter } from '@/components/site/Footer';
 import { SiteHeader } from '@/components/site/Header';
 import { JsonLd } from '@/components/site/JsonLd';
 import { ServiceWorker } from '@/components/site/ServiceWorker';
+import { headingFontVariables } from '@/app/fonts';
 import { SITE_URL } from '@/lib/config';
 import { asLocale, dir, t, type Locale } from '@/lib/i18n';
 import { alternates, localeUrl } from '@/lib/seo';
@@ -59,7 +59,7 @@ function orgLd(locale: Locale) {
 export default async function LocaleLayout({ children, params }: Props) {
   const locale = asLocale((await params).locale);
   return (
-    <html lang={locale === 'ar' ? 'ar-EG' : 'en'} dir={dir(locale)}>
+    <html lang={locale === 'ar' ? 'ar-EG' : 'en'} dir={dir(locale)} className={headingFontVariables}>
       <body className="flex min-h-screen flex-col bg-bg font-sans text-fg antialiased">
         <a href="#main" className="skip-link">
           {t(locale, 'site.skip')}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ActionButton, Banner, Button, Card, Chip, ErrorBox, H2, Loading, Muted, Row, Screen, Section, T, colors, s } from '../../../components/ui';
+import { ActionButton, Banner, Button, Card, Chip, ErrorBox, H2, Loading, Muted, Row, Screen, Section, StatusBadge, T, colors, s } from '../../../components/ui';
 import { SlotPicker } from '../../../components/SlotPicker';
 import { newIdempotencyKey, portalApi, publicApi } from '../../../lib/endpoints';
 import { dateTime, money, patientName } from '../../../lib/format';
@@ -12,11 +12,15 @@ import type { Slot } from '../../../lib/types';
 
 type Step = 'service' | 'clinic' | 'slot' | 'patient' | 'payment';
 
+/** Video consultation (services.type 'telemedicine'): always paid online (API: telemedicine_requires_online_payment). */
+const isVideoService = (sv: { type?: string | null } | undefined) => sv?.type === 'telemedicine';
+
 /**
  * Booking flow (FR-APP-1, FR-WEB-3): service → clinic (if several) → slot (14 days) → family member → payment.
  * Pay online opens payment.checkout_url (HealthPay hosted checkout) in an auth session that returns on
  * healthflow://book/result (lib/payments.ts); the 10-minute hold
  * is shown. One Idempotency-Key per attempt so a retried tap cannot double-book.
+ * Video consultations (telemedicine services) are labelled as such and can only be paid online, as on the site.
  */
 export default function Booking() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -34,6 +38,8 @@ export default function Booking() {
 
   const d = doctor.data;
   const service = d?.services.find((x) => x.id === serviceId);
+  const video = isVideoService(service);
+  const mode: 'online' | 'at_clinic' = video ? 'online' : payment;
   const clinics = d?.clinics ?? [];
   const effectiveClinic = clinicId ?? slot?.clinicId ?? (clinics.length === 1 ? clinics[0]!.id : null);
   const price = useMemo(() => {
@@ -53,7 +59,7 @@ export default function Booking() {
 
   const book = async () => {
     if (!serviceId || !slot || !patientId) return;
-    const r = await run(() => portalApi.book({ clinicId: slot.clinicId, doctorId: d.id, serviceId, start: slot.start, patientId, paymentMode: payment }, idem));
+    const r = await run(() => portalApi.book({ clinicId: slot.clinicId, doctorId: d.id, serviceId, start: slot.start, patientId, paymentMode: mode }, idem));
     if (!r) return;
     reset();
     if (r.payment?.checkout_url) {
@@ -82,12 +88,21 @@ export default function Booking() {
 
       {step === 'service' &&
         d.services.map((sv) => (
-          <Card key={sv.id} onPress={() => { setServiceId(sv.id); setSlot(null); reset(); }} accessibilityLabel={pick(sv)} style={serviceId === sv.id ? { borderWidth: 2, borderColor: colors.primary } : undefined}>
+          <Card
+            key={sv.id}
+            onPress={() => { setServiceId(sv.id); setSlot(null); reset(); }}
+            accessibilityLabel={[pick(sv), isVideoService(sv) ? t('booking.videoBadge') : null].filter(Boolean).join(', ')}
+            style={serviceId === sv.id ? { borderWidth: 2, borderColor: colors.primary } : undefined}
+          >
             <Row style={{ justifyContent: 'space-between' }}>
               <T style={{ flex: 1, fontWeight: '600' }}>{pick(sv)}</T>
               {sv.prices?.[0] ? <T>{money(sv.prices[0].price, locale)}</T> : null}
             </Row>
-            <Muted>{t('doctor.minutes', { minutes: sv.duration_minutes })}</Muted>
+            <Row style={{ alignItems: 'center' }}>
+              <Muted>{t('doctor.minutes', { minutes: sv.duration_minutes })}</Muted>
+              {isVideoService(sv) ? <StatusBadge label={t('booking.videoBadge')} tone="info" /> : null}
+            </Row>
+            {isVideoService(sv) ? <Muted style={{ marginTop: 4 }}>{t('booking.videoNote')}</Muted> : null}
           </Card>
         ))}
 
@@ -118,16 +133,24 @@ export default function Booking() {
       {step === 'payment' && slot && (
         <View>
           <Card>
-            <T style={{ fontWeight: '600' }}>{service ? pick(service) : ''}</T>
+            <Row style={{ alignItems: 'center' }}>
+              <T style={{ flex: 1, fontWeight: '600' }}>{service ? pick(service) : ''}</T>
+              {video ? <StatusBadge label={t('booking.videoBadge')} tone="info" /> : null}
+            </Row>
             <T>{dateTime(slot.start, locale)}</T>
             <Muted>{pick(clinics.find((c) => c.id === slot.clinicId))}</Muted>
             {price != null ? <T style={{ marginTop: 6, fontWeight: '700' }}>{`${t('common.total')}: ${money(price, locale)}`}</T> : null}
           </Card>
-          <View style={s.wrap}>
-            <Chip label={t('booking.payAtClinic')} selected={payment === 'at_clinic'} onPress={() => { setPayment('at_clinic'); reset(); }} />
-            <Chip label={t('booking.payOnline')} selected={payment === 'online'} onPress={() => { setPayment('online'); reset(); }} />
-          </View>
-          {payment === 'online' ? <Muted>{t('booking.holdExpires', { minutes: 10 })}</Muted> : null}
+          {video ? (
+            <Banner kind="info">{t('booking.videoOnlineOnly')}</Banner>
+          ) : (
+            <View style={s.wrap}>
+              <Chip label={t('booking.payAtClinic')} selected={payment === 'at_clinic'} onPress={() => { setPayment('at_clinic'); reset(); }} />
+              <Chip label={t('booking.payOnline')} selected={payment === 'online'} onPress={() => { setPayment('online'); reset(); }} />
+            </View>
+          )}
+          {video ? <Muted style={{ marginBottom: 6 }}>{t('booking.videoDoneNote')}</Muted> : null}
+          {mode === 'online' ? <Muted>{t('booking.holdExpires', { minutes: 10 })}</Muted> : null}
           <ErrorBox error={error} />
         </View>
       )}

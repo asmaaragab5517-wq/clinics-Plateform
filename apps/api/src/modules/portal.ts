@@ -298,7 +298,9 @@ export class PortalController {
   coverages(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) =>
       tx.query(
-        `select pc.id, pc.patient_id, pc.member_number, pc.valid_from, pc.valid_to, pc.is_active, pc.source, pc.verified_at is not null as verified
+        `select pc.id, pc.patient_id, pc.member_number, pc.valid_from, pc.valid_to, pc.is_active, pc.source, pc.verified_at is not null as verified,
+                case when pc.withdrawn_at is not null then 'withdrawn' when pc.rejected_at is not null then 'rejected'
+                     when not pc.is_active then 'inactive' when pc.verified_at is null then 'pending' else 'verified' end as status
          from patient_coverages pc order by pc.is_active desc, pc.valid_from desc`,
       ).then(async (rows) => {
         // Plan and payer names come from staff-only tables; read them in system mode for the rows the patient may see.
@@ -364,10 +366,12 @@ export class PortalController {
     const pt = asPatient(p);
     return this.tenancy.system(pt.orgId, async (tx) => {
       const r = await tx.maybeOne<{ patient_id: string }>(
-        `update patient_coverages set is_active = false where id = $1 and patient_id = any($2::uuid[]) and source = 'patient' and verified_at is null returning patient_id`,
+        `update patient_coverages set is_active = false, withdrawn_at = now()
+         where id = $1 and patient_id = any($2::uuid[]) and source = 'patient' and verified_at is null and is_active returning patient_id`,
         [uuid(id), pt.patientIds],
       );
       if (!r) throw notFound('coverage');
+      await tx.query(`update tasks set status = 'done' where kind = 'coverage_verify' and entity_id = $1`, [id]);
       await this.audit.record(tx, pt, meta, { action: 'insurance.coverage_withdraw', entity: 'patient_coverage', entityId: id, patientId: r.patient_id });
       return { ok: true };
     });

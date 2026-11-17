@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Bdi, Button, Card, Dialog, EmptyState, Field, Spinner, StatusBadge, Tabs, Textarea } from '@hf/ui';
+import { Alert, Badge, Bdi, Button, Card, Dialog, EmptyState, Field, Spinner, StatusBadge, Tabs, Textarea } from '@hf/ui';
 import { BffError, bff, errorText } from '@/lib/bff';
 import { dateTime, pick } from '@/lib/format';
 import { t, type Locale } from '@/lib/i18n';
@@ -190,7 +190,12 @@ function AppointmentCard({ locale, a, past, rated, detail, onAction, onDone }: {
             <Bdi>{pick(locale, a.doctor_name_ar, a.doctor_name_en)}</Bdi>
           </p>
           <p className="text-sm text-muted">{pick(locale, a.clinic_name_ar, a.clinic_name_en)}</p>
-          {detail && a.address_lines && (
+          {a.is_video && (
+            <Badge tone="primary" className="mt-1">
+              {t(locale, 'video.title')}
+            </Badge>
+          )}
+          {detail && a.address_lines && !a.is_video && (
             <p dir="auto" className="text-sm text-muted">
               {a.address_lines}
             </p>
@@ -212,7 +217,7 @@ function AppointmentCard({ locale, a, past, rated, detail, onAction, onDone }: {
           <span className="num font-bold">{mmss(holdLeft)}</span>
         </Alert>
       )}
-      {active && <VideoVisit locale={locale} a={a} />}
+      {active && a.is_video !== false && <VideoVisit locale={locale} a={a} />}
       {inClinic && <QueueStatus locale={locale} a={a} />}
       {error && <Alert>{error}</Alert>}
 

@@ -129,6 +129,8 @@ export interface PortalAppointment {
   doctor_name_en: string | null;
   ticket_number: number | null;
   checkout_url: string | null;
+  /** Includes a telemedicine service (video visit). Older APIs and cached rows may omit it. */
+  is_video?: boolean;
 }
 export interface BookingResponse {
   appointment: { id: string; ref: string; status: AppointmentStatus; start_at: string; hold_expires_at: string | null };
@@ -217,6 +219,19 @@ export interface PortalCoverage {
   copay_fixed?: number | string | null;
   payer_name_ar?: string;
   payer_name_en?: string | null;
+  /** Who recorded the cover: clinic staff, or the patient in the app/portal. */
+  source?: 'staff' | 'patient';
+  /** False until reception verifies the card; unverified cover is not used for billing. Older APIs omit it. */
+  verified?: boolean;
+  /** pending, verified, withdrawn (by the patient), rejected (by the clinic) or inactive. Older APIs omit it. */
+  status?: 'pending' | 'verified' | 'withdrawn' | 'rejected' | 'inactive';
+}
+/** GET /v1/portal/payers: active insurers with their active plans (names only). */
+export interface PortalPayer {
+  id: string;
+  name_ar: string;
+  name_en: string | null;
+  plans: { id: string; name: string }[];
 }
 
 export type ComplaintStatus = 'open' | 'in_progress' | 'resolved' | 'closed';

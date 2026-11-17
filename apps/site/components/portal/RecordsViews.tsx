@@ -1,11 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Badge, Bdi, Button, Card, EmptyState, Field, Input, Spinner, Table } from '@hf/ui';
+import { localDate } from '@hf/shared';
+import { Alert, Badge, Bdi, Button, Card, EmptyState, Field, Input, Select, Spinner, Table } from '@hf/ui';
 import { BffError, bff, errorText } from '@/lib/bff';
 import { dateOnly, money, num, pick } from '@/lib/format';
 import { has, t, tDyn, type Locale } from '@/lib/i18n';
-import type { PortalCoverage, PortalDocument, PortalInvoice, PortalPackage, PortalPrescription, PortalVisit, ShareLink } from '@/lib/types';
+import type { PortalCoverage, PortalDocument, PortalPayer, PortalInvoice, PortalPackage, PortalPrescription, PortalVisit, ShareLink } from '@/lib/types';
 import { NoPatients, PatientSelect, PortalPage, usePatientName, usePortal } from './PortalShell';
 import { redirectToSignIn, useBffData } from './hooks';
 
@@ -421,62 +422,332 @@ export function PackagesView() {
   );
 }
 
-/** Insurance on file (GET /v1/portal/coverages): member number, plan, payer and coverage share. Read-only; reception updates it. */
+/** Cover submitted through the portal that clinic staff have not verified yet (older APIs omit `verified`: treated as verified). */
+const isPending = (c: PortalCoverage) => c.verified === false && c.is_active;
+/** A portal submission that was withdrawn by the patient or not accepted by the clinic (both leave it inactive and unverified). */
+const isClosedSubmission = (c: PortalCoverage) => c.verified === false && !c.is_active;
+/** Withdrawn by the patient or rejected by the clinic, when the API says which. */
+const closedKey = (c: PortalCoverage) =>
+  c.status === 'withdrawn' ? 'insurance.statusWithdrawn' : c.status === 'rejected' ? 'insurance.statusRejected' : 'insurance.closed';
+
+/** Most pending (unverified) submissions per patient (portal.ts `addCoverage`). */
+const MAX_PENDING = 3;
+
+/**
+ * Insurance (GET /v1/portal/coverages). Staff-recorded cover is read-only; patients can submit their own card
+ * (POST /v1/portal/coverages), which stays "awaiting verification" and is not used for billing until reception verifies
+ * it, and can withdraw it until then (POST /v1/portal/coverages/:id/withdraw).
+ */
 export function InsuranceView() {
-  const { locale } = usePortal();
+  const { locale, me } = usePortal();
   const name = usePatientName();
   const state = useBffData<PortalCoverage[]>('/api/portal/coverages', locale);
+  const [adding, setAdding] = useState(false);
+  const [notice, setNotice] = useState<{ tone: 'success' | 'danger'; text: string } | null>(null);
+  const rows = state.data ?? [];
+  const hasPending = rows.some(isPending);
+
   return (
-    <PortalPage title={t(locale, 'portal.nav.insurance')}>
+    <PortalPage
+      title={t(locale, 'portal.nav.insurance')}
+      actions={
+        me.patients.length > 0 && !adding ? (
+          <Button
+            onClick={() => {
+              setNotice(null);
+              setAdding(true);
+            }}
+          >
+            {t(locale, 'insurance.add')}
+          </Button>
+        ) : undefined
+      }
+    >
       <p className="mb-4 max-w-2xl text-sm text-muted">{t(locale, 'insurance.intro')}</p>
+      {me.patients.length === 0 && (
+        <div className="mb-4">
+          <NoPatients />
+        </div>
+      )}
+      {adding && (
+        <div className="mb-6">
+          <AddCoverageForm
+            locale={locale}
+            coverages={rows}
+            onCancel={() => setAdding(false)}
+            onAdded={() => {
+              setAdding(false);
+              setNotice({ tone: 'success', text: t(locale, 'insurance.submitted') });
+              void state.reload();
+            }}
+          />
+        </div>
+      )}
+      {notice && (
+        <div className="mb-4">
+          <Alert tone={notice.tone}>{notice.text}</Alert>
+        </div>
+      )}
+      {hasPending && (
+        <div className="mb-4">
+          <Alert tone="info">{t(locale, 'insurance.pendingExplain')}</Alert>
+        </div>
+      )}
       <Loader state={state} empty={t(locale, 'insurance.empty')}>
-        {(rows) => (
+        {(list) => (
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {rows.map((c) => {
-              const pct = num(c.coverage_percent ?? null);
-              const copay = num(c.copay_fixed ?? null);
-              return (
-                <li key={c.id}>
-                  <Card className="flex flex-col gap-2">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <h2 className="font-bold">{pick(locale, c.payer_name_ar, c.payer_name_en) || t(locale, 'insurance.payerUnknown')}</h2>
-                        {c.plan_name && (
-                          <p dir="auto" className="text-sm text-muted">
-                            {c.plan_name}
-                          </p>
-                        )}
-                      </div>
-                      <Badge tone={c.is_active ? 'success' : 'neutral'}>{t(locale, c.is_active ? 'insurance.active' : 'insurance.inactive')}</Badge>
-                    </div>
-                    {name(c.patient_id) && <Bdi className="text-sm">{name(c.patient_id)}</Bdi>}
-                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
-                      <dt className="text-muted">{t(locale, 'insurance.memberNumber')}</dt>
-                      <dd>
-                        <Bdi className="num font-medium">{c.member_number}</Bdi>
-                      </dd>
-                      {pct !== null && (
-                        <>
-                          <dt className="text-muted">{t(locale, 'insurance.coverage')}</dt>
-                          <dd className="num">{t(locale, 'insurance.percent', { pct: Math.round(pct * 100) / 100 })}</dd>
-                        </>
-                      )}
-                      {!!copay && (
-                        <>
-                          <dt className="text-muted">{t(locale, 'insurance.copay')}</dt>
-                          <dd className="num">{money(copay, locale)}</dd>
-                        </>
-                      )}
-                      <dt className="text-muted">{t(locale, 'insurance.validity')}</dt>
-                      <dd className="num">{c.valid_to ? t(locale, 'insurance.validRange', { from: dateOnly(c.valid_from), to: dateOnly(c.valid_to) }) : t(locale, 'insurance.validFrom', { from: dateOnly(c.valid_from) })}</dd>
-                    </dl>
-                  </Card>
-                </li>
-              );
-            })}
+            {list.map((c) => (
+              <li key={c.id}>
+                <CoverageCard
+                  locale={locale}
+                  c={c}
+                  patient={name(c.patient_id)}
+                  onWithdrawn={(text, tone) => {
+                    setNotice({ tone, text });
+                    void state.reload();
+                  }}
+                />
+              </li>
+            ))}
           </ul>
         )}
       </Loader>
     </PortalPage>
+  );
+}
+
+function CoverageCard({ locale, c, patient, onWithdrawn }: { locale: Locale; c: PortalCoverage; patient: string; onWithdrawn: (text: string, tone: 'success' | 'danger') => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const pct = num(c.coverage_percent ?? null);
+  const copay = num(c.copay_fixed ?? null);
+  const pending = isPending(c);
+  const closed = isClosedSubmission(c);
+  const canWithdraw = pending && c.source === 'patient';
+  const titleId = `cov-${c.id}`;
+
+  async function withdraw() {
+    setBusy(true);
+    try {
+      await bff(`/api/portal/coverages/${encodeURIComponent(c.id)}/withdraw`, { method: 'POST', json: {} });
+      onWithdrawn(t(locale, 'insurance.withdrawn'), 'success');
+    } catch (e) {
+      if (e instanceof BffError && e.code === 'unauthorized') {
+        redirectToSignIn(locale);
+        return;
+      }
+      // 404 once the clinic has verified (or already closed) the submission.
+      onWithdrawn(e instanceof BffError && e.status === 404 ? t(locale, 'insurance.withdrawTooLate') : errorText(locale, e), 'danger');
+    } finally {
+      setBusy(false);
+      setConfirming(false);
+    }
+  }
+
+  const badge = pending ? (
+    <Badge tone="warning">{t(locale, 'insurance.pending')}</Badge>
+  ) : closed ? (
+    <Badge tone="neutral">{t(locale, closedKey(c))}</Badge>
+  ) : (
+    <Badge tone={c.is_active ? 'success' : 'neutral'}>{t(locale, c.is_active ? 'insurance.active' : 'insurance.inactive')}</Badge>
+  );
+
+  return (
+    <Card className={`flex flex-col gap-2${closed ? ' opacity-75' : ''}`}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 id={titleId} className="font-bold">
+            {pick(locale, c.payer_name_ar, c.payer_name_en) || t(locale, 'insurance.payerUnknown')}
+          </h2>
+          {c.plan_name && (
+            <p dir="auto" className="text-sm text-muted">
+              {c.plan_name}
+            </p>
+          )}
+        </div>
+        {badge}
+      </div>
+      {patient && <Bdi className="text-sm">{patient}</Bdi>}
+      {pending && <p className="text-sm text-warning">{t(locale, 'insurance.pendingNote')}</p>}
+      {closed && <p className="text-sm text-muted">{t(locale, `${closedKey(c)}Note`)}</p>}
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+        <dt className="text-muted">{t(locale, 'insurance.memberNumber')}</dt>
+        <dd>
+          <Bdi className="num font-medium">{c.member_number}</Bdi>
+        </dd>
+        {pct !== null && (
+          <>
+            <dt className="text-muted">{t(locale, 'insurance.coverage')}</dt>
+            <dd className="num">{t(locale, 'insurance.percent', { pct: Math.round(pct * 100) / 100 })}</dd>
+          </>
+        )}
+        {!!copay && (
+          <>
+            <dt className="text-muted">{t(locale, 'insurance.copay')}</dt>
+            <dd className="num">{money(copay, locale)}</dd>
+          </>
+        )}
+        <dt className="text-muted">{t(locale, 'insurance.validity')}</dt>
+        <dd className="num">{c.valid_to ? t(locale, 'insurance.validRange', { from: dateOnly(c.valid_from), to: dateOnly(c.valid_to) }) : t(locale, 'insurance.validFrom', { from: dateOnly(c.valid_from) })}</dd>
+        {c.source && (
+          <>
+            <dt className="text-muted">{t(locale, 'insurance.addedBy')}</dt>
+            <dd>{t(locale, c.source === 'patient' ? 'insurance.addedByYou' : 'insurance.addedByClinic')}</dd>
+          </>
+        )}
+      </dl>
+      {canWithdraw &&
+        (confirming ? (
+          <div className="flex flex-col gap-2 border-t border-border pt-2">
+            <p className="text-sm">{t(locale, 'insurance.withdrawConfirm')}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="danger" disabled={busy} onClick={() => void withdraw()}>
+                {busy ? t(locale, 'common.loading') : t(locale, 'insurance.withdrawYes')}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={busy} onClick={() => setConfirming(false)}>
+                {t(locale, 'insurance.withdrawKeep')}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button size="sm" variant="secondary" className="self-start" onClick={() => setConfirming(true)}>
+            {t(locale, 'insurance.withdraw')}
+          </Button>
+        ))}
+    </Card>
+  );
+}
+
+/** Maps POST /v1/portal/coverages errors to field-specific messages. */
+function coverageErrorText(locale: Locale, e: unknown): string {
+  if (e instanceof BffError) {
+    if (e.code === 'too_many_pending_coverages') return t(locale, 'insurance.error.tooManyPending', { max: MAX_PENDING });
+    if (e.code === 'invalid_dates') return t(locale, 'insurance.error.invalidDates');
+    if (e.status === 404) return t(locale, 'insurance.error.planUnavailable');
+    if (e.status === 403 && e.code !== 'csrf') return t(locale, 'insurance.error.patientNotOnAccount');
+    if (e.code === 'validation_failed' && Array.isArray(e.details)) {
+      const paths = (e.details as { path?: string }[]).map((d) => d.path ?? '');
+      if (paths.includes('memberNumber')) return t(locale, 'insurance.error.memberNumber');
+      if (paths.some((p) => p === 'validFrom' || p === 'validTo')) return t(locale, 'insurance.error.dateFormat');
+    }
+  }
+  return errorText(locale, e);
+}
+
+function AddCoverageForm({ locale, coverages, onCancel, onAdded }: { locale: Locale; coverages: PortalCoverage[]; onCancel: () => void; onAdded: () => void }) {
+  const { me } = usePortal();
+  const payers = useBffData<PortalPayer[]>('/api/portal/payers', locale);
+  const [patientId, setPatientId] = useState(me.patients[0]?.id ?? '');
+  const [payerId, setPayerId] = useState('');
+  const [planId, setPlanId] = useState('');
+  const [memberNumber, setMemberNumber] = useState('');
+  const [validFrom, setValidFrom] = useState(() => localDate(new Date()));
+  const [validTo, setValidTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+
+  const choices = (payers.data ?? []).filter((p) => p.plans.length > 0);
+  const payer = choices.find((p) => p.id === payerId);
+  const member = memberNumber.trim();
+  const memberError = touched && (member.length < 2 || member.length > 60) ? t(locale, 'insurance.error.memberNumber') : null;
+  const datesError = validTo && validFrom && validTo < validFrom ? t(locale, 'insurance.error.invalidDates') : null;
+  const pendingCount = coverages.filter((c) => c.patient_id === patientId && isPending(c)).length;
+  const atLimit = pendingCount >= MAX_PENDING;
+
+  return (
+    <Card>
+      <h2 className="mb-1 font-bold">{t(locale, 'insurance.addTitle')}</h2>
+      <p className="mb-3 text-sm text-muted">{t(locale, 'insurance.addIntro')}</p>
+      {payers.loading && !payers.data ? (
+        <Spinner label={t(locale, 'common.loading')} />
+      ) : payers.error && !(payers.error instanceof BffError && payers.error.status === 404) ? (
+        <Alert>{errorText(locale, payers.error)}</Alert>
+      ) : !choices.length ? (
+        // Also shown when the API predates self-service cover (GET /payers answers 404).
+        <Alert tone="info">{t(locale, 'insurance.noPayers')}</Alert>
+      ) : (
+        <form
+          className="flex flex-col gap-3"
+          noValidate
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setTouched(true);
+            setError(null);
+            if (!patientId || !planId || member.length < 2 || member.length > 60 || !validFrom || datesError || atLimit) return;
+            setBusy(true);
+            try {
+              await bff<{ id: string; verified: boolean }>('/api/portal/coverages', { json: { patientId, planId, memberNumber: member, validFrom, ...(validTo ? { validTo } : {}) } });
+              onAdded();
+            } catch (err) {
+              if (err instanceof BffError && err.code === 'unauthorized') {
+                redirectToSignIn(locale);
+                return;
+              }
+              setError(coverageErrorText(locale, err));
+              // The plan may have been retired since the list loaded.
+              if (err instanceof BffError && err.status === 404) {
+                setPlanId('');
+                void payers.reload();
+              }
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <PatientSelect id="cov-patient" value={patientId} onChange={setPatientId} />
+          <Field label={t(locale, 'insurance.payer')} htmlFor="cov-payer" error={touched && !payerId ? t(locale, 'insurance.error.choosePayer') : null}>
+            <Select
+              id="cov-payer"
+              required
+              value={payerId}
+              onChange={(e) => {
+                const next = choices.find((p) => p.id === e.target.value);
+                setPayerId(e.target.value);
+                setPlanId(next?.plans.length === 1 ? next.plans[0]!.id : '');
+              }}
+            >
+              <option value="">{t(locale, 'insurance.choosePayer')}</option>
+              {choices.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {pick(locale, p.name_ar, p.name_en)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t(locale, 'insurance.plan')} htmlFor="cov-plan" error={touched && payerId && !planId ? t(locale, 'insurance.error.choosePlan') : null}>
+            <Select id="cov-plan" required disabled={!payer} value={planId} onChange={(e) => setPlanId(e.target.value)}>
+              <option value="">{t(locale, 'insurance.choosePlan')}</option>
+              {(payer?.plans ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label={t(locale, 'insurance.memberNumber')} hint={t(locale, 'insurance.memberNumberHint')} htmlFor="cov-member" error={memberError}>
+            <Input id="cov-member" dir="ltr" required minLength={2} maxLength={60} autoComplete="off" value={memberNumber} onChange={(e) => setMemberNumber(e.target.value)} />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label={t(locale, 'insurance.validFromLabel')} htmlFor="cov-from" error={touched && !validFrom ? t(locale, 'insurance.error.dateFormat') : null}>
+              <Input id="cov-from" type="date" required dir="ltr" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+            </Field>
+            <Field label={t(locale, 'insurance.validToLabel')} hint={t(locale, 'insurance.validToHint')} htmlFor="cov-to" error={datesError}>
+              <Input id="cov-to" type="date" dir="ltr" min={validFrom || undefined} value={validTo} onChange={(e) => setValidTo(e.target.value)} />
+            </Field>
+          </div>
+          {atLimit && <Alert tone="warning">{t(locale, 'insurance.error.tooManyPending', { max: MAX_PENDING })}</Alert>}
+          {error && <Alert>{error}</Alert>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={busy || atLimit}>
+              {busy ? t(locale, 'common.loading') : t(locale, 'insurance.submit')}
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy} onClick={onCancel}>
+              {t(locale, 'common.cancel')}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
   );
 }

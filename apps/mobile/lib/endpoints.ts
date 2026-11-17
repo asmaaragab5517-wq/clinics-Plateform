@@ -27,6 +27,7 @@ import type {
   PortalMe,
   PortalNotification,
   PortalPackage,
+  PortalPayer,
   PortalPrescription,
   PortalVisit,
   PublicClinic,
@@ -107,6 +108,16 @@ export const portalApi = {
   complaints: () => api.get<PortalComplaint[]>('/v1/portal/complaints', undefined, 'patient'),
   /** Insurance on file: member number, plan, payer names and coverage % (portal.ts `coverages`). */
   coverages: () => api.get<PortalCoverage[]>('/v1/portal/coverages', undefined, 'patient'),
+  /** Active insurers and their plans, for adding cover (portal.ts `payers`). */
+  payers: () => api.get<PortalPayer[]>('/v1/portal/payers', undefined, 'patient'),
+  /**
+   * Patient-submitted cover, stored unverified until reception checks the card (portal.ts `addCoverage`).
+   * 403 patient not on the account, 404 unknown/inactive plan, 400 invalid_dates / too_many_pending_coverages (max 3).
+   */
+  addCoverage: (b: { patientId: string; planId: string; memberNumber: string; validFrom: string; validTo?: string }) =>
+    api.post<{ id: string; verified: false }>('/v1/portal/coverages', b, 'patient'),
+  /** Withdraw the account's own unverified submission; 404 once verified. */
+  withdrawCoverage: (id: string) => api.post<{ ok: true }>(`/v1/portal/coverages/${id}/withdraw`, {}, 'patient'),
   packages: () => api.get<PortalPackage[]>('/v1/portal/packages', undefined, 'patient'),
   review: (appointmentId: string, rating: number, comment?: string) => api.post('/v1/portal/reviews', { appointmentId, rating, comment: comment || undefined }, 'patient'),
   notifications: () => api.get<PortalNotification[]>('/v1/portal/notifications', undefined, 'patient'),
@@ -158,6 +169,8 @@ export const staffApi = {
   dictationAudio: (encounterId: string, audio: FormData) =>
     request<AiDraft & { transcript: string }>(`/v1/encounters/${encounterId}/ai/dictation`, { method: 'POST', form: audio, auth: 'staff', timeoutMs: 180000 }),
   aiDraft: (id: string) => api.get<AiDraft>(`/v1/ai/drafts/${id}`, undefined, 'staff'),
+  /** The signed-in doctor's own drafts for a visit, newest first; pending ones only from the last 24 h (ai.ts `drafts`). */
+  aiDrafts: (q: { encounterId?: string; prescriptionId?: string; status?: AiDraft['status'] }) => api.get<AiDraft[]>('/v1/ai/drafts', { status: 'pending', ...q }, 'staff'),
   approveDraft: (id: string, b: ApproveEncounterDraft) => api.post<{ ok: true; applied: unknown }>(`/v1/ai/drafts/${id}/approve`, b, 'staff'),
   rejectDraft: (id: string) => api.post<{ ok: true }>(`/v1/ai/drafts/${id}/reject`, {}, 'staff'),
 };
