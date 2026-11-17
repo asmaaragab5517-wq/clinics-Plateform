@@ -14,4 +14,11 @@
 | Secrets exposure | AES-256-GCM field encryption (NID, passport, signature refs, merchant keys); no provider secret in clients; gitleaks in CI; production refuses dev settings | `crypto.ts`, `config.ts` |
 | PHI in logs | Error filter never echoes SQL/PHI; messaging logs never include bodies; observability must scrub | `errors.ts`, `messaging.ts` |
 
+| SSRF via admin-configured webhooks | https only, public addresses only (re-checked at send time), no redirects, no custom ports | `integrations/egress.ts`, R2 test |
+| OAuth CSRF / code injection | Signed, expiring, single-use state bound to the user | `modules/telemedicine.ts`, R2 test |
+| PHI leaving the platform (AI, ITQAN) | Name/phone/ID/e-mail removal, pseudonymous patient refs only with consent, encrypted transcripts | `modules/ai.ts`, `modules/events.ts` |
+| AI output written to the record | Draft-only, doctor approval with explicit values, validation warnings, audit with model and prompt version | ADR 0007 |
+| Vendor support access | Owner-approved, time-boxed, read-only, no EMR, revocable, audited as `support` | `modules/platform.ts` |
+| API key leakage | SHA-256 stored, shown once, scoped, expiring, revocable, rate-limited, no patient names in responses | `modules/platform.ts` |
+
 External penetration test is required before R1 go-live and annually (SEC-9).

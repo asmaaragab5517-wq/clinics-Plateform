@@ -65,12 +65,27 @@ DATABASE_ADMIN_URL=postgres://postgres:postgres@localhost:5432/postgres CHROMIUM
 
 | Suite | Covers |
 |---|---|
-| `packages/shared` (46) | NID, phones, VAT/rounding, money formatting, availability/DST/Ramadan, queue, SMS segments, i18n parity, privileges |
+| `packages/shared` (50) | NID, phones, VAT/rounding, money formatting, availability/DST/Ramadan, queue, SMS segments, i18n parity, privileges |
 | `packages/db` (10) | RLS by mode, cross-org insert refusal, audit chain tamper detection, double-booking exclusion, tenant-bound FKs, atomic counters |
 | `packages/documents` (3) | PDF rendering, escaping, invoice VAT, `.ics` |
 | `apps/api` e2e (14) | The SRS §11 R1 gate flows end to end |
-| `apps/api` isolation (3) | **MT-5**: every route × every role × foreign organisation / sibling patient; access policy on every route |
+| `apps/api` R2 (9) | Telemedicine, Google Calendar OAuth/sync, ETA e-receipts, insurance claims, drug interactions, ITQAN events |
+| `apps/api` R3 (10) | AI scribe (draft-only, approval, PHI minimisation), SaaS administration, support access, public API keys |
+| `apps/api` isolation (3) | **MT-5**: every route (250+) × every role × foreign organisation / sibling patient; access policy on every route |
 | `apps/worker` (7) | Holds, reminders, no-shows, dispatch, audit verification, retention, summary, commissions, cron in Cairo time |
+
+## Release 2 and 3 features
+
+| Area | Where |
+|---|---|
+| Telemedicine (Zoom S2S / Google Meet), waiting room | `apps/api/src/modules/telemedicine.ts`, `integrations/video.ts` |
+| Google Calendar one-way sync | `modules/telemedicine.ts` (`CalendarSyncService`), worker job `calendar-sync` |
+| ETA e-receipts | `modules/eta.ts`, `integrations/eta.ts`, `docs/integrations/eta.md` |
+| Insurance / TPA and claims | `modules/insurance.ts`, `packages/shared/src/insurance.ts` |
+| Drug interactions | `modules/prescriptions.ts` (`safetyChecks`), `drug_interactions` table |
+| Complaints, incidents, ITQAN webhooks | `modules/events.ts` |
+| AI scribe (Claude, doctor-approved) | `modules/ai.ts`, `integrations/ai.ts`, `docs/adr/0007-ai-scribe-governance.md` |
+| SaaS administration, support access, public API keys | `modules/platform.ts` |
 
 ## Security and privacy
 

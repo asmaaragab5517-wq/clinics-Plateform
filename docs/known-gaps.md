@@ -12,11 +12,13 @@ must be closed before go-live.
 - Docker image build was not exercised in the development sandbox (no registry access); the CI `image` job is the first real build.
 
 ## Product/API
-- Doctor search lacks "next available date" and city filters (FR-WEB-2 partly met); clinic page has no doctor photos (no public image URL yet).
-- Abandoned booking tracking (FR-WEB-3) is not recorded server-side.
 - Idempotency keys are honoured for bookings, walk-ins and payments; check-in and queue updates rely on state-machine conflicts.
 - Console: waitlist UI, custom-field definitions UI, encounter-template authoring, prescription revoke button, tablet signature capture for re-consent.
-- Body chart stores vector shapes only (no rendered PNG yet).
 - Mobile: live queue uses polling (SSE in web), screenshot blocking is app-wide on Android only, root/jailbreak warning not implemented, certificate pins must be supplied (`CERT_PINS`).
 - Site BFF refresh de-duplication is per instance.
-- R2/R3 scope (telemedicine, ETA e-receipt, insurance, Google Calendar, ITQAN feed, AI scribe, SaaS admin) not started.
+- R2/R3 integrations are built against fakes; each needs a real-account check: Zoom/Google OAuth apps, ETA preprod
+  onboarding (serialisation test vectors, EGS item codes, signing requirement), the insurers' claim file formats, the ITQAN
+  endpoint contract, and the speech-to-text endpoint.
+- **pilot (R3)** The AI scribe has not been called against the live Claude API in this build; run the clinician-graded
+  evaluation set (Egyptian Arabic dictations) and obtain counsel approval of the data-processing terms before enabling it.
+- Support access shows patient demographics (not clinical records) inside the owner-approved window; confirm with counsel.
