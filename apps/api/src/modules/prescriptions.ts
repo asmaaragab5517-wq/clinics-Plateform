@@ -21,7 +21,8 @@ import { BillingService } from './billing.service';
 
 export interface RxWarning {
   line: number;
-  kind: 'allergy' | 'duplicate_ingredient' | 'free_text';
+  kind: 'allergy' | 'duplicate_ingredient' | 'free_text' | 'interaction';
+  severity?: string;
   detail: string;
 }
 
@@ -48,6 +49,22 @@ export async function safetyChecks(tx: Tx, patientId: string, lines: z.infer<typ
       if (seen.has(ing)) warnings.push({ line: i, kind: 'duplicate_ingredient', detail: `${ing} (line ${seen.get(ing)! + 1})` });
       seen.set(ing, i);
       for (const m of meds) if ((m.ingredient ?? '').toLowerCase() === ing) warnings.push({ line: i, kind: 'duplicate_ingredient', detail: `${ing} (current medication)` });
+    }
+  }
+  // Drug-drug interactions across this prescription and current medications (R2, dataset per D10).
+  const ingredients = new Map<string, number>();
+  for (const [i, l] of lines.entries()) for (const ing of (l.drugId ? drugs.get(l.drugId)?.active_ingredients ?? [] : [])) ingredients.set(ing.toLowerCase(), i);
+  const current = meds.map((m) => (m.ingredient ?? '').toLowerCase()).filter(Boolean);
+  const all = [...new Set([...ingredients.keys(), ...current])];
+  if (all.length > 1) {
+    const hits = await tx.query<{ ingredient_a: string; ingredient_b: string; severity: string; description_en: string; description_ar: string | null }>(
+      'select * from drug_interactions where ingredient_a = any($1) and ingredient_b = any($1)',
+      [all],
+    );
+    for (const h of hits) {
+      if (!ingredients.has(h.ingredient_a) && !ingredients.has(h.ingredient_b)) continue; // both only in current medications
+      const line = ingredients.get(h.ingredient_a) ?? ingredients.get(h.ingredient_b)!;
+      warnings.push({ line, kind: 'interaction', severity: h.severity, detail: `${h.ingredient_a} + ${h.ingredient_b}: ${h.description_ar ?? h.description_en}` });
     }
   }
   return warnings;

@@ -264,6 +264,8 @@ export const createBillSchema = z.object({
   appointmentId: zUuid.optional(),
   encounterId: zUuid.optional(),
   lines: z.array(billLineSchema).min(1),
+  coverageId: zUuid.optional(),
+  approvalNumber: z.string().max(60).optional(),
 });
 
 export const paymentSchema = z.object({

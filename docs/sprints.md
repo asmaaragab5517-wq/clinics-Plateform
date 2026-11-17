@@ -13,7 +13,10 @@ The BRD roadmap (§10) mapped onto sprints. Each sprint is one commit series on 
 | 6 | R1 | Infrastructure (Compose, Dockerfile, Keycloak realm, Terraform DO + Vercel), CI/CD, security scanning, backups and restore drill, k6, OpenAPI, ADRs and runbooks | NFR-1..10, SEC-9 | Done |
 | 7 | R1 | Public site + patient portal (Next.js on Vercel), staff console (reception, doctor, nurse, cashier, manager, admin, display), mobile app (Expo; patient, doctor, reception modes) | BR-11, BR-12, FR-WEB, FR-APP | Done (gaps in `docs/known-gaps.md`) |
 | Pilot | R1 | 1–2 clinics live, UAT, external pentest, live HealthPay transaction, store closed testing | SRS §11 | Pending (needs accounts, D1/D3/D10 decisions) |
-| R2 | R2 | Telemedicine (D8), ETA e-receipt, insurance/TPA, Google Calendar, ITQAN feed, drug interactions | BR-13, BR-18 | Not started (schema hooks in place) |
+| 8 | R1+ | Gap closure: next-available/city search, public photos, booking funnel, rate limiting, body chart PNG, consent signature | FR-WEB-2/3, SEC-5, FR-EMR-2, FR-PRV-2 | Done |
+| 9 | R2 | Telemedicine (Zoom S2S / Google Meet / fake), waiting room, Google Calendar one-way sync | BR-13, FR-TEL-1..4, FR-INT-2 | Done |
+| 10 | R2 | ETA e-receipts (chained UUIDs, retry queue, QR), insurance/TPA (payers, plans, coverage split, claim batches, settlement), drug interactions | FR-BIL-10, FR-BIL-11, FR-RX-3 | Done |
+| 11 | R2 | ITQAN signed outbound events (complaints, low ratings, incidents) | FR-INT-1, FR-REV-3 | Pending |
 | R3 | R3 | AI scribe (doctor-approved), SaaS administration, public API keys | BR-19, BR-20 | Not started |
 
 ## R1 acceptance gate (SRS §11) — automated evidence

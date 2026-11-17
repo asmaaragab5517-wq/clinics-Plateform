@@ -34,6 +34,9 @@ import { PublicController } from './modules/public';
 import { ReportsController } from './modules/reports';
 import { SchedulesController } from './modules/schedules';
 import { StaffController } from './modules/staff';
+import { EtaController, EtaService } from './modules/eta';
+import { InsuranceController } from './modules/insurance';
+import { ETA, FakeEtaClient, HttpEtaClient } from './integrations/eta';
 import { CalendarSyncService, GoogleTokenStore, TelemedicineController, TelemedicineService } from './modules/telemedicine';
 import { FakeVideoProvider, GoogleMeetProvider, VIDEO, ZoomProvider } from './integrations/video';
 import { FakeGoogleClient, GOOGLE, HttpGoogleClient } from './integrations/google';
@@ -41,7 +44,7 @@ import { FakeGoogleClient, GOOGLE, HttpGoogleClient } from './integrations/googl
 export const CONTROLLERS = [
   HealthController, AuthController, OrgController, CatalogueController, StaffController, SchedulesController, AppointmentsController, PatientsController,
   EmrController, PrescriptionsController, BillingController, PaymentsController, CommsController, PublicController, PortalController, ReportsController,
-  GovernanceController, ImportsController, TelemedicineController, DevController,
+  GovernanceController, ImportsController, TelemedicineController, EtaController, InsuranceController, DevController,
 ];
 
 /** Domain services shared by the API and the worker. */
@@ -68,6 +71,8 @@ export function coreProviders(cfg: Config): Provider[] {
     },
     { provide: VIDEO, useClass: cfg.TELEMED_PROVIDER === 'zoom' ? ZoomProvider : cfg.TELEMED_PROVIDER === 'google_meet' ? GoogleMeetProvider : FakeVideoProvider },
     { provide: GOOGLE, useClass: cfg.GOOGLE_MODE === 'http' ? HttpGoogleClient : FakeGoogleClient },
+    { provide: ETA, useClass: cfg.ETA_MODE === 'http' ? HttpEtaClient : FakeEtaClient },
+    EtaService,
     GoogleTokenStore,
     TelemedicineService,
     CalendarSyncService,

@@ -8,6 +8,7 @@ export const SCHEDULE: { name: string; every?: number; cron?: string }[] = [
   { name: 'follow-ups-waitlist', every: 10 * 60_000 },
   { name: 'telemedicine', every: 5 * 60_000 },
   { name: 'calendar-sync', every: 5 * 60_000 },
+  { name: 'eta-receipts', every: 60_000 },
   { name: 'reconcile', cron: '30 2 * * *' },
   { name: 'verify-audit', cron: '0 3 * * *' },
   { name: 'retention', cron: '30 3 * * *' },

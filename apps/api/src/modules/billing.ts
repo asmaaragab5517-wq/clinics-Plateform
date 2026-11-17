@@ -315,6 +315,17 @@ export async function invoiceDocument(tx: Tx, billing: BillingService, patients:
   const pt = await tx.one<{ first_name_ar: string; father_name_ar: string; family_name_ar: string; mrn: string }>('select * from patients where id = $1', [b.patient_id]);
   const le = b.legal_entity_id ? await tx.one<{ name_ar: string; name_en: string; tax_registration_number: string | null; commercial_register: string | null }>('select * from legal_entities where id = $1', [b.legal_entity_id]) : null;
   const c = await tx.one<{ invoice_footer: string }>('select invoice_footer from clinics where id = $1', [b.clinic_id]);
+  const eta = await tx.maybeOne<{ uuid: string; issued_at: Date; status: string; eta_mode: string; eta_config_enc: Buffer | null; le_id: string }>(
+    `select r.uuid, r.issued_at, r.status, le.eta_mode, le.eta_config_enc, le.id as le_id from eta_receipts r join legal_entities le on le.id = r.legal_entity_id where r.bill_id = $1 and r.status in ('valid','submitted')`,
+    [id],
+  );
+  let etaQr: { qrDataUrl: string; uuid: string } | null = null;
+  if (eta) {
+    const { qrDataUrl } = await import('@hf/documents');
+    const rin = billing.eta.credentials({ id: eta.le_id, eta_config_enc: eta.eta_config_enc })?.rin ?? '';
+    const { etaQrUrl } = await import('@hf/shared');
+    etaQr = { uuid: eta.uuid, qrDataUrl: await qrDataUrl(etaQrUrl(eta.uuid, new Date(eta.issued_at), b.total, rin, eta.eta_mode === 'prod')) };
+  }
   return {
     patientId: b.patient_id,
     html: invoiceHtml({
@@ -325,6 +336,7 @@ export async function invoiceDocument(tx: Tx, billing: BillingService, patients:
       totals: { subtotal: b.subtotal, discount: b.discount, vat: b.vat, total: b.total - b.credited, paid: b.paid - b.refunded, balance: b.total - b.credited - (b.paid - b.refunded) },
       payments: payments.map((x) => ({ method: METHOD_LABEL[x.method] ?? x.method, amount: x.amount, receiptNumber: x.receipt_number, at: new Date(x.created_at) })),
       footer: c.invoice_footer,
+      eta: etaQr,
     }),
   };
 }

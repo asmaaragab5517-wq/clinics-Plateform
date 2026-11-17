@@ -1,7 +1,7 @@
 import { Client } from 'pg';
 import { MESSAGE_EVENTS, catalogs } from '@hf/shared';
 import { SecretBox } from './crypto';
-import { DRUGS, ENCOUNTER_TEMPLATES, ICD10, LAB_TESTS, SPECIALTIES } from './reference-data';
+import { DRUGS, ENCOUNTER_TEMPLATES, ICD10, INTERACTIONS, LAB_TESTS, SPECIALTIES } from './reference-data';
 
 export async function seedReference(c: Client) {
   for (const s of SPECIALTIES) {
@@ -12,6 +12,9 @@ export async function seedReference(c: Client) {
   }
   for (const t of LAB_TESTS) {
     await c.query('insert into lab_tests (code, kind, name_en, name_ar) values ($1,$2,$3,$4) on conflict do nothing', [t.code, t.kind, t.en, t.ar]);
+  }
+  for (const i of INTERACTIONS) {
+    await c.query('insert into drug_interactions (ingredient_a, ingredient_b, severity, description_en, description_ar, source) values ($1,$2,$3,$4,$5,$6) on conflict do nothing', [...[i.a, i.b].sort(), i.severity, i.en, i.ar, 'seed-sample']);
   }
   const { rows } = await c.query('select count(*)::int as n from drugs');
   if (rows[0].n === 0) {

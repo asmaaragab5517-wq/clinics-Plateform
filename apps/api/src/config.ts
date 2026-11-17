@@ -54,6 +54,7 @@ const schema = z.object({
   GOOGLE_MODE: z.enum(['fake', 'http']).default('fake'),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  ETA_MODE: z.enum(['fake', 'http']).default('fake'),
   OAUTH_STATE_SECRET: z.string().default('dev-oauth-state-secret'),
   RATE_LIMIT_PUBLIC_PER_MIN: z.coerce.number().int().positive().default(240),
   RATE_LIMIT_PATIENT_PER_MIN: z.coerce.number().int().positive().default(300),

@@ -69,14 +69,19 @@ async function seedForeign(c: Client, org: string, clinic: string, doctor: strin
   const legalEntity = (await c.query(`select id from legal_entities where organisation_id = $1 limit 1`, [org])).rows[0].id;
   const statement = await q(`insert into commission_statements (organisation_id, doctor_id, clinic_id, month, revenue, share, lines) values ($1,$2,$3,'2026-10-01',1,1,'[]') returning id`, [org, doctor, clinic]);
   const template = (await c.query(`select id from message_templates where organisation_id = $1 limit 1`, [org])).rows[0].id;
-  return { patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor };
+  const payer = await q(`insert into payers (organisation_id, code, name_ar, kind) values ($1, $2, 'x', 'insurer') returning id`, [org, `P${label}`]);
+  const plan = await q(`insert into payer_plans (organisation_id, payer_id, name, coverage_percent) values ($1,$2,'x',50) returning id`, [org, payer]);
+  const coverage = await q(`insert into patient_coverages (organisation_id, patient_id, plan_id, member_number, valid_from) values ($1,$2,$3,'M','2026-01-01') returning id`, [org, patient, plan]);
+  const claimBatch = await q(`insert into claim_batches (organisation_id, payer_id, number, period_from, period_to, status) values ($1,$2,$3,'2026-01-01','2026-12-31','submitted') returning id`, [org, payer, `CB-${label}`]);
+  const etaReceipt = await q(`insert into eta_receipts (organisation_id, legal_entity_id, clinic_id, bill_id, receipt_number, issued_at, payload, status) values ($1,$2,$3,$4,'R',now(),'{}','failed') returning id`, [org, (await c.query('select id from legal_entities where organisation_id = $1 limit 1', [org])).rows[0].id, clinic, bill]);
+  return { patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor, coverage, claimBatch, etaReceipt, payer, plan };
 }
 
 const ENTITY_BY_SEGMENT: Record<string, string> = {
   patients: 'patient', appointments: 'appointment', bills: 'bill', encounters: 'encounter', prescriptions: 'prescription', clinics: 'clinic', staff: 'user', doctors: 'user',
   sessions: 'session', 'schedule-exceptions': 'exception', orders: 'order', documents: 'document', refunds: 'refund', shifts: 'shift', queue: 'ticket', approvals: 'approval',
   reviews: 'review', tasks: 'task', imports: 'importBatch', articles: 'article', 'data-requests': 'dataRequest', breaches: 'breach', services: 'service', 'legal-entities': 'legalEntity',
-  'commission-statements': 'statement', 'message-templates': 'template', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
+  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
 };
 const FIXED: Record<string, string> = { role: 'nurse', kind: 'signature', entity: 'patients', token: 'x.1.y', code: 'nope', slug: 'nasr-city', providerOrderId: 'x' };
 
@@ -151,6 +156,11 @@ function bodyFor(r: Route, ids: Record<string, string>, own: Record<string, stri
     'patch /v1/message-templates/:id': { isEnabled: false },
     'put /v1/doctors/:id/profile': { title: 'dr', specialtyIds: [], syndicateNumber: '12345', slug: 'iso-test' },
     'put /v1/legal-entities/:id/healthpay': { merchantId: 'x', apiKey: 'xxxxxxxxxx', mode: 'sandbox' },
+    'post /v1/insurance/claim-batches': { payerId: ids.payer, from: '2026-01-01', to: '2031-01-01' },
+    'post /v1/insurance/plans': { payerId: ids.payer, name: 'x', coveragePercent: 10 },
+    'post /v1/insurance/patients/:patientId/coverages': { planId: ids.plan, memberNumber: 'M1', validFrom: '2026-01-01' },
+    'post /v1/insurance/claim-batches/:id/settle': { reference: 'x', items: [{ billId: ids.bill, paidAmount: 1 }] },
+    'patch /v1/insurance/coverages/:id': { isActive: false },
     'patch /v1/portal/preferences/:patientId': { channels: ['sms'], marketingOptOut: true, smsOptOut: false, whatsappOptOut: false },
   };
   return map[`${r.method} ${r.path}`] ?? {};
@@ -166,7 +176,7 @@ beforeAll(async () => {
   sibling = await seedForeign(c, h.env.demo.orgId, h.env.demo.clinicIds[0]!, h.env.demo.doctorIds[0]!, h.env.demo.staff.reception!, 'S', '+201066667777');
   await c.end();
   for (const v of Object.values(foreign)) forbiddenIds.add(v);
-  for (const [k, v] of Object.entries(sibling)) if (!['clinic', 'user', 'service', 'session', 'legalEntity', 'template', 'article', 'exception', 'statement', 'task', 'breach', 'importBatch', 'approval', 'shift'].includes(k)) siblingPrivate.add(v);
+  for (const [k, v] of Object.entries(sibling)) if (!['clinic', 'user', 'service', 'session', 'legalEntity', 'template', 'article', 'exception', 'statement', 'task', 'breach', 'importBatch', 'approval', 'shift', 'payer', 'plan', 'claimBatch', 'etaReceipt'].includes(k)) siblingPrivate.add(v);
   forbiddenIds.add(h.env.other.orgId);
   // Patient persona A with a record of their own.
   const t = await patientLogin(h, '01033334444');

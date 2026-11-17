@@ -9,10 +9,12 @@ import { AvailabilityService } from './availability.service';
 import { MessagingService } from './messaging.service';
 import type { SecretBox } from '@hf/db';
 import { BOX } from '../common/services';
+import { EtaService } from './eta';
+import { splitCoverage } from '@hf/shared';
 
 export interface BillRow {
   id: string; clinic_id: string; patient_id: string; appointment_id: string | null; status: string; number: string | null; total: number; paid: number; refunded: number; credited: number;
-  subtotal: number; discount: number; vat: number; taxable_base: number; discount_approval_id: string | null; legal_entity_id: string | null;
+  subtotal: number; discount: number; vat: number; taxable_base: number; discount_approval_id: string | null; legal_entity_id: string | null; insurer_share: number;
 }
 
 @Injectable()
@@ -23,6 +25,7 @@ export class BillingService {
     private readonly audit: AuditService,
     @Inject(HEALTHPAY) private readonly healthpay: HealthPayClient,
     @Inject(BOX) private readonly box: SecretBox,
+    readonly eta: EtaService,
   ) {}
 
   async get(tx: Tx, id: string, lock = false): Promise<BillRow> {
@@ -32,7 +35,7 @@ export class BillingService {
   }
 
   /** FR-BIL-1/2: lines priced from the clinic price list, VAT per service, totals in piastres. */
-  async create(tx: Tx, actor: Principal, meta: RequestMeta | null, input: { clinicId: string; patientId: string; appointmentId?: string; encounterId?: string; lines: BillLine[] }) {
+  async create(tx: Tx, actor: Principal, meta: RequestMeta | null, input: { clinicId: string; patientId: string; appointmentId?: string; encounterId?: string; lines: BillLine[]; coverageId?: string; approvalNumber?: string }) {
     const date = localDate(new Date());
     let doctorId: string | null = null;
     if (input.appointmentId) {
@@ -64,15 +67,32 @@ export class BillingService {
       }
     }
     const totals = computeBill(resolved.map((r) => ({ qty: r.qty, unitPrice: r.unitPrice, vat: r.vat, discount: r.discount })));
+    // FR-BIL-11: insurer / patient split from the patient's active coverage.
+    let insurerShare = 0;
+    if (input.coverageId) {
+      const cov = await tx.maybeOne<{ coverage_percent: number; copay_fixed: number; type_overrides: Record<string, number>; excluded_service_ids: string[]; requires_approval: boolean }>(
+        `select pp.coverage_percent, pp.copay_fixed, pp.type_overrides, pp.excluded_service_ids, pp.requires_approval from patient_coverages pc join payer_plans pp on pp.id = pc.plan_id
+         join payers py on py.id = pp.payer_id
+         where pc.id = $1 and pc.patient_id = $2 and pc.is_active and pp.is_active and py.is_active and pc.valid_from <= $3::date and (pc.valid_to is null or pc.valid_to >= $3::date)`,
+        [input.coverageId, input.patientId, date],
+      );
+      if (!cov) throw badRequest('coverage_not_valid');
+      if (cov.requires_approval && !input.approvalNumber) throw badRequest('approval_number_required');
+      const types = new Map((await tx.query<{ id: string; type: string }>('select id, type from services where id = any($1::uuid[])', [resolved.map((r) => r.serviceId).filter(Boolean)])).map((s) => [s.id, s.type]));
+      insurerShare = splitCoverage(
+        { coveragePercent: Number(cov.coverage_percent), copayFixed: cov.copay_fixed, typeOverrides: cov.type_overrides, excludedServiceIds: cov.excluded_service_ids },
+        resolved.map((r, i) => ({ serviceId: r.serviceId, serviceType: r.serviceId ? (types.get(r.serviceId) ?? null) : null, total: totals.lines[i]!.total })),
+      ).insurer;
+    }
     const org = await tx.one<{ settings: { discountApprovalPercent?: number } }>('select settings from organisations where id = app_org()');
     const threshold = org.settings.discountApprovalPercent ?? 20;
     const needsApproval = discountPercent(totals) > threshold && !(actor.kind === 'staff' && actor.privileges.has('bill:approve'));
     const le = await tx.one<{ legal_entity_id: string | null }>('select legal_entity_id from clinics where id = $1', [input.clinicId]);
     const actorId = actor.kind === 'staff' ? actor.userId : null;
     const bill = await tx.one<BillRow>(
-      `insert into bills (organisation_id, clinic_id, legal_entity_id, patient_id, appointment_id, encounter_id, subtotal, discount, taxable_base, vat, total, created_by)
-       values (app_org(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *`,
-      [input.clinicId, le.legal_entity_id, input.patientId, input.appointmentId ?? null, input.encounterId ?? null, totals.subtotal, totals.discount, totals.taxableBase, totals.vat, totals.total, actorId],
+      `insert into bills (organisation_id, clinic_id, legal_entity_id, patient_id, appointment_id, encounter_id, subtotal, discount, taxable_base, vat, total, created_by, coverage_id, approval_number, insurer_share)
+       values (app_org(), $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning *`,
+      [input.clinicId, le.legal_entity_id, input.patientId, input.appointmentId ?? null, input.encounterId ?? null, totals.subtotal, totals.discount, totals.taxableBase, totals.vat, totals.total, actorId, input.coverageId ?? null, input.approvalNumber ?? null, insurerShare],
     );
     for (const [i, r] of resolved.entries()) {
       const t = totals.lines[i]!;
@@ -114,7 +134,7 @@ export class BillingService {
   }
 
   /** FR-BIL-4 payments. Cash requires the cashier's open shift (FR-BIL-6). */
-  async pay(tx: Tx, actor: StaffPrincipal | null, meta: RequestMeta | null, billId: string, p: { method: PaymentMethod; amount: number; reference?: string; cardLast4?: string; packageBalanceId?: string; providerTransactionId?: string; idempotencyKey?: string }) {
+  async pay(tx: Tx, actor: StaffPrincipal | null, meta: RequestMeta | null, billId: string, p: { method: PaymentMethod | 'insurance'; amount: number; reference?: string; cardLast4?: string; packageBalanceId?: string; providerTransactionId?: string; idempotencyKey?: string }) {
     const b = await this.get(tx, billId, true);
     if (p.idempotencyKey) {
       const prior = await tx.maybeOne<{ id: string; amount: number; receipt_number: string; bill_id: string }>('select * from payments where idempotency_key = $1', [p.idempotencyKey]);
@@ -126,6 +146,12 @@ export class BillingService {
     if (!['issued', 'partially_paid'].includes(b.status)) throw new DomainError('bill_not_payable', HttpStatus.CONFLICT);
     const balance = b.total - b.credited - (b.paid - b.refunded);
     if (p.amount > balance) throw new DomainError('amount_exceeds_balance', HttpStatus.UNPROCESSABLE_ENTITY, { balance });
+    if (b.insurer_share > 0 && p.method !== 'insurance') {
+      // The patient pays only their share; the insurer share is settled through claims.
+      const patientPaid = (await tx.one<{ s: number }>(`select coalesce(sum(amount - refunded), 0)::int as s from payments where bill_id = $1 and method <> 'insurance' and status = 'captured'`, [b.id])).s;
+      const patientDue = b.total - b.credited - b.insurer_share - patientPaid;
+      if (p.amount > patientDue) throw new DomainError('amount_exceeds_patient_share', HttpStatus.UNPROCESSABLE_ENTITY, { patientDue });
+    }
     let shiftId: string | null = null;
     if (p.method === 'cash') {
       if (!actor) throw forbidden();
@@ -159,7 +185,10 @@ export class BillingService {
     const paid = b.paid + p.amount;
     const status = billPaymentStatus(b.total - b.credited, paid, b.refunded);
     await tx.query('update bills set paid = $2, status = $3 where id = $1', [b.id, paid, status]);
-    if (status === 'paid') await this.activatePackages(tx, b.id, b.patient_id);
+    if (status === 'paid') {
+      await this.activatePackages(tx, b.id, b.patient_id);
+      await this.eta.enqueue(tx, b.id); // FR-BIL-10 B2C e-receipt
+    }
     await this.messaging.enqueue(tx, { event: 'payment_received', patientId: b.patient_id, clinicId: b.clinic_id, dedupeKey: `pay:${pay.id}`, vars: { amount: formatMoney(p.amount, 'ar'), receipt } });
     await this.audit.record(tx, actor, meta, { action: 'payment.create', entity: 'payment', entityId: pay.id, patientId: b.patient_id, clinicId: b.clinic_id, details: { method: p.method, amount: p.amount } });
     return { ...pay, billStatus: status };

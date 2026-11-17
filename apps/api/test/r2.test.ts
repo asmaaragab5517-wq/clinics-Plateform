@@ -104,3 +104,84 @@ describe('Google Calendar one-way sync (FR-INT-2)', () => {
     expect((h.app.get(GOOGLE) as FakeGoogleClient).events.size).toBe(0);
   });
 });
+
+describe('ETA e-receipts, insurance and interactions (FR-BIL-10, FR-BIL-11, FR-RX-3)', () => {
+  it('flags drug-drug interactions in the prescription builder', async () => {
+    const services = await h.http().get('/v1/services').set(auth(h.staff.manager));
+    ctx.consult = services.body.find((s: { code: string }) => s.code === 'CONS-IM').id;
+    const walk = await h.http().post('/v1/appointments/walk-in').set(auth(h.staff.reception)).send({ patientId: ctx.patient, clinicId: ctx.clinic, doctorId: h.env.demo.doctorIds[0], serviceIds: [ctx.consult] });
+    expect(walk.status, JSON.stringify(walk.body)).toBe(201);
+    ctx.walkAppt = walk.body.appointment.id;
+    const enc = (await admin.query('select id from encounters where appointment_id = $1', [ctx.walkAppt])).rows[0].id;
+    const brufen = (await h.http().get('/v1/drugs?q=Brufen').set(auth(h.staff.dr_ahmed))).body[0].id;
+    const voltaren = (await h.http().get('/v1/drugs?q=Voltaren').set(auth(h.staff.dr_ahmed))).body[0].id;
+    const rx = await h.http().post(`/v1/encounters/${enc}/prescriptions`).set(auth(h.staff.dr_ahmed)).send({ lines: [
+      { drugId: brufen, dose: '400 mg', frequency: 'tid' }, { drugId: voltaren, dose: '50 mg', frequency: 'bid' },
+    ] });
+    const w = rx.body.warnings.find((x: { kind: string }) => x.kind === 'interaction');
+    expect(w).toMatchObject({ severity: 'moderate' });
+  });
+
+  it('queues a chained ETA e-receipt when a bill is paid and submits it with retry', async () => {
+    const le = (await h.http().get('/v1/legal-entities').set(auth(h.staff.owner))).body[0];
+    await h.http().put(`/v1/legal-entities/${le.id}/eta`).set(auth(h.staff.owner)).send({
+      mode: 'preprod', clientId: 'client', clientSecret: 'secret', posSerial: 'POS-1', rin: '123456789', activityCode: '8620', companyTradeName: 'HealthFlow',
+      address: { governate: 'Cairo', regionCity: 'Nasr City', street: 'x', buildingNumber: '1' },
+    }).expect(200);
+    await h.http().post('/v1/shifts').set(auth(h.staff.reception)).send({ clinicId: ctx.clinic, openingFloat: 0 }).expect(201);
+    const uuids: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const bill = await h.http().post('/v1/bills').set(auth(h.staff.reception)).send({ clinicId: ctx.clinic, patientId: ctx.patient, lines: [{ serviceId: ctx.consult, qty: 1 }] });
+      await h.http().post(`/v1/bills/${bill.body.id}/issue`).set(auth(h.staff.reception)).expect(200);
+      await h.http().post(`/v1/bills/${bill.body.id}/payments`).set(auth(h.staff.reception)).send({ method: 'cash', amount: 40000 }).expect(201);
+      const r = (await admin.query('select uuid, previous_uuid, status from eta_receipts where bill_id = $1', [bill.body.id])).rows[0];
+      expect(r.uuid).toMatch(/^[0-9a-f]{64}$/);
+      uuids.push(r.uuid);
+      if (i === 1) expect(r.previous_uuid).toBe(uuids[0]);
+      ctx.etaBill = bill.body.id;
+    }
+    const { EtaService } = await import('../src/modules/eta');
+    const { ETA } = await import('../src/integrations/eta');
+    const { Tenancy } = await import('../src/common/services');
+    (h.app.get(ETA) as import('../src/integrations/eta').FakeEtaClient).failNext = 1;
+    await h.app.get(Tenancy).system(h.env.demo.orgId, (tx) => h.app.get(EtaService).submitDue(tx));
+    expect((await admin.query(`select count(*)::int as n from eta_receipts where status = 'failed' and next_attempt_at > now()`)).rows[0].n).toBe(2);
+    await admin.query('update eta_receipts set next_attempt_at = now()');
+    const ok = await h.app.get(Tenancy).system(h.env.demo.orgId, (tx) => h.app.get(EtaService).submitDue(tx));
+    expect(ok).toBe(2);
+    const dash = await h.http().get('/v1/eta/receipts').set(auth(h.staff.accountant));
+    expect(dash.body.summary).toEqual([{ status: 'valid', n: 2 }]);
+    const pdf = await h.http().get(`/v1/bills/${ctx.etaBill}/invoice.pdf`).set(auth(h.staff.reception));
+    expect(pdf.headers['content-type']).toBe('application/pdf');
+  }, 60000);
+
+  it('splits a bill with insurance coverage and settles the payer share through a claim batch', async () => {
+    const payer = await h.http().post('/v1/insurance/payers').set(auth(h.staff.owner)).send({ code: 'MISR-INS', nameAr: 'مصر للتأمين', nameEn: 'Misr Insurance', kind: 'insurer' });
+    const plan = await h.http().post('/v1/insurance/plans').set(auth(h.staff.owner)).send({ payerId: payer.body.id, name: 'Gold', coveragePercent: 80, copayFixed: 5000, requiresApproval: true });
+    const cov = await h.http().post(`/v1/insurance/patients/${ctx.patient}/coverages`).set(auth(h.staff.reception)).send({ planId: plan.body.id, memberNumber: 'MI-778899', validFrom: '2026-01-01' });
+    expect(cov.status, JSON.stringify(cov.body)).toBe(201);
+    const noApproval = await h.http().post('/v1/bills').set(auth(h.staff.reception)).send({ clinicId: ctx.clinic, patientId: ctx.patient, coverageId: cov.body.id, lines: [{ serviceId: ctx.consult, qty: 1 }] });
+    expect(noApproval.body.error).toBe('approval_number_required');
+    const bill = await h.http().post('/v1/bills').set(auth(h.staff.reception)).send({ clinicId: ctx.clinic, patientId: ctx.patient, coverageId: cov.body.id, approvalNumber: 'APR-1', lines: [{ serviceId: ctx.consult, qty: 1 }] });
+    expect(bill.body.insurer_share).toBe(32000 - 5000);
+    await h.http().post(`/v1/bills/${bill.body.id}/issue`).set(auth(h.staff.reception)).expect(200);
+    const tooMuch = await h.http().post(`/v1/bills/${bill.body.id}/payments`).set(auth(h.staff.reception)).send({ method: 'cash', amount: 40000 });
+    expect(tooMuch.body.error).toBe('amount_exceeds_patient_share');
+    const share = await h.http().post(`/v1/bills/${bill.body.id}/payments`).set(auth(h.staff.reception)).send({ method: 'cash', amount: 13000 });
+    expect(share.body.billStatus).toBe('partially_paid');
+    const today = new Date().toISOString().slice(0, 10);
+    const batch = await h.http().post('/v1/insurance/claim-batches').set(auth(h.staff.accountant)).send({ payerId: payer.body.id, from: '2026-01-01', to: '2031-01-01' });
+    expect(batch.status, JSON.stringify(batch.body)).toBe(201);
+    expect(batch.body.total).toBe(27000);
+    const csv = await h.http().get(`/v1/insurance/claim-batches/${batch.body.id}/export.csv`).set(auth(h.staff.accountant));
+    expect(csv.text).toContain('MI-778899');
+    expect(csv.text).toContain('APR-1');
+    await h.http().post(`/v1/insurance/claim-batches/${batch.body.id}/submit`).set(auth(h.staff.accountant)).expect(200);
+    const settled = await h.http().post(`/v1/insurance/claim-batches/${batch.body.id}/settle`).set(auth(h.staff.accountant)).send({ reference: 'REMIT-1', items: [{ billId: bill.body.id, paidAmount: 27000 }] });
+    expect(settled.status, JSON.stringify(settled.body)).toBe(200);
+    expect(settled.body.status).toBe('paid');
+    const final = await h.http().get(`/v1/bills/${bill.body.id}`).set(auth(h.staff.reception));
+    expect(final.body.status).toBe('paid');
+    void today;
+  }, 60000);
+});

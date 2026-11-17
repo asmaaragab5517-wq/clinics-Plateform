@@ -74,6 +74,8 @@ export interface InvoiceDoc {
   totals: { subtotal: number; discount: number; vat: number; total: number; paid: number; balance: number };
   payments?: { method: string; amount: number; receiptNumber?: string | null; at: Date }[];
   footer?: string;
+  /** ETA e-receipt QR (data URL) and UUID when the receipt was submitted (FR-BIL-10). */
+  eta?: { qrDataUrl: string; uuid: string } | null;
 }
 
 /** Invoice / receipt in Arabic with optional English (FR-BIL-8). */
@@ -96,6 +98,7 @@ ${d.lines.map((l) => `<tr><td>${esc(l.description)}</td><td class="num">${l.qty}
 <tr><td>المدفوع / Paid</td><td class="num">${m(d.totals.paid)}</td></tr>
 <tr><td>المتبقي / Balance</td><td class="num">${m(d.totals.balance)}</td></tr></table>
 ${d.payments?.length ? `<table><thead><tr><th>طريقة الدفع / Method</th><th>إيصال</th><th class="num">المبلغ</th></tr></thead><tbody>${d.payments.map((p) => `<tr><td>${esc(p.method)}</td><td class="ltr">${esc(p.receiptNumber ?? '')}</td><td class="num">${m(p.amount)}</td></tr>`).join('')}</tbody></table>` : ''}
+${d.eta ? `<div class="sig"><div style="margin-inline-start:auto;text-align:center"><img src="${d.eta.qrDataUrl}" style="width:90px;height:90px"><div class="muted ltr">ETA ${esc(d.eta.uuid.slice(0, 16))}…</div></div></div>` : ''}
 <div class="footer">${esc(d.footer ?? '')}</div>`;
   return page({ title, size: 'A4', body });
 }

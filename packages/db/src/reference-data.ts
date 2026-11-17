@@ -94,3 +94,15 @@ export const ENCOUNTER_TEMPLATES: { specialty: string; ar: string; en: string; s
   { specialty: 'ophthalmology', ar: 'رمد', en: 'Ophthalmology', sections: ['chiefComplaint', 'hpi', 'examination', 'observations', 'diagnoses', 'prescriptions', 'followUp'], diagnoses: ['H10.9', 'H52.1'] },
   { specialty: 'dentistry', ar: 'أسنان', en: 'Dentistry', sections: ['chiefComplaint', 'examination', 'diagnoses', 'notes', 'prescriptions', 'followUp'], diagnoses: ['K02.9'] },
 ];
+
+/** Sample interaction pairs (ingredient_a < ingredient_b). The licensed interaction dataset replaces these (D10). */
+export const INTERACTIONS: { a: string; b: string; severity: 'minor' | 'moderate' | 'major' | 'contraindicated'; en: string; ar: string }[] = [
+  { a: 'aspirin', b: 'warfarin', severity: 'major', en: 'Increased bleeding risk', ar: 'زيادة خطر النزيف' },
+  { a: 'ibuprofen', b: 'warfarin', severity: 'major', en: 'Increased bleeding risk', ar: 'زيادة خطر النزيف' },
+  { a: 'diclofenac', b: 'ibuprofen', severity: 'moderate', en: 'Two NSAIDs: GI bleeding and renal risk', ar: 'مسكنان من نفس المجموعة: خطر نزيف معدي وتأثير على الكلى' },
+  { a: 'bisoprolol', b: 'verapamil', severity: 'major', en: 'Bradycardia and heart block', ar: 'بطء شديد في القلب' },
+  { a: 'metronidazole', b: 'warfarin', severity: 'major', en: 'Raised INR', ar: 'ارتفاع سيولة الدم' },
+  { a: 'clarithromycin', b: 'simvastatin', severity: 'contraindicated', en: 'Rhabdomyolysis risk', ar: 'خطر تكسر العضلات' },
+  { a: 'esomeprazole', b: 'clopidogrel', severity: 'moderate', en: 'Reduced antiplatelet effect', ar: 'تقليل فاعلية مضاد الصفائح' },
+  { a: 'metformin', b: 'contrast media', severity: 'major', en: 'Lactic acidosis risk', ar: 'خطر الحماض اللبني' },
+];

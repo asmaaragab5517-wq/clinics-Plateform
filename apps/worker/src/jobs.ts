@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 import {
-  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, Tenancy, generateCommissionStatements,
+  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, EtaService, Tenancy, generateCommissionStatements,
 } from '@hf/api/dist/core';
 import { addDays, formatDate, formatMoney, formatTime12, localDate } from '@hf/shared';
 
@@ -16,6 +16,7 @@ export interface JobContext {
   availability: AvailabilityService;
   telemedicine: TelemedicineService;
   calendar: CalendarSyncService;
+  eta: EtaService;
 }
 
 export function jobContext(app: INestApplicationContext): JobContext {
@@ -30,6 +31,7 @@ export function jobContext(app: INestApplicationContext): JobContext {
     reports: new ReportsController(tenancy, app.get(AuditService), availability),
     telemedicine: app.get(TelemedicineService),
     calendar: app.get(CalendarSyncService),
+    eta: app.get(EtaService),
   };
 }
 
@@ -249,6 +251,15 @@ export async function syncCalendars(c: JobContext) {
   let n = 0;
   await forEachOrg(c, 'calendar-sync', async (org) => {
     n += await c.tenancy.system(org, (tx) => c.calendar.syncOrg(tx));
+  });
+  return n;
+}
+
+/** FR-BIL-10: submit queued ETA e-receipts with retry/backoff. */
+export async function submitEtaReceipts(c: JobContext) {
+  let n = 0;
+  await forEachOrg(c, 'eta', async (org) => {
+    n += await c.tenancy.system(org, (tx) => c.eta.submitDue(tx));
   });
   return n;
 }

@@ -27,6 +27,7 @@ async function main() {
     commissions: () => jobs.commissions(c),
     telemedicine: () => jobs.prepareTelemedicine(c),
     'calendar-sync': () => jobs.syncCalendars(c),
+    'eta-receipts': () => jobs.submitEtaReceipts(c),
   };
   const running = new Set<string>();
   const exec = async (name: string) => {
