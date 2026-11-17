@@ -19,7 +19,7 @@ export function SiteFooter({ locale }: { locale: Locale }) {
   );
   return (
     <footer className="mt-16 border-t border-border bg-surface">
-      <div className="container-page grid gap-8 py-10 sm:grid-cols-3">
+      <div className="container-page grid grid-cols-1 gap-8 py-10 sm:grid-cols-3">
         {col(tt('footer.explore'), [
           ['/doctors', tt('nav.doctors')],
           ['/clinics', tt('nav.clinics')],

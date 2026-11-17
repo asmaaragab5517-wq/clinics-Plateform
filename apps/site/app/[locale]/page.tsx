@@ -27,7 +27,7 @@ export default async function Home({ params }: Props) {
   return (
     <>
       <section className="bg-gradient-to-b from-primary/10 to-bg">
-        <div className="container-page grid gap-8 py-12 md:grid-cols-2 md:py-16">
+        <div className="container-page grid grid-cols-1 gap-8 py-12 md:grid-cols-2 md:py-16">
           <div className="flex flex-col justify-center gap-4">
             <h1 className="text-3xl font-bold leading-tight md:text-4xl">{tt('home.hero.title')}</h1>
             <p className="text-lg text-muted">{tt('home.hero.subtitle')}</p>
@@ -85,7 +85,7 @@ export default async function Home({ params }: Props) {
       </section>
 
       <div className="container-page">
-        <ul className="mt-10 grid gap-4 sm:grid-cols-3">
+        <ul className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {(['booking', 'payment', 'records'] as const).map((k) => (
             <li key={k}>
               <Card className="h-full">
@@ -125,7 +125,7 @@ export default async function Home({ params }: Props) {
           {doctors === null ? (
             <Unavailable locale={locale} />
           ) : (
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {doctors.slice(0, 6).map((d) => (
                 <li key={d.id}>
                   <DoctorCard doctor={d} locale={locale} />
@@ -147,7 +147,7 @@ export default async function Home({ params }: Props) {
           {clinics === null ? (
             <Unavailable locale={locale} />
           ) : (
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {clinics.slice(0, 6).map((c) => (
                 <li key={c.id}>
                   <ClinicCard clinic={c} locale={locale} />

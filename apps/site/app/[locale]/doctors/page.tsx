@@ -79,7 +79,7 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
   return (
     <div className="container-page py-8">
       <h1 className="mb-6 text-2xl font-bold">{tt('doctors.title')}</h1>
-      <div className="grid gap-6 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         <Card className="h-fit lg:sticky lg:top-4">
           <form method="get" className="flex flex-col gap-3" role="search" aria-label={tt('filter.title')}>
             <h2 className="font-bold">{tt('filter.title')}</h2>
@@ -182,7 +182,7 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
               {doctors.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-border p-8 text-center text-muted">{tt('doctors.empty')}</p>
               ) : (
-                <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {doctors.map((d) => (
                     <li key={d.id}>
                       <DoctorCard doctor={d} locale={locale} />

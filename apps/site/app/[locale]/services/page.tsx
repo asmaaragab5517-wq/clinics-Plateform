@@ -68,7 +68,7 @@ export default async function ServicesPage({ params }: Props) {
       )}
       {packages && packages.length > 0 && (
         <Section title={tt('services.packages')}>
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {packages.map((p) => (
               <li key={p.id}>
                 <Card className="flex h-full flex-col gap-1">

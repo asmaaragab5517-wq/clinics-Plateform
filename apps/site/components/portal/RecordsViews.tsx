@@ -395,7 +395,7 @@ export function PackagesView() {
     <PortalPage title={t(locale, 'portal.nav.packages')}>
       <Loader state={state} empty={t(locale, 'packages.empty')}>
         {(rows) => (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {rows.map((p) => {
               const pct = p.sessions_total ? Math.round((p.sessions_used / p.sessions_total) * 100) : 0;
               return (
@@ -431,7 +431,7 @@ export function InsuranceView() {
       <p className="mb-4 max-w-2xl text-sm text-muted">{t(locale, 'insurance.intro')}</p>
       <Loader state={state} empty={t(locale, 'insurance.empty')}>
         {(rows) => (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {rows.map((c) => {
               const pct = num(c.coverage_percent ?? null);
               const copay = num(c.copay_fixed ?? null);

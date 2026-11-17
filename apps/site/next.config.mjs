@@ -9,6 +9,8 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // Always render metadata in <head> (not streamed into <body>), so link previews, messaging apps and audits see it.
+  htmlLimitedBots: /.*/,
   output: 'standalone',
   reactStrictMode: true,
   poweredByHeader: false,

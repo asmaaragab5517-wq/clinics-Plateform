@@ -55,8 +55,8 @@ export default async function ClinicsPage({ params, searchParams }: Props) {
       ) : clinics.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-8 text-center text-muted">{tt('clinics.empty')}</p>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <ul className="grid gap-4 sm:grid-cols-2 lg:col-span-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-2">
             {clinics.map((c) => {
               const lat = num(c.lat);
               const lng = num(c.lng);

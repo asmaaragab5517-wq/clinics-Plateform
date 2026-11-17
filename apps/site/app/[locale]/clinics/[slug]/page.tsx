@@ -69,7 +69,7 @@ export default async function ClinicPage({ params }: Props) {
         </Link>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="flex flex-col gap-4 lg:col-span-1">
           <h2 className="font-bold">{tt('clinics.details')}</h2>
           {c.address_lines && (
@@ -141,7 +141,7 @@ export default async function ClinicPage({ params }: Props) {
         {c.doctors.length === 0 ? (
           <p className="text-muted">{tt('clinics.noDoctors')}</p>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {c.doctors.map((d) => (
               <li key={d.id}>
                 <DoctorCard doctor={d} locale={locale} />

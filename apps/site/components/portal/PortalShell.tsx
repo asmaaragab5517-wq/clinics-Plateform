@@ -49,7 +49,7 @@ export function PortalProvider({ locale, children }: { locale: Locale; children:
   }, [data, locale]);
 
   return (
-    <div className="container-page grid gap-6 py-8 lg:grid-cols-4">
+    <div className="container-page grid grid-cols-1 gap-6 py-8 lg:grid-cols-4">
       <aside className="lg:col-span-1">
         <nav aria-label={t(locale, 'nav.portal')} className="rounded-xl border border-border bg-surface p-2">
           <ul className="flex gap-1 overflow-x-auto lg:flex-col">

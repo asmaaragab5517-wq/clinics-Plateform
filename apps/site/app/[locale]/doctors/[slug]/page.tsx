@@ -57,7 +57,7 @@ export default async function DoctorPage({ params }: Props) {
   return (
     <div className="container-page py-8">
       <Breadcrumbs locale={locale} items={[{ href: `/${locale}`, label: tt('nav.home') }, { href: `/${locale}/doctors`, label: tt('nav.doctors') }, { label: name }]} />
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
           <div className="flex items-start gap-4">
             <DoctorPhoto name={name} src={doctorPhotoSrc(d)} size="lg" />
@@ -89,10 +89,11 @@ export default async function DoctorPage({ params }: Props) {
               <h2 id="quals" className="mb-2 text-lg font-bold">
                 {tt('doctor.qualifications')}
               </h2>
-              <ul className="list-disc ps-5">
+              <ul className="list-disc ps-5 [overflow-wrap:anywhere]">
                 {d.qualifications.map((q, i) => (
-                  <li key={i} dir="auto">
-                    {[q.degree, q.institution, q.year].filter(Boolean).join(' · ')}
+                  <li key={i}>
+                    {/* dir="auto" on the text, not the <li>: an LTR <li> in an RTL list moves its bullet outside the padding. */}
+                    <span dir="auto">{[q.degree, q.institution, q.year].filter(Boolean).join(' · ')}</span>
                   </li>
                 ))}
               </ul>
@@ -173,7 +174,7 @@ export default async function DoctorPage({ params }: Props) {
         {d.reviews.length === 0 ? (
           <p className="text-muted">{tt('doctor.noReviews')}</p>
         ) : (
-          <ul className="grid gap-3 md:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {d.reviews.map((rv, i) => (
               <li key={i}>
                 <Card>

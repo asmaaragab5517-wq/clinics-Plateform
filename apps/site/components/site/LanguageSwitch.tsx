@@ -12,7 +12,7 @@ export function LanguageSwitch({ locale }: { locale: Locale }) {
   const qs = search?.toString();
   const href = `/${target}${rest}${qs ? `?${qs}` : ''}`;
   return (
-    <a href={href} hrefLang={target} lang={target} aria-label={t(locale, 'lang.switchTo')} className="btn-secondary btn-sm">
+    <a href={href} hrefLang={target} lang={target} title={t(locale, 'lang.switchTo')} className="btn-secondary btn-sm">
       {t(locale, 'lang.switch')}
     </a>
   );

@@ -7,10 +7,10 @@
   --hf-border: 226 232 240;
   --hf-primary: 15 118 110;
   --hf-primary-fg: 255 255 255;
-  --hf-accent: 2 132 199;
-  --hf-danger: 220 38 38;
-  --hf-warning: 217 119 6;
-  --hf-success: 22 163 74;
+  --hf-accent: 3 105 161;
+  --hf-danger: 185 28 28;
+  --hf-warning: 146 64 14;
+  --hf-success: 22 101 52;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -22,6 +22,9 @@
     --hf-border: 51 65 85;
     --hf-primary: 45 212 191;
     --hf-primary-fg: 15 23 42;
+    --hf-accent: 56 189 248;
+    --hf-warning: 251 191 36;
+    --hf-success: 74 222 128;
     color-scheme: dark;
   }
 }

@@ -82,7 +82,7 @@ export function PatientForm({ locale, hasSelf, phone, onCreated }: { locale: Loc
           ))}
         </Select>
       </Field>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label={t(locale, 'patient.firstName')} htmlFor="pf-first">
           <Input id="pf-first" required dir="auto" autoComplete="given-name" value={first} onChange={(e) => setFirst(e.target.value)} />
         </Field>
@@ -102,7 +102,7 @@ export function PatientForm({ locale, hasSelf, phone, onCreated }: { locale: Loc
       <Field label={t(locale, 'patient.nationalId')} htmlFor="pf-nid" hint={t(locale, 'patient.nationalIdHint')} error={nidError}>
         <Input id="pf-nid" inputMode="numeric" dir="ltr" className="num text-start" maxLength={20} value={nid} onChange={(e) => onNid(e.target.value)} aria-invalid={!!nidError} autoComplete="off" />
       </Field>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label={t(locale, 'patient.dob')} htmlFor="pf-dob">
           <Input id="pf-dob" type="date" required value={dob} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDob(e.target.value)} />
         </Field>

@@ -197,7 +197,7 @@ function DoctorStep({ locale, clinics, specialties, s, update, next }: StepProps
   const selectCls = 'h-10 w-full rounded-xl border border-border bg-surface px-3';
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label htmlFor="bw-clinic" className="text-sm font-medium">
             {t(locale, 'booking.clinic')}
@@ -234,7 +234,7 @@ function DoctorStep({ locale, clinics, specialties, s, update, next }: StepProps
         ) : !doctors?.length ? (
           <p className="text-muted">{t(locale, 'booking.noDoctors')}</p>
         ) : (
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {doctors.map((d) => {
               const checked = s.doctorSlug === d.slug;
               return (
@@ -400,7 +400,7 @@ function PatientStep({ locale, s, update, back, next }: StepProps & { back: () =
       {patients.length > 0 && (
         <fieldset>
           <legend className="mb-2 font-medium">{t(locale, 'booking.whoIsPatient')}</legend>
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {patients.map((p) => (
               <li key={p.id}>
                 <label className={cx('flex cursor-pointer items-center gap-3 rounded-xl border p-3', s.patientId === p.id ? 'border-primary bg-primary/5' : 'border-border hover:border-primary')}>

@@ -53,7 +53,7 @@ export function FamilyView() {
       {me.patients.length === 0 ? (
         <EmptyState title={t(locale, 'family.empty')} />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {me.patients.map((p) => (
             <li key={p.id}>
               <Card className="flex flex-col gap-1">

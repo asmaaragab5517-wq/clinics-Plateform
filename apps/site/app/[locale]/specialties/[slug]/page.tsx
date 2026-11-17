@@ -47,7 +47,7 @@ export default async function SpecialtyPage({ params }: Props) {
       ) : doctors.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-8 text-center text-muted">{tt('specialties.empty')}</p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {doctors.map((d) => (
             <li key={d.id}>
               <DoctorCard doctor={d} locale={locale} />
