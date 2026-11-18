@@ -92,10 +92,20 @@ describe('R1 acceptance: online patient journey (SRS §11.1)', () => {
     const t = await patientLogin(h, '01044445555');
     const r1 = await h.http().post('/v1/auth/refresh').set('x-org', 'demo').send({ refreshToken: t.refreshToken });
     expect(r1.status).toBe(200);
+    // A second refresh with the same token within seconds (two web server instances racing) is not treated as theft.
+    const concurrent = await h.http().post('/v1/auth/refresh').set('x-org', 'demo').send({ refreshToken: t.refreshToken });
+    expect(concurrent.status).toBe(200);
+    // Replayed after the 10-second window, the old token revokes the whole family.
+    const c = new Client({ connectionString: h.env.adminUrl });
+    await c.connect();
+    await c.query(`update refresh_tokens set revoked_at = now() - interval '1 minute' where replaced_by is not null and family = (select family from refresh_tokens where id = (select replaced_by from refresh_tokens where revoked_at is not null and replaced_by is not null order by created_at desc limit 1))`);
+    await c.end();
     const reuse = await h.http().post('/v1/auth/refresh').set('x-org', 'demo').send({ refreshToken: t.refreshToken });
     expect(reuse.body.error).toBe('refresh_token_reused');
     const after = await h.http().post('/v1/auth/refresh').set('x-org', 'demo').send({ refreshToken: r1.body.refreshToken });
     expect(after.status).toBe(401);
+    const sibling = await h.http().post('/v1/auth/refresh').set('x-org', 'demo').send({ refreshToken: concurrent.body.refreshToken });
+    expect(sibling.status).toBe(401);
   });
 });
 

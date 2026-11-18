@@ -96,11 +96,25 @@ export class AuthService {
   /** Rotating refresh tokens with reuse detection: presenting a rotated token revokes the whole family. */
   async refresh(orgId: string, token: string) {
     const r = await this.tenancy.system(orgId, async (tx) => {
-      const row = await tx.maybeOne<{ id: string; account_id: string; family: string; revoked_at: Date | null; expires_at: Date; phone: string; device_id: string | null }>(
-        `select r.id, r.account_id, r.family, r.revoked_at, r.expires_at, r.device_id, a.phone from refresh_tokens r join patient_accounts a on a.id = r.account_id where r.token_hash = $1 for update of r`,
+      const row = await tx.maybeOne<{ id: string; account_id: string; family: string; revoked_at: Date | null; expires_at: Date; phone: string; device_id: string | null; replaced_by: string | null; concurrent: boolean }>(
+        `select r.id, r.account_id, r.family, r.revoked_at, r.expires_at, r.device_id, r.replaced_by, a.phone,
+                -- Rotated less than 10 s ago and its successor is still live: a concurrent refresh by another web
+                -- server instance (or a retried request), not a stolen token being replayed.
+                (r.replaced_by is not null and r.revoked_at > now() - interval '10 seconds'
+                  and exists (select 1 from refresh_tokens n where n.id = r.replaced_by and n.revoked_at is null)) as concurrent
+         from refresh_tokens r join patient_accounts a on a.id = r.account_id where r.token_hash = $1 for update of r`,
         [this.tokens.hashRefresh(token)],
       );
       if (!row) throw new DomainError('invalid_refresh_token', HttpStatus.UNAUTHORIZED);
+      if (row.revoked_at && row.concurrent) {
+        // Grace for the race: issue another token in the same family without revoking it.
+        const next = this.tokens.newRefreshToken();
+        await tx.query(
+          `insert into refresh_tokens (organisation_id, account_id, token_hash, family, device_id, expires_at) values (app_org(), $1, $2, $3, $4, now() + interval '${REFRESH_TTL_DAYS} days')`,
+          [row.account_id, next.hash, row.family, row.device_id],
+        );
+        return { reused: false as const, accessToken: await this.tokens.signPatient(row.account_id, orgId, row.phone), refreshToken: next.token };
+      }
       if (row.revoked_at) {
         // Commit the family revocation before reporting the reuse.
         await tx.query('update refresh_tokens set revoked_at = now() where family = $1 and revoked_at is null', [row.family]);

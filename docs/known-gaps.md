@@ -46,7 +46,8 @@ must be closed before go-live.
 - Idempotency keys are honoured for bookings, walk-ins and payments; check-in and queue updates rely on state-machine conflicts.
 - Console: tablet signature capture for re-consent.
 - Mobile: live queue uses polling (SSE in web), screenshot blocking is app-wide on Android only, root/jailbreak warning not implemented, certificate pins must be supplied (`CERT_PINS`).
-- Site BFF refresh de-duplication is per instance.
+- Concurrent refreshes from several site instances are tolerated: a token rotated less than 10 s earlier, whose successor
+  is still live, gets another token in the same family; replays after that window still revoke the family.
 - R2/R3 integrations are built against fakes; each needs a real-account check: Zoom/Google OAuth apps, ETA preprod
   onboarding (serialisation test vectors, EGS item codes, signing requirement), the insurers' claim file formats, the ITQAN
   endpoint contract, and the speech-to-text endpoint.
