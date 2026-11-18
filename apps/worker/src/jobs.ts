@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import type { INestApplicationContext } from '@nestjs/common';
 import {
-  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, EtaService, EventsService, Tenancy, generateCommissionStatements, retentionCandidates,
+  AppointmentsService, AuditService, AvailabilityService, CalendarSyncService, MessagingService, PaymentsService, ReportsController, TelemedicineService, EtaService, EventsService, HrService, Tenancy, generateCommissionStatements, retentionCandidates,
 } from '@hf/api/dist/core';
 import { addDays, formatDate, formatMoney, formatTime12, localDate } from '@hf/shared';
 
@@ -18,6 +18,7 @@ export interface JobContext {
   calendar: CalendarSyncService;
   eta: EtaService;
   events: EventsService;
+  hr: HrService;
 }
 
 export function jobContext(app: INestApplicationContext): JobContext {
@@ -34,6 +35,7 @@ export function jobContext(app: INestApplicationContext): JobContext {
     calendar: app.get(CalendarSyncService),
     eta: app.get(EtaService),
     events: app.get(EventsService),
+    hr: app.get(HrService),
   };
 }
 
@@ -282,6 +284,11 @@ export async function refreshNextSlots(c: JobContext) {
     n += await c.tenancy.system(org, async (tx) => c.availability.refreshNextSlots(tx, (await c.appointments.policy(tx)).leadMinutes));
   });
   return n;
+}
+
+/** HR: close yesterday's attendance (absences, leave, holidays, missing clock-outs). Safe to re-run. */
+export async function hrCloseDay(c: JobContext, day = addDays(localDate(new Date()), -1)) {
+  await forEachOrg(c, 'hr-close-day', (org) => c.tenancy.system(org, (tx) => c.hr.closeDay(tx, day)));
 }
 
 /** Stop push to patient devices whose sessions have all expired or been revoked (signed out by timeout). */

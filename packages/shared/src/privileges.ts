@@ -20,6 +20,8 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     'refund:approve',
     'bill:approve',
     'shift:approve',
+    ...all('hr'),
+    ...all('payroll', ['view', 'approve', 'export']),
   ],
   clinic_manager: [
     ...all('schedule'),
@@ -37,6 +39,8 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     ...all('review', ['view', 'approve', 'edit']),
     ...all('quality', ['view', 'create', 'edit']),
     'message:view',
+    // Attendance, leave and permissions for their clinic's staff; salaries stay with payroll roles.
+    ...all('hr', ['view', 'create', 'edit', 'approve', 'export']),
   ],
   doctor: [
     'clinic:view',
@@ -85,6 +89,8 @@ export const DEFAULT_PRIVILEGES: Record<Role, Privilege[]> = {
     ...all('commission'),
     ...all('report', ['view', 'export']),
     'patient:view',
+    ...all('hr', ['view', 'export']),
+    ...all('payroll', ['view', 'create', 'edit', 'export']),
   ],
   patient: [],
 };

@@ -32,6 +32,7 @@ async function main() {
     'next-slots': () => jobs.refreshNextSlots(c),
     'retention-review': () => jobs.retentionReview(c),
     'prune-device-tokens': () => jobs.pruneDeviceTokens(c),
+    'hr-close-day': () => jobs.hrCloseDay(c),
   };
   const running = new Set<string>();
   const exec = async (name: string) => {

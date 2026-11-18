@@ -175,3 +175,40 @@ ${header(d.clinic, `<h2>${d.kind === 'lab' ? 'طلب تحاليل / Lab request'
 ${d.note ? `<p>${esc(d.note)}</p>` : ''}`;
   return page({ title: 'Order', size: 'A5', body });
 }
+
+export interface PayslipDoc {
+  clinic: ClinicHeader;
+  legalEntity?: { nameAr: string; nameEn: string; taxRegistrationNumber?: string | null } | null;
+  employee: { name: string; jobTitle: string; socialInsuranceNumber?: string | null; ibanLast4?: string | null };
+  /** First day of the month, e.g. 2026-11-01. */
+  period: string;
+  lines: { labelAr: string; labelEn: string; amount: number; kind: 'earning' | 'deduction' | 'employer'; basis?: string }[];
+  gross: number;
+  deductions: number;
+  net: number;
+  attendance: { workedDays: number; absentDays: number; leaveDays: number; lateMinutes: number; overtimeMinutes: number };
+  status: string;
+}
+
+/** Monthly payslip (Sprint 19), Arabic first with English labels. */
+export function payslipHtml(d: PayslipDoc): string {
+  const m = (p: number) => formatMoney(p, 'ar');
+  const [y, mo] = d.period.split('-');
+  const rows = (kind: 'earning' | 'deduction' | 'employer') =>
+    d.lines.filter((l) => l.kind === kind).map((l) => `<tr><td>${esc(l.labelAr)} <span class="muted ltr">/ ${esc(l.labelEn)}</span></td><td class="ltr muted">${esc(l.basis ?? '')}</td><td class="num">${m(l.amount)}</td></tr>`).join('');
+  const body = `
+${header(d.clinic, `<h2>قسيمة راتب / Payslip</h2><div class="ltr">${esc(y ?? '')}-${esc(mo ?? '')}</div>${d.status !== 'paid' && d.status !== 'approved' ? `<div class="muted">مسودة / Draft</div>` : ''}`)}
+${d.legalEntity ? `<div class="muted">${esc(d.legalEntity.nameAr)} · <span class="ltr">${esc(d.legalEntity.nameEn)}</span>${d.legalEntity.taxRegistrationNumber ? ` · <span class="ltr">${esc(d.legalEntity.taxRegistrationNumber)}</span>` : ''}</div>` : ''}
+<div class="row" style="margin-block:8px"><div>الموظف / Employee: <b>${esc(d.employee.name)}</b><div class="muted">${esc(d.employee.jobTitle)}</div></div>
+<div class="muted">الرقم التأميني / Insurance no.: <span class="ltr">${esc(d.employee.socialInsuranceNumber ?? '-')}</span><br>الحساب / Account: <span class="ltr">${d.employee.ibanLast4 ? `•••• ${esc(d.employee.ibanLast4)}` : '-'}</span></div></div>
+<table><thead><tr><th>أيام العمل / Worked</th><th>غياب / Absent</th><th>إجازات / Leave</th><th>تأخير (دقيقة) / Late (min)</th><th>إضافي (دقيقة) / Overtime (min)</th></tr></thead>
+<tbody><tr><td class="num">${d.attendance.workedDays}</td><td class="num">${d.attendance.absentDays}</td><td class="num">${d.attendance.leaveDays}</td><td class="num">${d.attendance.lateMinutes}</td><td class="num">${d.attendance.overtimeMinutes}</td></tr></tbody></table>
+<h3>المستحقات / Earnings</h3><table><tbody>${rows('earning') || '<tr><td colspan="3" class="muted">-</td></tr>'}</tbody></table>
+<h3>الاستقطاعات / Deductions</h3><table><tbody>${rows('deduction') || '<tr><td colspan="3" class="muted">-</td></tr>'}</tbody></table>
+<table class="totals" style="width:55%;margin-inline-start:auto">
+<tr><td>إجمالي الأجر / Gross pay</td><td class="num">${m(d.gross)}</td></tr>
+<tr><td>إجمالي الاستقطاعات / Total deductions</td><td class="num">${m(d.deductions)}</td></tr>
+<tr><td><b>صافي الأجر / Net pay</b></td><td class="num"><b>${m(d.net)}</b></td></tr></table>
+${rows('employer') ? `<h3 class="muted">مساهمات صاحب العمل (للعلم) / Employer contributions (for information)</h3><table><tbody>${rows('employer')}</tbody></table>` : ''}`;
+  return page({ title: 'Payslip', size: 'A4', body });
+}

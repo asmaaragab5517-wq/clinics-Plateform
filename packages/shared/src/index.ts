@@ -18,3 +18,4 @@ export * from './i18n';
 export * from './insurance';
 export * from './eta';
 export * from './dental';
+export * from './hr';

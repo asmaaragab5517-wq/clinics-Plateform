@@ -12,3 +12,4 @@ export { TelemedicineService, CalendarSyncService } from './modules/telemedicine
 export { EtaService } from './modules/eta';
 export { EventsService } from './modules/events';
 export { retentionCandidates } from './modules/governance';
+export { HrService } from './modules/hr.service';

@@ -80,17 +80,26 @@ async function seedForeign(c: Client, org: string, clinic: string, doctor: strin
   const supportAccess = await q(`insert into support_access (organisation_id, admin_id, reason, hours) values ($1, (select id from platform_admins limit 1), 'xxxxxxxxxx', 1) returning id`, [org]);
   const apiKey = await q(`insert into api_keys (organisation_id, name, prefix, key_hash, scopes) values ($1, 'x', 'hfk', $2, '{catalogue:read}') returning id`, [org, `h-${label}`]);
   const waitlist = await q(`insert into waitlist (organisation_id, clinic_id, doctor_id, patient_id, earliest) values ($1,$2,$3,$4,'2030-01-01') returning id`, [org, clinic, doctor, patient]);
+  const contract = await q(`insert into employment_contracts (organisation_id, user_id, clinic_id, job_title_ar, employment_type, pay_basis, start_date, base_salary, work_pattern) values ($1,$2,$3,'x','full_time','monthly','2026-01-01',100000,'{"days":[6,0,1,2,3],"start":"09:00","end":"17:00"}') returning id`, [org, doctor, clinic]);
+  const attendance = await q(`insert into attendance_records (organisation_id, user_id, clinic_id, work_date, clock_in, overtime_minutes) values ($1,$2,$3,'2026-03-01',now(),30) returning id`, [org, doctor, clinic]);
+  const leaveType = await q(`insert into leave_types (organisation_id, code, name_ar) values ($1,'annual','x') on conflict (organisation_id, code) do update set name_ar = excluded.name_ar returning id`, [org]);
+  const leaveRequest = await q(`insert into leave_requests (organisation_id, user_id, clinic_id, leave_type_id, start_date, end_date, days) values ($1,$2,$3,$4,'2031-02-01','2031-02-01',1) returning id`, [org, doctor, clinic, leaveType]);
+  const permissionRequest = await q(`insert into permission_requests (organisation_id, user_id, clinic_id, work_date, kind, start_time, end_time, minutes) values ($1,$2,$3,'2031-02-02','late_arrival','09:00','10:00',60) returning id`, [org, doctor, clinic]);
+  const holiday = await q(`insert into public_holidays (organisation_id, holiday_date, name_ar) values ($1,'2031-01-07','x') returning id`, [org]);
+  const payrollRun = await q(`insert into payroll_runs (organisation_id, period) values ($1,'2026-03-01') returning id`, [org]);
+  const payslip = await q(`insert into payslips (organisation_id, run_id, user_id, clinic_id, contract_id, gross, deductions, net, employer_cost, lines, inputs) values ($1,$2,$3,$4,$5,1,0,1,1,'[]','{}') returning id`, [org, payrollRun, doctor, clinic, contract]);
+  const payrollAdjustment = await q(`insert into payroll_adjustments (organisation_id, user_id, period, kind, amount) values ($1,$2,'2031-01-01','bonus',100) returning id`, [org, doctor]);
   const encTemplate = await q(`insert into encounter_templates (organisation_id, doctor_id, name_ar, sections) values ($1, $2, 'قالب', '["notes"]') returning id`, [org, doctor]);
   const customField = await q(`insert into custom_field_defs (organisation_id, key, label_ar, type) values ($1, $2, 'x', 'text') returning id`, [org, `iso_${label.toLowerCase().replace(/[^a-z0-9]/g, '')}`]);
   const etaReceipt = await q(`insert into eta_receipts (organisation_id, legal_entity_id, clinic_id, bill_id, receipt_number, issued_at, payload, status) values ($1,$2,$3,$4,'R',now(),'{}','failed') returning id`, [org, (await c.query('select id from legal_entities where organisation_id = $1 limit 1', [org])).rows[0].id, clinic, bill]);
-  return { encTemplate, customField, patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor, coverage, claimBatch, etaReceipt, payer, plan, complaint, incident, webhook, aiDraft, supportAccess, apiKey, waitlist };
+  return { attendance, leaveType, leaveRequest, permissionRequest, holiday, payrollRun, payslip, payrollAdjustment, encTemplate, customField, patient, appointment, encounter, prescription, bill, shift, payment, refund, order, document, review, ticket, history, dataRequest, approval, task, merge, breach, article, importBatch, session, exception, legalEntity, statement, template, service, clinic, user: doctor, coverage, claimBatch, etaReceipt, payer, plan, complaint, incident, webhook, aiDraft, supportAccess, apiKey, waitlist };
 }
 
 const ENTITY_BY_SEGMENT: Record<string, string> = {
   patients: 'patient', appointments: 'appointment', bills: 'bill', encounters: 'encounter', prescriptions: 'prescription', clinics: 'clinic', staff: 'user', doctors: 'user',
   sessions: 'session', 'schedule-exceptions': 'exception', orders: 'order', documents: 'document', refunds: 'refund', shifts: 'shift', queue: 'ticket', approvals: 'approval',
   reviews: 'review', tasks: 'task', imports: 'importBatch', articles: 'article', 'data-requests': 'dataRequest', breaches: 'breach', services: 'service', 'legal-entities': 'legalEntity',
-  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', drafts: 'aiDraft', payers: 'payer', plans: 'plan', announcements: 'clinic', waitlist: 'waitlist', 'custom-fields': 'customField', 'encounter-templates': 'encTemplate', 'support-access': 'supportAccess', 'api-keys': 'apiKey', organisations: 'clinic', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
+  'commission-statements': 'statement', 'message-templates': 'template', coverages: 'coverage', 'claim-batches': 'claimBatch', receipts: 'etaReceipt', complaints: 'complaint', incidents: 'incident', webhooks: 'webhook', drafts: 'aiDraft', payers: 'payer', plans: 'plan', announcements: 'clinic', waitlist: 'waitlist', 'custom-fields': 'customField', 'encounter-templates': 'encTemplate', attendance: 'attendance', 'leave-requests': 'leaveRequest', 'permission-requests': 'permissionRequest', holidays: 'holiday', 'leave-types': 'leaveType', runs: 'payrollRun', payslips: 'payslip', adjustments: 'payrollAdjustment', 'support-access': 'supportAccess', 'api-keys': 'apiKey', organisations: 'clinic', invoices: 'bill', preferences: 'patient', merges: 'merge', history: 'history',
 };
 const FIXED: Record<string, string> = { role: 'nurse', kind: 'signature', entity: 'patients', token: 'x.1.y', code: 'nope', slug: 'nasr-city', providerOrderId: 'x' };
 
@@ -101,7 +110,7 @@ function fill(path: string, ids: Record<string, string>): { url: string; foreign
     if (!s.startsWith(':')) return s;
     const name = s.slice(1);
     if (FIXED[name]) return FIXED[name];
-    const kind = name === 'patientId' ? 'patient' : name === 'appointmentId' ? 'appointment' : name === 'mergeId' ? 'merge' : name === 'itemId' ? 'history' : ENTITY_BY_SEGMENT[segs[i - 1]!];
+    const kind = name === 'userId' ? 'user' : name === 'patientId' ? 'patient' : name === 'appointmentId' ? 'appointment' : name === 'mergeId' ? 'merge' : name === 'itemId' ? 'history' : ENTITY_BY_SEGMENT[segs[i - 1]!];
     if (!kind || !ids[kind]) throw new Error(`no foreign id mapping for ${path} (${name})`);
     foreignParam = true;
     return ids[kind];
@@ -138,6 +147,17 @@ function bodyFor(r: Route, ids: Record<string, string>, own: Record<string, stri
     'post /v1/encounters/:id/prescriptions': { lines: [{ freeText: 'x', dose: '1', frequency: 'x' }] },
     'post /v1/bills/:id/payments': { method: 'card_at_clinic', amount: 1, reference: 'x' },
     'post /v1/approvals/:id/decision': { approve: true },
+    'post /v1/hr/leave-requests': { userId: ids.user, leaveTypeId: ids.leaveType, startDate: '2031-01-05', endDate: '2031-01-05' },
+    'post /v1/hr/permission-requests': { userId: ids.user, workDate: '2031-01-05', kind: 'late_arrival', startTime: '09:00', endTime: '10:00' },
+    'put /v1/hr/attendance': { userId: ids.user, workDate: '2026-01-05', clockIn: '09:00', clockOut: '17:00', reason: 'isolation test' },
+    'patch /v1/hr/balances': { userId: ids.user, year: 2026, adjusted: 1, note: 'isolation test' },
+    'post /v1/hr/attendance/:id/overtime': { approved: true },
+    'post /v1/hr/leave-requests/:id/decide': { approve: true },
+    'post /v1/hr/permission-requests/:id/decide': { approve: true },
+    'post /v1/payroll/adjustments': { userId: ids.user, month: '2031-01', kind: 'bonus', amount: 100, note: 'isolation' },
+    'put /v1/hr/staff/:userId/contract': { clinicId: ids.clinic, jobTitleAr: 'xx', employmentType: 'full_time', payBasis: 'monthly', startDate: '2026-01-01', baseSalary: 100, workPattern: { days: [1], start: '09:00', end: '17:00' } },
+    'post /v1/hr/staff/:userId/contract/end': { endDate: '2031-01-01', reason: 'isolation' },
+    'post /v1/payroll/runs/:id/cancel': { reason: 'isolation' },
     'post /v1/refunds/:id/decision': { approve: true },
     'post /v1/reviews/:id/moderate': { approve: true },
     'post /v1/privacy/data-requests/:id/process': { action: 'complete' },
