@@ -85,7 +85,7 @@ export function Check({ label, checked, onChange, disabled, hint }: { label: str
 }
 
 /** Ask for a reason (cancellations, voids, refunds, merges). */
-export function ReasonDialog({ open, title, minLength = 3, onClose, onSubmit, confirmLabel }: { open: boolean; title: string; minLength?: number; onClose: () => void; onSubmit: (reason: string) => Promise<void> | void; confirmLabel?: string }) {
+export function ReasonDialog({ open, title, minLength = 3, onClose, onSubmit, confirmLabel, children }: { open: boolean; title: string; minLength?: number; onClose: () => void; onSubmit: (reason: string) => Promise<void> | void; confirmLabel?: string; children?: React.ReactNode }) {
   const { t, err } = useI18n();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -113,6 +113,7 @@ export function ReasonDialog({ open, title, minLength = 3, onClose, onSubmit, co
           }
         }}
       >
+        {children}
         <TextAreaField label={t('form.reason')} value={reason} onChange={(e) => setReason(e.target.value)} required minLength={minLength} error={error} autoFocus />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>

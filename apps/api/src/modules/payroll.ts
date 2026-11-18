@@ -42,7 +42,11 @@ export class PayrollController {
   @Staff('payroll:view')
   runs(@Auth() p: Principal) {
     return this.tenancy.run(p, (tx) =>
-      tx.query(`select r.*, to_char(r.period, 'YYYY-MM') as month, (select count(*)::int from payslips s where s.run_id = r.id) as payslips from payroll_runs r order by r.period desc limit 36`),
+      tx.query(
+        `select r.*, to_char(r.period, 'YYYY-MM') as month, (select count(*)::int from payslips s where s.run_id = r.id) as payslips,
+                cu.name_ar as created_by_name_ar, cu.name_en as created_by_name_en, au.name_ar as approved_by_name_ar, au.name_en as approved_by_name_en
+         from payroll_runs r left join users cu on cu.id = r.created_by left join users au on au.id = r.approved_by order by r.period desc limit 36`,
+      ),
     );
   }
 
@@ -366,7 +370,11 @@ export class PayrollController {
   }
 
   private async runDetail(tx: Tx, id: string) {
-    const run = await tx.maybeOne(`select r.*, to_char(r.period, 'YYYY-MM') as month from payroll_runs r where r.id = $1`, [id]);
+    const run = await tx.maybeOne(
+      `select r.*, to_char(r.period, 'YYYY-MM') as month, cu.name_ar as created_by_name_ar, cu.name_en as created_by_name_en, au.name_ar as approved_by_name_ar, au.name_en as approved_by_name_en
+       from payroll_runs r left join users cu on cu.id = r.created_by left join users au on au.id = r.approved_by where r.id = $1`,
+      [id],
+    );
     if (!run) throw notFound('payroll_run');
     const payslips = await tx.query(
       `select s.id, s.user_id, s.clinic_id, s.gross, s.deductions, s.net, s.employer_cost, s.lines, s.inputs, s.warnings, u.name_ar, u.name_en, c.job_title_ar, c.job_title_en, c.pay_basis

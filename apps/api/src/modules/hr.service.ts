@@ -155,6 +155,10 @@ export class HrService {
   async annualBalance(tx: Tx, userId: string, year: number) {
     const c = await this.activeContract(tx, userId);
     let b = await tx.maybeOne<{ id: string; entitled: string; carried: string; adjusted: string }>('select * from leave_balances where user_id = $1 and year = $2', [userId, year]);
+    // Rows are stored for past and current years only; a future year is shown from the contract without saving.
+    if (!b && c && year > Number(localDate(new Date()).slice(0, 4))) {
+      b = { id: '', entitled: String(annualLeaveEntitlement(ymd(c.start_date), year, c.date_of_birth ? ymd(c.date_of_birth) : null)), carried: '0', adjusted: '0' };
+    }
     if (!b && c) {
       b = await tx.one<{ id: string; entitled: string; carried: string; adjusted: string }>(
         `insert into leave_balances (organisation_id, user_id, year, entitled) values (app_org(), $1, $2, $3)
@@ -173,7 +177,7 @@ export class HrService {
     const adjusted = Number(b?.adjusted ?? 0);
     const approved = Number(used.approved);
     const pending = Number(used.pending);
-    return { balanceId: b?.id ?? null, year, entitled, carried, adjusted, used: approved, pending, available: entitled + carried + adjusted - approved - pending };
+    return { balanceId: b?.id || null, year, entitled, carried, adjusted, used: approved, pending, available: entitled + carried + adjusted - approved - pending };
   }
 
   async typeUsage(tx: Tx, userId: string, leaveTypeId: string, year: number) {

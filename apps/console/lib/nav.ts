@@ -48,6 +48,18 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    label: 'nav.group.hr',
+    items: [
+      { href: '/hr/me', label: 'nav.hrMe' },
+      { href: '/hr/payslips', label: 'nav.myPayslips' },
+      { href: '/hr/team', label: 'nav.hrTeam', anyOf: ['hr:view'] },
+      { href: '/hr/approvals', label: 'nav.hrApprovals', anyOf: ['hr:approve'] },
+      { href: '/hr/staff', label: 'nav.hrStaff', anyOf: ['hr:view'] },
+      { href: '/payroll', label: 'nav.payroll', anyOf: ['payroll:view'] },
+      { href: '/hr/settings', label: 'nav.hrSettings', anyOf: ['hr:view'] },
+    ],
+  },
+  {
     label: 'nav.group.manage',
     items: [
       { href: '/manager/schedules', label: 'nav.schedules', anyOf: ['schedule:create', 'schedule:edit'] },

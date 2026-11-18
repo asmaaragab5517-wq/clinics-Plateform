@@ -15,6 +15,14 @@ interface I18nValue {
 
 const Ctx = createContext<I18nValue | null>(null);
 
+/** Primitive fields of an API error's `details` object, for `{{name}}` placeholders in the message. */
+function detailVars(details: unknown): Record<string, string | number> | undefined {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) return undefined;
+  const vars: Record<string, string | number> = {};
+  for (const [k, v] of Object.entries(details)) if (typeof v === 'number' || typeof v === 'string') vars[k] = v;
+  return vars;
+}
+
 export function I18nProvider({ locale, children }: { locale: Locale; children: React.ReactNode }) {
   const value = useMemo<I18nValue>(() => {
     const t = translator(locale);
@@ -23,7 +31,7 @@ export function I18nProvider({ locale, children }: { locale: Locale; children: R
         const code = e.code.split(':')[0] ?? e.code;
         if (hasKey(locale, `err.${code}`)) {
           if (code === 'not_found' && typeof e.details === 'string') return t('err.not_found');
-          return t(`err.${code}`);
+          return t(`err.${code}`, detailVars(e.details));
         }
         if (e.status === 403) return t('err.forbidden');
         if (e.status === 404) return t('err.not_found');
