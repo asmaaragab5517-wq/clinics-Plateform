@@ -28,6 +28,10 @@ must be closed before go-live.
   personal exemption, Martyrs' Fund rate, overtime multipliers, leave entitlements. All are editable in HR settings.
 - Not modelled (ADR 0008): night overtime, split shifts, the income-tax phase-out above EGP 600,000 a year (flagged for
   review), sick-leave pay shared with social insurance, end-of-service settlements, clock-in location checks.
+- Smaller follow-ups: overtime has approved/not approved but no explicit "rejected" state; payslip line `basis`
+  text ("20 d", "125 min") is English only; saving HR settings stores every figure, so later changes to the built-in
+  defaults do not reach that organisation; the payroll adjustment person picker needs `hr:view`; staff cannot preview
+  how many leave days a range uses before submitting.
 
 ## Product/API
 - Remaining Sprint 16 follow-ups: waitlist offers by message are automatic only (no manual "send offer" message); prescription
