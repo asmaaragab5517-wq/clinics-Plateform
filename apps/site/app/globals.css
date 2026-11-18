@@ -2,9 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Body face from next/font (app/fonts.ts); `font-sans` on <body> uses the same stack (tailwind.config.ts). */
+body { font-family: var(--font-plex-arabic), var(--font-plex-latin), system-ui, sans-serif; }
+
 @layer base {
   /* Cairo 700 from next/font (app/fonts.ts), preloaded with font-display: optional so it never shifts headings. */
-  h1, h2, h3 { font-family: var(--font-cairo-arabic), var(--font-cairo-latin), var(--font-cairo-latin-ext), 'IBM Plex Sans Arabic', sans-serif; }
+  h1, h2, h3 { font-family: var(--font-cairo-arabic), var(--font-cairo-latin), var(--font-cairo-latin-ext), var(--font-plex-arabic), var(--font-plex-latin), sans-serif; }
   a { text-underline-offset: 3px; }
 }
 

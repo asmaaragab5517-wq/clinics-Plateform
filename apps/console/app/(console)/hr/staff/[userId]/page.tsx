@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
-import { DEFAULT_WORK_PATTERN } from '@hf/shared';
+import { DEFAULT_WORK_PATTERN, formatMoney } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, Money, PageHeader, Select, Table } from '@hf/ui';
 import { Check, DataState, InlineError, ReasonDialog, Section, SelectField, TextField, useAction } from '@/components/common';
 import { Dialog } from '@/components/dialog';
@@ -13,7 +13,7 @@ import { useToast } from '@/components/toast';
 import { ApiError, patch, post, put, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { biName, egpInput, isoDate, num, parseEgp, todayCairo } from '@/lib/format';
-import { IBAN_RE, cleanIban, fmtDay, patternDays, type Allowance, type Balances, type ContractView, type HrStaffRow, type WorkPattern } from '@/lib/hr';
+import { IBAN_RE, cleanIban, daysCount, duration, fmtDay, fmtMonth, paidMinutes, patternDays, shiftText, type Allowance, type Balances, type ContractView, type HrStaffRow, type WorkPattern } from '@/lib/hr';
 
 /** One person's employment contract, contract history and leave balance. */
 export default function StaffContractPage({ params }: { params: Promise<{ userId: string }> }) {
@@ -25,6 +25,7 @@ export default function StaffContractPage({ params }: { params: Promise<{ userId
   const q = useApi<{ active: ContractView | null; history: ContractView[] }>(`/hr/staff/${userId}/contract`);
   const [editing, setEditing] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [endResult, setEndResult] = useState<EndResult | null>(null);
   const person = staff.data?.find((s) => s.id === userId);
   const name = person ? biName(person, locale) : '';
   return (
@@ -111,13 +112,40 @@ export default function StaffContractPage({ params }: { params: Promise<{ userId
                   staff.reload();
                 }}
               />
-              {c && <EndDialog open={ending} userId={userId} startDate={isoDate(c.start_date)} onClose={() => setEnding(false)} onDone={() => (toast(t('hr.contract.endedToast')), q.reload(), staff.reload())} />}
+              {c && <EndDialog open={ending} userId={userId} startDate={isoDate(c.start_date)} onClose={() => setEnding(false)} onDone={(r) => (toast(t('hr.contract.endedToast')), setEndResult(r), q.reload(), staff.reload())} />}
             </div>
           );
         }}
       </DataState>
+      <Dialog open={!!endResult} onClose={() => setEndResult(null)} title={t('hr.contract.endedToast')}>
+        {endResult && (
+          <div className="flex flex-col gap-3">
+            <Alert tone={endResult.leavePayout > 0 ? 'success' : 'info'}>{endResultText(t, locale, endResult)}</Alert>
+            {endResult.unusedLeaveDays < 0 && <p className="text-sm text-warning">{t('hr.contract.endNegative')}</p>}
+            <div className="flex justify-end">
+              <Button onClick={() => setEndResult(null)}>{t('common.close')}</Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
+}
+
+/** POST /hr/staff/:userId/contract/end: unused annual leave and what was added to the final month's payroll. */
+interface EndResult {
+  ok: boolean;
+  unusedLeaveDays: number;
+  /** Piastres; 0 when not paid (option unticked, nothing unused, or not a monthly salary). */
+  leavePayout: number;
+  payoutMonth: string;
+}
+
+function endResultText(t: ReturnType<typeof useI18n>['t'], locale: 'ar' | 'en', r: EndResult): string {
+  const days = num(r.unusedLeaveDays);
+  if (num(r.leavePayout) > 0) return t('hr.contract.endPaid', { days: daysCount(t, days), amount: formatMoney(num(r.leavePayout), locale), month: fmtMonth(r.payoutMonth) });
+  if (days > 0) return t('hr.contract.endNotPaid', { days: daysCount(t, days) });
+  return t('hr.contract.endNoLeave');
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -150,8 +178,9 @@ function ContractDetails({ c }: { c: ContractView }) {
         </Row>
         <Row label={t('hr.workPattern')}>
           <span>
-            {patternDays(t, c.work_pattern)} · {c.work_pattern.start}–{c.work_pattern.end}
+            {patternDays(t, c.work_pattern)} · {shiftText(t, c.work_pattern)}
           </span>
+          <span className="block text-xs text-muted">{t('hr.pattern.paidDay', { d: duration(t, paidMinutes(c.work_pattern)) })}</span>
         </Row>
       </dl>
       {c.base_salary !== undefined && (
@@ -244,7 +273,9 @@ function initialForm(c: ContractView | null, clinicId: string): ContractForm {
     socialInsuranceNumber: c?.social_insurance_number ?? '',
     bankName: c?.bank_name ?? '',
     iban: '',
-    workPattern: c?.work_pattern ? { days: [...c.work_pattern.days], start: c.work_pattern.start, end: c.work_pattern.end } : { ...DEFAULT_WORK_PATTERN, days: [...DEFAULT_WORK_PATTERN.days] },
+    workPattern: c?.work_pattern
+      ? { days: [...c.work_pattern.days], start: c.work_pattern.start, end: c.work_pattern.end, ...(c.work_pattern.breakStart && c.work_pattern.breakEnd ? { breakStart: c.work_pattern.breakStart, breakEnd: c.work_pattern.breakEnd } : {}) }
+      : { ...DEFAULT_WORK_PATTERN, days: [...DEFAULT_WORK_PATTERN.days] },
     dateOfBirth: c?.date_of_birth ? isoDate(c.date_of_birth) : '',
   };
 }
@@ -289,6 +320,11 @@ function ContractDialog({ open, userId, name, current, onClose, onSaved }: { ope
     if (iban && !IBAN_RE.test(iban)) e.iban = t('hr.contract.ibanInvalid');
     if (!f.workPattern.days.length) e.workPattern = t('hr.pattern.noDays');
     if (f.workPattern.end <= f.workPattern.start) e.workPattern = t('hr.pattern.endBeforeStart');
+    else if (f.workPattern.breakStart !== undefined || f.workPattern.breakEnd !== undefined) {
+      const { breakStart: bs = '', breakEnd: be = '' } = f.workPattern;
+      if (!bs || !be) e.workPattern = t('hr.pattern.breakBoth');
+      else if (!(bs > f.workPattern.start && be > bs && be < f.workPattern.end)) e.workPattern = t('hr.pattern.breakInside');
+    }
     if (f.endDate && f.endDate < f.startDate) e.endDate = t('err.end_before_start');
     setErrors(e);
     if (Object.keys(e).length) return null;
@@ -307,7 +343,12 @@ function ContractDialog({ open, userId, name, current, onClose, onSaved }: { ope
       bankName: f.bankName.trim() || null,
       // Omitted keeps the stored IBAN; null clears it.
       iban: iban ? iban : clearIban ? null : undefined,
-      workPattern: { days: [...f.workPattern.days].sort(), start: f.workPattern.start, end: f.workPattern.end },
+      workPattern: {
+        days: [...f.workPattern.days].sort(),
+        start: f.workPattern.start,
+        end: f.workPattern.end,
+        ...(f.workPattern.breakStart && f.workPattern.breakEnd ? { breakStart: f.workPattern.breakStart, breakEnd: f.workPattern.breakEnd } : {}),
+      },
       dateOfBirth: f.dateOfBirth || null,
     };
   }
@@ -428,9 +469,10 @@ function ContractDialog({ open, userId, name, current, onClose, onSaved }: { ope
   );
 }
 
-function EndDialog({ open, userId, startDate, onClose, onDone }: { open: boolean; userId: string; startDate: string; onClose: () => void; onDone: () => void }) {
+function EndDialog({ open, userId, startDate, onClose, onDone }: { open: boolean; userId: string; startDate: string; onClose: () => void; onDone: (r: EndResult) => void }) {
   const { t } = useI18n();
   const [endDate, setEndDate] = useState(todayCairo());
+  const [payUnusedLeave, setPayUnusedLeave] = useState(true);
   return (
     <ReasonDialog
       open={open}
@@ -439,11 +481,18 @@ function EndDialog({ open, userId, startDate, onClose, onDone }: { open: boolean
       onClose={onClose}
       onSubmit={async (reason) => {
         if (endDate < startDate) throw new ApiError(400, 'end_before_start');
-        await post(`/hr/staff/${userId}/contract/end`, { endDate, reason });
-        onDone();
+        try {
+          onDone(await post<EndResult>(`/hr/staff/${userId}/contract/end`, { endDate, reason, payUnusedLeave }));
+        } catch (e) {
+          // The final month's payroll is approved: the payout cannot be added there (nothing was changed).
+          if (e instanceof ApiError && e.code === 'payroll_period_closed') throw new ApiError(e.status, 'leave_payout_period_closed', { month: fmtMonth(endDate.slice(0, 7)) });
+          throw e;
+        }
       }}
     >
       <TextField label={t('hr.contract.endDate')} type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} hint={t('hr.contract.endHint')} />
+      <Check label={t('hr.contract.payUnusedLeave')} checked={payUnusedLeave} onChange={setPayUnusedLeave} hint={t('hr.contract.payUnusedLeaveHint')} />
+      <p className="text-xs text-muted">{t('hr.contract.endNegativeHint')}</p>
     </ReasonDialog>
   );
 }

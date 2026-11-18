@@ -523,6 +523,14 @@ export interface WorkPattern {
   days: number[];
   start: string;
   end: string;
+  /** Optional unpaid break inside the day (split shift): both or neither. */
+  breakStart?: string;
+  breakEnd?: string;
+}
+/** One clock-in/out pair (ISO times); only the day's last pair may be open. */
+export interface Punch {
+  in: string;
+  out: string | null;
 }
 export interface HrContract {
   id: string;
@@ -541,14 +549,19 @@ export interface AttendanceRecord {
   work_date: string;
   /** Present on month rows (to_char of work_date). */
   day?: string;
+  /** First arrival and last departure (null while a pair is open). */
   clock_in: string | null;
   clock_out: string | null;
+  /** Every clock-in/out pair of the day (up to 6); older responses have only clock_in/clock_out. */
+  punches?: Punch[] | null;
   source: 'console' | 'mobile' | 'manual' | 'system';
   status: 'open' | 'complete' | 'incomplete' | 'absent' | 'on_leave' | 'holiday' | 'rest_day';
   late_minutes: number;
   early_leave_minutes: number;
   worked_minutes: number;
   overtime_minutes: number;
+  /** Part of overtime_minutes inside the night window (paid at the night multiplier). */
+  overtime_night_minutes?: number;
   rest_day: boolean;
   overtime_approved: boolean;
   /** Explicit overtime decision (Sprint 20); rejected overtime is not paid. */
@@ -621,6 +634,8 @@ export interface MonthSummary {
   unpaidLeaveDays: number;
   latenessMinutes: number;
   overtimeMinutes: number;
+  /** Part of overtimeMinutes worked in the night window. */
+  nightOvertimeMinutes?: number;
   restDayOvertimeMinutes: number;
   pendingOvertimeMinutes: number;
   futureDays: number;
@@ -668,8 +683,10 @@ export interface PayslipLine {
   /** Positive piastres; `kind` says whether it adds to or reduces pay (employer lines are for information). */
   amount: number;
   kind: 'earning' | 'deduction' | 'employer';
-  /** e.g. "3 d", "125 min", "4.5 h", "11%", "12/30". */
+  /** e.g. "3 d", "125 min", "4.5 h", "11%", "12/30", or a free-text note (adjustments). */
   basis?: string;
+  /** The same quantity as data (Sprint 21); absent for free-text notes and older payslips. */
+  quantity?: { value: number; unit: 'minutes' | 'days' | 'hours' | 'percent' | 'days_of'; of?: number };
 }
 export interface MyPayslip {
   id: string;

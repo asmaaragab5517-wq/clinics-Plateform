@@ -3,7 +3,7 @@ import { WEEK_ORDER } from '@hf/shared';
 import { HrClockCard } from '../../components/HrClockCard';
 import { Card, ErrorBox, ListItem, Muted, Row, Screen, Section, T } from '../../components/ui';
 import { hrApi } from '../../lib/endpoints';
-import { daysText, jobTitle, wallTime, todayCairo } from '../../lib/hr';
+import { daysText, jobTitle, shiftHours, todayCairo } from '../../lib/hr';
 import { useI18n } from '../../lib/i18n';
 import { useQuery } from '../../lib/useQuery';
 import type { TKey } from '../../lib/i18n';
@@ -27,7 +27,7 @@ export default function MyHr() {
             <T style={{ fontWeight: '700' }}>{jobTitle(c, locale)}</T>
             <Muted>{`${t(`hr.contract.type.${c.employment_type}` as TKey)} · ${t(`hr.contract.basis.${c.pay_basis}` as TKey)}`}</Muted>
             <T style={{ marginTop: 6 }}>
-              {t('hr.contract.hours', { start: wallTime(today, c.work_pattern.start, locale), end: wallTime(today, c.work_pattern.end, locale) })}
+              {t('hr.contract.hoursText', { hours: shiftHours(c.work_pattern, today, locale, t) })}
             </T>
             <Muted>{WEEK_ORDER.filter((d) => c.work_pattern.days.includes(d)).map((d) => t(`hr.weekday.${d}` as TKey)).join(t('hr.listSep'))}</Muted>
           </Card>

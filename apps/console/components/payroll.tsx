@@ -10,7 +10,7 @@ import { useToast } from './toast';
 import { del, post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { biName, num, parseEgp } from '@/lib/format';
-import { fmtMonth, type PayrollPerson, type PayslipLine } from '@/lib/hr';
+import { fmtMonth, lineQuantity, type PayrollPerson, type PayslipLine } from '@/lib/hr';
 
 export interface RunTotals {
   net: number;
@@ -64,7 +64,7 @@ export interface Payslip {
 /** Not taxable by default on the API side; the form mirrors that. */
 const NON_TAXABLE = new Set(['reimbursement', 'advance', 'advance_repayment']);
 /** Kinds that add to pay (the rest reduce it). */
-const EARNING_KINDS = new Set(['bonus', 'allowance', 'overtime', 'reimbursement', 'advance']);
+const EARNING_KINDS = new Set(['bonus', 'allowance', 'overtime', 'reimbursement', 'advance', 'leave_encashment']);
 
 interface Adjustment {
   id: string;
@@ -126,7 +126,7 @@ export function Adjustments({ month, closed, onChanged }: { month: string; close
                       <Money value={EARNING_KINDS.has(r.kind) ? num(r.amount) : -num(r.amount)} locale={locale} />
                     </td>
                     <td>{r.taxable ? t('common.yes') : t('common.no')}</td>
-                    <td className="text-xs">{r.note}</td>
+                    <td className="text-xs">{r.kind === 'leave_encashment' ? lineQuantity(t, { basis: r.note ?? undefined }).text ?? r.note : r.note}</td>
                     {edit && (
                       <td>
                         <Button size="sm" variant="ghost" onClick={() => setRemoving(r)}>

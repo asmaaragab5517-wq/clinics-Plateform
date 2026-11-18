@@ -126,5 +126,5 @@
   "msg.staff_invite": "You were invited to HealthFlow Clinics: {{link}}",
   "msg.shift_variance_alert": "Shift {{shift}} closed with variance {{amount}}.",
   "msg.director_daily_summary": "Daily summary for {{date}}",
-  "msg.waitlist_offer": "{{doctor}} now has an opening {{date}}. Book it before it goes: {{link}}"
+  "msg.waitlist_offer": "{{doctor}} now has an opening{{date}}. Book it before it goes: {{link}}"
 }

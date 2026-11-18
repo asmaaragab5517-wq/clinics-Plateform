@@ -9,7 +9,7 @@ import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
 import { patch, post } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
-import { biName } from '@/lib/format';
+import { asciiDigits, biName } from '@/lib/format';
 
 interface ClinicRow {
   id: string;
@@ -19,6 +19,9 @@ interface ClinicRow {
   governorate: string;
   city: string;
   address_lines: string;
+  /** numeric columns; may arrive as strings. */
+  lat: number | string | null;
+  lng: number | string | null;
   phones: string[];
   email: string | null;
   working_hours: { weekday: number; open: string; close: string }[];
@@ -38,6 +41,8 @@ const empty = () => ({
   governorate: 'cairo',
   city: '',
   addressLines: '',
+  lat: '',
+  lng: '',
   phones: '',
   email: '',
   hours: Object.fromEntries(WEEK_ORDER.map((d) => [d, d === 5 ? { on: false, open: '10:00', close: '22:00' } : { on: true, open: '10:00', close: '22:00' }])) as Record<number, { on: boolean; open: string; close: string }>,
@@ -66,9 +71,10 @@ export default function ClinicsAdminPage() {
     const hours = empty().hours;
     for (const d of WEEK_ORDER) hours[d] = { on: false, open: '10:00', close: '22:00' };
     for (const h of c.working_hours ?? []) hours[h.weekday] = { on: true, open: h.open, close: h.close };
-    setF({ ar: c.name_ar, en: c.name_en, slug: c.slug, governorate: GOVERNORATES.find((g) => g.ar === c.governorate || g.slug === c.governorate)?.slug ?? 'cairo', city: c.city, addressLines: c.address_lines, phones: (c.phones ?? []).join(', '), email: c.email ?? '', hours, primary: c.colours?.primary ?? '#0f766e', invoiceFooter: c.invoice_footer, isPublic: c.is_public, isActive: c.is_active, legalEntityId: c.legal_entity_id ?? '', specialtyIds: c.specialty_ids ?? [] });
+    setF({ ar: c.name_ar, en: c.name_en, slug: c.slug, governorate: GOVERNORATES.find((g) => g.ar === c.governorate || g.slug === c.governorate)?.slug ?? 'cairo', city: c.city, addressLines: c.address_lines, lat: c.lat === null || c.lat === undefined ? '' : String(c.lat), lng: c.lng === null || c.lng === undefined ? '' : String(c.lng), phones: (c.phones ?? []).join(', '), email: c.email ?? '', hours, primary: c.colours?.primary ?? '#0f766e', invoiceFooter: c.invoice_footer, isPublic: c.is_public, isActive: c.is_active, legalEntityId: c.legal_entity_id ?? '', specialtyIds: c.specialty_ids ?? [] });
   };
   const gov = GOVERNORATES.find((g) => g.slug === f.governorate);
+  const pos = parsePosition(f.lat, f.lng);
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={t('nav.clinicsAdmin')} actions={can('clinic:create') ? <Button onClick={() => start(null)}>{t('clin.new')}</Button> : null} />
@@ -113,12 +119,14 @@ export default function ClinicsAdminPage() {
             className="flex flex-col gap-3"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (pos.error) return a.setError(t(pos.error));
               const body = {
                 name: { ar: f.ar, en: f.en },
                 slug: f.slug,
                 governorate: gov?.ar ?? f.governorate,
                 city: f.city,
                 addressLines: f.addressLines,
+                ...(pos.value ? { lat: pos.value.lat, lng: pos.value.lng } : {}),
                 phones: f.phones.split(/[,\u060C]/).map((x) => x.trim()).filter(Boolean),
                 email: f.email || undefined,
                 workingHours: WEEK_ORDER.filter((d) => f.hours[d]?.on).map((d) => ({ weekday: d, open: f.hours[d]!.open, close: f.hours[d]!.close })),
@@ -145,6 +153,34 @@ export default function ClinicsAdminPage() {
               <TextField label={t('pat.email')} type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} dir="ltr" />
             </div>
             <TextField label={t('pat.address')} value={f.addressLines} onChange={(e) => setF({ ...f, addressLines: e.target.value })} />
+            <fieldset className="flex flex-col gap-2 rounded-xl border border-border p-3">
+              <legend className="px-1 text-sm font-medium">{t('clin.location')}</legend>
+              <p className="text-xs text-muted">{t('clin.locationHint')}</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <TextField
+                  label={t('clin.lat')}
+                  value={f.lat}
+                  inputMode="decimal"
+                  dir="ltr"
+                  placeholder="30.04442"
+                  onChange={(e) => {
+                    // A pasted "lat, lng" pair from Google Maps fills both fields.
+                    const pair = splitPair(e.target.value);
+                    setF(pair ? { ...f, lat: pair[0], lng: pair[1] } : { ...f, lat: e.target.value });
+                  }}
+                  error={pos.field === 'lat' ? t(pos.error!) : undefined}
+                />
+                <TextField label={t('clin.lng')} value={f.lng} inputMode="decimal" dir="ltr" placeholder="31.23571" onChange={(e) => setF({ ...f, lng: e.target.value })} error={pos.field === 'lng' ? t(pos.error!) : undefined} />
+              </div>
+              {pos.value && !pos.inEgypt && <Alert tone="warning">{t('clin.locationOutsideEgypt')}</Alert>}
+              {pos.value && (
+                <a className="self-start text-sm text-primary underline" href={`https://www.google.com/maps?q=${pos.value.lat},${pos.value.lng}`} target="_blank" rel="noopener noreferrer">
+                  {t('clin.locationCheck')}
+                </a>
+              )}
+              {editing && editing.lat !== null && editing.lat !== undefined && <p className="text-xs text-muted">{t('clin.locationKeep')}</p>}
+              {editing && (editing.lat === null || editing.lat === undefined) && <p className="text-xs text-muted">{t('clin.locationMissing')}</p>}
+            </fieldset>
             <TextField label={t('pat.phones')} hint={t('pat.phonesHint')} value={f.phones} onChange={(e) => setF({ ...f, phones: e.target.value })} dir="ltr" />
             <fieldset className="rounded-xl border border-border p-3">
               <legend className="px-1 text-sm font-medium">{t('clin.hours')}</legend>
@@ -189,4 +225,28 @@ export default function ClinicsAdminPage() {
       </div>
     </div>
   );
+}
+
+const ascii = asciiDigits;
+
+/** "30.04442, 31.23571" (as Google Maps copies a dropped pin) split into its two numbers, or null. */
+function splitPair(v: string): [string, string] | null {
+  const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,\u060C\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(ascii(v));
+  return m ? [m[1]!, m[2]!] : null;
+}
+
+/**
+ * Clinic map position for the clock-in radius rule. Both numbers or neither; the API accepts any position on Earth,
+ * so a position outside Egypt (latitude 22–32, longitude 24–37) is a warning, not an error.
+ */
+function parsePosition(latIn: string, lngIn: string): { value: { lat: number; lng: number } | null; inEgypt: boolean; error: string | null; field: 'lat' | 'lng' | null } {
+  const la = ascii(latIn);
+  const ln = ascii(lngIn);
+  if (!la && !ln) return { value: null, inEgypt: true, error: null, field: null };
+  const re = /^-?\d+(\.\d+)?$/;
+  if (!la || !re.test(la) || Math.abs(Number(la)) > 90) return { value: null, inEgypt: true, error: 'clin.latInvalid', field: 'lat' };
+  if (!ln || !re.test(ln) || Math.abs(Number(ln)) > 180) return { value: null, inEgypt: true, error: 'clin.lngInvalid', field: 'lng' };
+  const lat = Number(la);
+  const lng = Number(ln);
+  return { value: { lat, lng }, inEgypt: lat >= 22 && lat <= 32 && lng >= 24 && lng <= 37, error: null, field: null };
 }

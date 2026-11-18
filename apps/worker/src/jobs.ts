@@ -137,7 +137,7 @@ export async function followUpsAndWaitlist(c: JobContext, siteUrl: string) {
         // First-come: the oldest waiting entry is offered first; one offer per run per doctor.
         await tx.query(`update waitlist set status = 'offered', offered_at = now() where id = $1`, [w.id]);
         const doctor = await tx.maybeOne<{ name_ar: string }>('select name_ar from users where id = $1', [w.doctor_id]);
-        await c.messaging.enqueue(tx, { event: 'waitlist_offer', patientId: w.patient_id, clinicId: w.clinic_id, dedupeKey: `waitlist:${w.id}`, data: { path: '/book' }, vars: { doctor: doctor?.name_ar ?? '', date: `${slot.date} ${slot.localStart}`, link: `${siteUrl}/ar/book?doctor=${w.doctor_id}` } });
+        await c.messaging.enqueue(tx, { event: 'waitlist_offer', patientId: w.patient_id, clinicId: w.clinic_id, dedupeKey: `waitlist:${w.id}`, data: { path: '/book' }, vars: { doctor: doctor?.name_ar ?? '', date: ` ${slot.date} ${slot.localStart}`, link: `${siteUrl}/ar/book?doctor=${w.doctor_id}` } });
       }
       await tx.query(`update waitlist set status = 'expired' where status in ('waiting','offered') and coalesce(latest, earliest + 30) < current_date`);
     });

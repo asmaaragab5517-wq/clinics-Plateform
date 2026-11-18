@@ -1,7 +1,7 @@
 import { addDays, localDate, startOfWeek, weekdayOf, zonedToUtc, type Locale } from '@hf/shared';
 import type { TKey } from './i18n';
 import { time } from './format';
-import type { AttendanceRecord, HrContract, HrMonth, HrRequestStatus, PayslipLine, WorkPattern } from './types';
+import type { AttendanceRecord, HrContract, HrMonth, HrRequestStatus, PayslipLine, Punch, WorkPattern } from './types';
 
 /** Staff HR display helpers (attendance, leave and payslips). Dates are Cairo calendar days (YYYY-MM-DD). */
 type Translate = (key: TKey, vars?: Record<string, string | number>) => string;
@@ -30,6 +30,31 @@ export function minutesText(n: number, t: Translate): string {
 export const wallTime = (day: string, hhmm: string, locale: Locale) => time(zonedToUtc(day, hhmm.slice(0, 5)), locale);
 
 export const isWorkDay = (pattern: WorkPattern, day: string) => pattern.days.includes(weekdayOf(day));
+
+/** Shift hours as "09:00 – 21:00" (12-hour like other times), plus ", break 13:00 – 17:00" for a split shift. */
+export function shiftHours(p: WorkPattern, day: string, locale: Locale, t: Translate): string {
+  const hours = `${wallTime(day, p.start, locale)} – ${wallTime(day, p.end, locale)}`;
+  return p.breakStart && p.breakEnd ? t('hr.shift.withBreak', { hours, from: wallTime(day, p.breakStart, locale), to: wallTime(day, p.breakEnd, locale) }) : hours;
+}
+
+/** The day's clock-in/out pairs, falling back to the first arrival and last departure for older records. */
+export function punchesOf(r: Pick<AttendanceRecord, 'clock_in' | 'clock_out' | 'punches'>): Punch[] {
+  if (r.punches?.length) return r.punches;
+  return r.clock_in ? [{ in: r.clock_in, out: r.clock_out }] : [];
+}
+
+/** Most clock-in/out pairs one day can hold (409 too_many_clock_ins beyond). */
+export const MAX_PUNCHES = 6;
+
+/** "In 09:02 · Out 13:00 · In 17:05". */
+export function punchesText(r: Pick<AttendanceRecord, 'clock_in' | 'clock_out' | 'punches'>, locale: Locale, t: Translate): string {
+  const parts: string[] = [];
+  for (const p of punchesOf(r)) {
+    parts.push(t('hr.punch.in', { time: time(p.in, locale) }));
+    if (p.out) parts.push(t('hr.punch.out', { time: time(p.out, locale) }));
+  }
+  return parts.join(' · ');
+}
 
 export const jobTitle = (c: HrContract, locale: Locale) => (locale === 'en' && c.job_title_en) || c.job_title_ar;
 
@@ -105,6 +130,26 @@ export const weekOf = (day: string) => startOfWeek(day);
 // ---- Payslips --------------------------------------------------------------------------------------------------
 
 export const lineLabel = (l: PayslipLine, locale: Locale) => (locale === 'en' ? l.labelEn || l.labelAr : l.labelAr || l.labelEn);
+
+/**
+ * A payslip line's quantity in the reader's language ("3 أيام", "125 دقيقة", "15 من 30 يومًا", "11٪"): the structured
+ * `quantity` when present, else the English `basis` through the parser below. Text that is not a quantity is a note.
+ */
+export function lineQuantity(l: Pick<PayslipLine, 'basis' | 'quantity'>, t: Translate): { text: string | null; note: string | null } {
+  const q = l.quantity;
+  if (q) {
+    const v = Math.round(Number(q.value) * 100) / 100;
+    if (q.unit === 'minutes') return { text: t('hr.min', { m: v }), note: null };
+    if (q.unit === 'days') return { text: daysText(v, t), note: null };
+    if (q.unit === 'hours') return { text: t('hr.hours', { h: v }), note: null };
+    if (q.unit === 'percent') return { text: t('hr.qty.percent', { n: v }), note: null };
+    return { text: t('hr.qty.daysOf', { n: v, of: Number(q.of ?? 0) }), note: null };
+  }
+  const b = l.basis?.trim();
+  if (!b) return { text: null, note: null };
+  const parsed = basisText(b, t);
+  return parsed !== b || /^\d+(\.\d+)?%$|^\d+\/\d+$/.test(b) ? { text: parsed, note: null } : { text: null, note: b };
+}
 
 /** The payroll engine writes bases in English units ("3 d", "125 min", "4.5 h"); percentages and "12/30" pass through. */
 export function basisText(basis: string | undefined, t: Translate): string | null {

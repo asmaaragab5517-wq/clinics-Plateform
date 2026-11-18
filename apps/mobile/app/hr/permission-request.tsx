@@ -6,7 +6,7 @@ import { ActionButton, Banner, Button, Chip, Field, Muted, Screen, Section, T, c
 import { isApiError } from '../../lib/api';
 import { hrApi } from '../../lib/endpoints';
 import { parseHhmm, parseYmd } from '../../lib/format';
-import { isWorkDay, minutesText, todayCairo } from '../../lib/hr';
+import { isWorkDay, minutesText, monthLabel, todayCairo } from '../../lib/hr';
 import { useI18n, type TKey } from '../../lib/i18n';
 import { useAction, useQuery } from '../../lib/useQuery';
 import type { PermissionKind } from '../../lib/types';
@@ -29,7 +29,12 @@ export default function PermissionRequestScreen() {
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
   const pattern = me.data?.contract?.work_pattern ?? null;
-  const allowance = me.data?.permissionAllowance ?? null;
+  const dayYmd = parseYmd(day);
+  // The allowance of the month being requested: GET /hr/me?month= when it is not the current month.
+  const reqMonth = dayYmd?.slice(0, 7) ?? null;
+  const thisMonth = !reqMonth || reqMonth === todayCairo().slice(0, 7);
+  const other = useQuery(!thisMonth ? `hr:me:${reqMonth}` : null, () => hrApi.meForMonth(reqMonth!));
+  const allowance = (thisMonth ? me.data?.permissionAllowance : other.loading ? null : other.data?.permissionAllowance) ?? null;
   const left = allowance ? { n: Math.max(0, allowance.perMonth - allowance.used), minutes: Math.max(0, allowance.minutesPerMonth - allowance.usedMinutes) } : null;
 
   const pickKind = (k: PermissionKind) => {
@@ -45,7 +50,6 @@ export default function PermissionRequestScreen() {
     }
   };
 
-  const dayYmd = parseYmd(day);
   const startHm = parseHhmm(start);
   const endHm = parseHhmm(end);
   const dayError = touched && !dayYmd ? t('hr.form.dateFormat') : null;
@@ -91,7 +95,11 @@ export default function PermissionRequestScreen() {
       <Field label={t('hr.permission.day')} value={day} onChangeText={setDay} ltr keyboardType="numbers-and-punctuation" maxLength={10} placeholder="2026-01-31" error={dayError} />
       {pattern && dayYmd ? (
         <Muted style={{ marginTop: -6, marginBottom: 12 }}>
-          {isWorkDay(pattern, dayYmd) ? t('hr.permission.shift', { start: pattern.start, end: pattern.end }) : t('hr.permission.restDay')}
+          {isWorkDay(pattern, dayYmd)
+            ? pattern.breakStart && pattern.breakEnd
+              ? t('hr.permission.shiftBreak', { start: pattern.start, end: pattern.end, from: pattern.breakStart, to: pattern.breakEnd })
+              : t('hr.permission.shift', { start: pattern.start, end: pattern.end })
+            : t('hr.permission.restDay')}
         </Muted>
       ) : null}
       <Field label={t('hr.permission.from')} value={start} onChangeText={setStart} ltr keyboardType="numbers-and-punctuation" maxLength={5} placeholder="09:00" error={startError} />
@@ -101,10 +109,16 @@ export default function PermissionRequestScreen() {
       {allowance && left ? (
         <View style={{ marginBottom: 12 }}>
           <T style={{ fontWeight: '600' }}>
-            {t('hr.permission.left', { n: left.n, of: allowance.perMonth, time: minutesText(left.minutes, t), ofTime: minutesText(allowance.minutesPerMonth, t) })}
+            {t(thisMonth ? 'hr.permission.left' : 'hr.permission.leftIn', {
+              n: left.n,
+              of: allowance.perMonth,
+              time: minutesText(left.minutes, t),
+              ofTime: minutesText(allowance.minutesPerMonth, t),
+              month: reqMonth ? monthLabel(reqMonth, t) : '',
+            })}
           </T>
-          {left.n === 0 || left.minutes === 0 ? <Banner kind="warn">{t('hr.permission.noneLeft')}</Banner> : null}
-          {minutes !== null && left.n > 0 && minutes > left.minutes && dayYmd?.slice(0, 7) === todayCairo().slice(0, 7) ? (
+          {left.n === 0 || left.minutes === 0 ? <Banner kind="warn">{t(thisMonth ? 'hr.permission.noneLeft' : 'hr.permission.noneLeftIn', { month: reqMonth ? monthLabel(reqMonth, t) : '' })}</Banner> : null}
+          {minutes !== null && left.n > 0 && minutes > left.minutes ? (
             <Banner kind="warn">{t('hr.permission.overMinutes', { time: minutesText(left.minutes, t) })}</Banner>
           ) : null}
         </View>

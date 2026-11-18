@@ -47,6 +47,9 @@ interface RulesForm {
   deductLateness: boolean;
   overtimeMultiplier: string;
   restDayMultiplier: string;
+  nightOvertimeMultiplier: string;
+  nightStart: string;
+  nightEnd: string;
   daysPerMonth: string;
   siYear: string;
   siEmployee: string;
@@ -66,6 +69,9 @@ function toForm(s: HrSettings): RulesForm {
     deductLateness: s.deductLateness,
     overtimeMultiplier: String(s.overtimeMultiplier),
     restDayMultiplier: String(s.restDayMultiplier),
+    nightOvertimeMultiplier: String(s.nightOvertimeMultiplier),
+    nightStart: s.nightStart,
+    nightEnd: s.nightEnd,
     daysPerMonth: String(s.daysPerMonth),
     siYear: String(s.socialInsurance.year),
     siEmployee: String(toPercent(s.socialInsurance.employeeRate)),
@@ -105,6 +111,10 @@ function Rules() {
       if (!v.trim() || !Number.isFinite(n) || n < min || n > max) e[k] = t('hr.set.range', { min, max });
       return n;
     };
+    const hhmm = (k: string, v: string) => {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v)) e[k] = t('hr.set.timeInvalid');
+      return v;
+    };
     const money = (k: string, v: string) => {
       const p = parseEgp(v);
       if (p === null) e[k] = t('form.invalidAmount');
@@ -117,6 +127,9 @@ function Rules() {
       deductLateness: x.deductLateness,
       overtimeMultiplier: dec('overtimeMultiplier', x.overtimeMultiplier, 1, 5),
       restDayMultiplier: dec('restDayMultiplier', x.restDayMultiplier, 1, 5),
+      nightOvertimeMultiplier: dec('nightOvertimeMultiplier', x.nightOvertimeMultiplier, 1, 5),
+      nightStart: hhmm('nightStart', x.nightStart),
+      nightEnd: hhmm('nightEnd', x.nightEnd),
       daysPerMonth: int('daysPerMonth', x.daysPerMonth, 20, 31),
       socialInsurance: {
         year: int('siYear', x.siYear, 2020, 2100),
@@ -173,6 +186,14 @@ function Rules() {
                     </div>
                     <TextField label={t('hr.set.otMultiplier')} type="number" step={0.05} min={1} max={5} value={x.overtimeMultiplier} onChange={(e) => set({ overtimeMultiplier: e.target.value })} error={errors.overtimeMultiplier} dir="ltr" />
                     <TextField label={t('hr.set.restMultiplier')} type="number" step={0.05} min={1} max={5} value={x.restDayMultiplier} onChange={(e) => set({ restDayMultiplier: e.target.value })} error={errors.restDayMultiplier} dir="ltr" />
+                    <div className="md:col-span-2">
+                      <p className="text-sm font-medium">{t('hr.set.night')}</p>
+                      <p className="text-xs text-muted">{t('hr.set.nightHint')}</p>
+                    </div>
+                    <TextField label={t('hr.set.nightMultiplier')} type="number" step={0.05} min={1} max={5} value={x.nightOvertimeMultiplier} onChange={(e) => set({ nightOvertimeMultiplier: e.target.value })} error={errors.nightOvertimeMultiplier} dir="ltr" />
+                    <div />
+                    <TextField label={t('hr.set.nightStart')} type="time" value={x.nightStart} onChange={(e) => set({ nightStart: e.target.value })} error={errors.nightStart} />
+                    <TextField label={t('hr.set.nightEnd')} type="time" value={x.nightEnd} onChange={(e) => set({ nightEnd: e.target.value })} error={errors.nightEnd} hint={t('hr.set.nightEndHint')} />
                   </div>
                 </Section>
                 <Section title={t('hr.set.si')}>

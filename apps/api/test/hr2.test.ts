@@ -99,6 +99,7 @@ describe('Sprint 20: clock-in location, overtime decisions, settings, previews',
     expect(stored).toEqual({ graceMinutes: 10 }); // 30 equals the default, so it is not pinned
     const bad = await h.http().patch('/v1/hr/settings').set(auth(h.staff.owner!)).send({ socialInsurance: { year: 2026, employeeRate: 0.11, employerRate: 0.1875, minWage: 500000, maxWage: 100000 } });
     expect(bad.body.error).toBe('insurable_wage_limits_invalid');
+    expect((await h.http().patch('/v1/hr/settings').set(auth(h.staff.owner!)).send({ nightStart: '19:00', nightEnd: '19:00' })).body.error).toBe('night_window_invalid');
     const reset = await h.http().delete('/v1/hr/settings').set(auth(h.staff.owner!));
     expect(reset.body.graceMinutes).toBe(15);
   });
@@ -116,6 +117,14 @@ describe('Sprint 20: clock-in location, overtime decisions, settings, previews',
 
   it('pays unused annual leave in the final month when employment ends', async () => {
     // Reception joined 2026-01-01 on 8,000 EGP: 15 days for the first year, 15 × 181/365 = 7.4 → 7 days earned by 30 June.
+    const preview = await h.http().get(`/v1/hr/staff/${id.reception}/contract/end-preview?endDate=2026-06-30`).set(auth(h.staff.owner!));
+    expect(preview.body).toMatchObject({ unusedLeaveDays: 7, leavePayout: 186667, payoutMonth: '2026-06', payrollMonthClosed: false });
+    // When June's payroll is already approved the payout cannot be added: refused, and employment stays active.
+    const run = await admin.query(`insert into payroll_runs (organisation_id, period, status) values ($1, '2026-06-01', 'approved') returning id`, [h.env.demo.orgId]);
+    expect((await h.http().get(`/v1/hr/staff/${id.reception}/contract/end-preview?endDate=2026-06-30`).set(auth(h.staff.owner!))).body.payrollMonthClosed).toBe(true);
+    expect((await h.http().post(`/v1/hr/staff/${id.reception}/contract/end`).set(auth(h.staff.owner!)).send({ endDate: '2026-06-30', reason: 'Resigned' })).body.error).toBe('payroll_period_closed');
+    expect((await admin.query(`select status from employment_contracts where user_id = $1`, [id.reception])).rows[0].status).toBe('active');
+    await admin.query('delete from payroll_runs where id = $1', [run.rows[0].id]);
     const r = await h.http().post(`/v1/hr/staff/${id.reception}/contract/end`).set(auth(h.staff.owner!)).send({ endDate: '2026-06-30', reason: 'Resigned' });
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body).toMatchObject({ unusedLeaveDays: 7, leavePayout: Math.round((7 * 800000) / 30), payoutMonth: '2026-06' });

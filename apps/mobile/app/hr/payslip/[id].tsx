@@ -1,9 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { View } from 'react-native';
 import { Button, Card, Empty, ErrorBox, Loading, Muted, Row, Screen, Section, StatusBadge, T, colors } from '../../../components/ui';
 import { hrApi } from '../../../lib/endpoints';
 import { money } from '../../../lib/format';
-import { basisText, lineLabel, monthLabel } from '../../../lib/hr';
+import { lineLabel, lineQuantity, monthLabel } from '../../../lib/hr';
 import { useI18n } from '../../../lib/i18n';
 import { useAction, useQuery } from '../../../lib/useQuery';
 import type { PayslipLine } from '../../../lib/types';
@@ -24,13 +25,16 @@ export default function PayslipDetail() {
     lines.length ? (
       <Card>
         {lines.map((l, i) => {
-          const basis = basisText(l.basis, t);
+          const q = lineQuantity(l, t);
           return (
             <Row key={`${l.code}:${i}`} style={{ justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 }}>
-              <T style={{ flex: 1 }}>
-                {lineLabel(l, locale)}
-                {basis ? <T style={{ color: colors.muted, fontSize: 13 }}>{` (${basis})`}</T> : null}
-              </T>
+              <View style={{ flex: 1 }}>
+                <T>
+                  {lineLabel(l, locale)}
+                  {q.text ? <T style={{ color: colors.muted, fontSize: 13 }}>{` (${q.text})`}</T> : null}
+                </T>
+                {q.note ? <Muted style={{ fontSize: 12 }}>{q.note}</Muted> : null}
+              </View>
               <T style={{ color: tone ?? colors.text, marginStart: 8 }}>{money(l.amount, locale)}</T>
             </Row>
           );

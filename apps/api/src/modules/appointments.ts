@@ -171,11 +171,11 @@ export class AppointmentsController {
         const site = this.cfg.PUBLIC_SITE_URL;
         await this.messaging.enqueue(tx, {
           event: 'waitlist_offer', patientId: r.patient_id, clinicId: r.clinic_id, dedupeKey: `waitlist:${id}:manual:${Date.now()}`, data: { path: '/book' },
-          vars: { doctor: w.doctor, date: b.slot ?? '', link: `${site}/ar/book?doctor=${w.doctor_id}` },
+          vars: { doctor: w.doctor, date: b.slot ? ` ${b.slot}` : '', link: `${site}/ar/book?doctor=${w.doctor_id}` },
         });
       }
       await this.audit.record(tx, p, meta, { action: 'waitlist.update', entity: 'waitlist', entityId: id, patientId: r.patient_id, clinicId: r.clinic_id, details: b });
-      return { ok: true };
+      return { ok: true, notified: b.notify };
     });
   }
 

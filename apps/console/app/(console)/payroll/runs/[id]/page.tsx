@@ -303,7 +303,12 @@ function Inputs({ inputs }: { inputs: Record<string, number> }) {
     ['pay.in.leave', String(num(inputs.leaveDays))],
     ['pay.in.unpaid', String(num(inputs.unpaidLeaveDays))],
     ['pay.in.lateness', duration(t, inputs.latenessMinutes)],
-    ['pay.in.overtime', duration(t, num(inputs.overtimeMinutes) + num(inputs.restDayOvertimeMinutes))],
+    [
+      'pay.in.overtime',
+      num(inputs.nightOvertimeMinutes) > 0
+        ? t('hr.otWithNight', { d: duration(t, num(inputs.overtimeMinutes) + num(inputs.restDayOvertimeMinutes)), n: duration(t, inputs.nightOvertimeMinutes) })
+        : duration(t, num(inputs.overtimeMinutes) + num(inputs.restDayOvertimeMinutes)),
+    ],
     ['pay.in.pendingOt', duration(t, inputs.pendingOvertimeMinutes)],
   ];
   return (

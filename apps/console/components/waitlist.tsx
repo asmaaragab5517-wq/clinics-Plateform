@@ -9,7 +9,7 @@ import { useApi } from '@/lib/hooks';
 import { biName, isoDate, patientName, todayCairo } from '@/lib/format';
 import type { PatientRow } from '@/lib/types';
 import { QuickBookingDialog } from './booking';
-import { DataState, SelectField, TextField, useAction } from './common';
+import { Check, DataState, SelectField, TextField, useAction } from './common';
 import { Dialog } from './dialog';
 import { useI18n } from './i18n';
 import { PatientSearch } from './patient-search';
@@ -50,6 +50,7 @@ export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; na
   const { services } = useServices();
   const [adding, setAdding] = useState(false);
   const [booking, setBooking] = useState<WaitlistRow | null>(null);
+  const [offering, setOffering] = useState<WaitlistRow | null>(null);
   const a = useAction();
   const setRowStatus = async (w: WaitlistRow, to: Settable, quiet = false) => {
     const r = await a.run(() => patch(`/waitlist/${w.id}`, { status: to }));
@@ -137,7 +138,7 @@ export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; na
                         {PENDING.includes(w.status) && can('appointment:edit') && (
                           <>
                             {w.status === 'waiting' && (
-                              <Button size="sm" variant="ghost" disabled={a.busy} onClick={() => void setRowStatus(w, 'offered')}>
+                              <Button size="sm" variant="ghost" disabled={a.busy} onClick={() => setOffering(w)}>
                                 {t('wl.markOffered')}
                               </Button>
                             )}
@@ -164,6 +165,14 @@ export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; na
         )}
       </DataState>
       <p className="text-xs text-muted">{t('wl.hint')}</p>
+      <OfferDialog
+        row={offering}
+        onClose={() => setOffering(null)}
+        onDone={(notified) => {
+          toast(t(notified ? 'wl.offerSent' : 'wl.marked.offered'));
+          q.reload();
+        }}
+      />
       <AddWaitlistDialog open={adding} onClose={() => setAdding(false)} initialPatient={patient} onAdded={q.reload} />
       <QuickBookingDialog
         open={!!booking}
@@ -176,6 +185,57 @@ export function WaitlistPanel({ patient, onBooked }: { patient: { id: string; na
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Record an offer made to a waiting patient: optionally the time offered (free text, shown in the message) and a
+ * message to the patient naming the doctor and that time (PATCH /waitlist/:id with notify).
+ */
+function OfferDialog({ row, onClose, onDone }: { row: WaitlistRow | null; onClose: () => void; onDone: (notified: boolean) => void }) {
+  const { t } = useI18n();
+  const [slot, setSlot] = useState('');
+  const [notify, setNotify] = useState(true);
+  const a = useAction();
+  const close = () => {
+    setSlot('');
+    setNotify(true);
+    a.setError(null);
+    onClose();
+  };
+  return (
+    <Dialog open={!!row} onClose={close} title={t('wl.offerTitle')}>
+      {row && (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const text = slot.trim();
+            const r = await a.run(() => patch(`/waitlist/${row.id}`, { status: 'offered', notify, ...(text ? { slot: text } : {}) }));
+            if (r) {
+              onDone(notify);
+              close();
+            }
+          }}
+        >
+          <p className="text-sm">
+            {t('wl.offerFor')} <Bdi className="font-medium">{row.patient_name}</Bdi> · <Bdi>{row.doctor_name}</Bdi>
+          </p>
+          <TextField label={t('wl.offerSlot')} value={slot} onChange={(e) => setSlot(e.target.value)} maxLength={40} hint={t('wl.offerSlotHint')} />
+          <Check label={t('wl.offerNotify')} checked={notify} onChange={setNotify} hint={t('wl.offerNotifyHint')} />
+          {notify && !slot.trim() && <p className="text-xs text-warning">{t('wl.offerNoSlotWarn')}</p>}
+          {a.error && <Alert tone="danger">{a.error}</Alert>}
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={close}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={a.busy}>
+              {t('wl.markOffered')}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
   );
 }
 

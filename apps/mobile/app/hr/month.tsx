@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Button, Card, Empty, ErrorBox, Loading, Muted, Row, Screen, Section, StatusBadge, T, colors } from '../../components/ui';
 import { hrApi } from '../../lib/endpoints';
 import { plainDate, time } from '../../lib/format';
-import { daysText, dayTone, minutesText, monthDays, monthLabel, shiftMonth, todayCairo, wallTime, weekOf, weekdayName, type DayRow } from '../../lib/hr';
+import { daysText, dayTone, minutesText, monthDays, monthLabel, punchesOf, punchesText, shiftMonth, todayCairo, wallTime, weekOf, weekdayName, type DayRow } from '../../lib/hr';
 import { useI18n, type TKey } from '../../lib/i18n';
 import { useQuery } from '../../lib/useQuery';
 import type { AttendanceRecord, LocationCheck, LocationCheckDetail, MonthSummary } from '../../lib/types';
@@ -61,9 +61,11 @@ function Summary({ s }: { s: MonthSummary }) {
         {s.unpaidLeaveDays ? item(t('hr.sum.unpaidLeave'), daysText(s.unpaidLeaveDays, t)) : null}
         {item(t('hr.sum.lateness'), minutesText(s.latenessMinutes, t), s.latenessMinutes ? colors.warn : undefined)}
         {item(t('hr.sum.overtime'), minutesText(s.overtimeMinutes, t))}
+        {s.nightOvertimeMinutes ? item(t('hr.sum.nightOvertime'), minutesText(s.nightOvertimeMinutes, t)) : null}
         {s.restDayOvertimeMinutes ? item(t('hr.sum.restDayOvertime'), minutesText(s.restDayOvertimeMinutes, t)) : null}
         {s.pendingOvertimeMinutes ? item(t('hr.sum.pendingOvertime'), minutesText(s.pendingOvertimeMinutes, t)) : null}
         {s.futureDays ? <Muted style={{ marginTop: 4 }}>{t('hr.sum.future', { n: s.futureDays })}</Muted> : null}
+        <Muted style={{ marginTop: 4, fontSize: 12 }}>{t('hr.sum.latenessNote')}</Muted>
       </Card>
     </Section>
   );
@@ -73,13 +75,19 @@ function DayCard({ r }: { r: DayRow }) {
   const { t, locale, pick } = useI18n();
   const rec = r.record;
   const details: { text: string; tone?: string }[] = [];
-  if (rec?.clock_in) details.push({ text: `${time(rec.clock_in, locale)} – ${rec.clock_out ? time(rec.clock_out, locale) : '…'}` });
+  if (rec?.clock_in) {
+    // Several pairs (split shift, stepping out): "In 09:02 · Out 13:00 · In 17:05".
+    const pairs = punchesOf(rec);
+    details.push({ text: pairs.length > 1 ? punchesText(rec, locale, t) : `${time(rec.clock_in, locale)} – ${rec.clock_out ? time(rec.clock_out, locale) : '…'}` });
+  }
   if (rec?.late_minutes) details.push({ text: t('hr.day.late', { time: minutesText(rec.late_minutes, t) }), tone: colors.warn });
   if (rec?.early_leave_minutes) details.push({ text: t('hr.day.early', { time: minutesText(rec.early_leave_minutes, t) }), tone: colors.warn });
   if (rec?.overtime_minutes) {
     const ot = rec.overtime_status ?? (rec.overtime_approved ? 'approved' : 'pending');
     details.push({
-      text: t(ot === 'approved' ? 'hr.day.overtime' : ot === 'rejected' ? 'hr.day.overtimeRejected' : 'hr.day.overtimePending', { time: minutesText(rec.overtime_minutes, t) }),
+      text: t(ot === 'approved' ? 'hr.day.overtime' : ot === 'rejected' ? 'hr.day.overtimeRejected' : 'hr.day.overtimePending', {
+        time: rec.overtime_night_minutes ? t('hr.day.withNight', { time: minutesText(rec.overtime_minutes, t), night: minutesText(rec.overtime_night_minutes, t) }) : minutesText(rec.overtime_minutes, t),
+      }),
       tone: ot === 'approved' ? colors.success : ot === 'rejected' ? colors.danger : colors.warn,
     });
   }

@@ -5,7 +5,7 @@ import { ActionButton, Banner, Button, Card, ErrorBox, Loading, Muted, Row, Stat
 import { isApiError } from '../lib/api';
 import { hrApi } from '../lib/endpoints';
 import { time } from '../lib/format';
-import { isWorkDay, jobTitle, minutesText, todayCairo, wallTime } from '../lib/hr';
+import { MAX_PUNCHES, isWorkDay, jobTitle, minutesText, punchesOf, punchesText, shiftHours, todayCairo } from '../lib/hr';
 import { useI18n } from '../lib/i18n';
 import { useAction, useQuery } from '../lib/useQuery';
 
@@ -27,9 +27,12 @@ export function HrClockCard({ showLink = true }: { showLink?: boolean }) {
   const [locationRefused, setLocationRefused] = useState(false);
 
   // GET /hr/me reports the open shift, including yesterday's when it crossed midnight (the one clock-out closes).
-  const open = me.data?.openRecord ?? (rec?.clock_in && !rec.clock_out ? rec : null);
+  const pairs = rec ? punchesOf(rec) : [];
+  const open = me.data?.openRecord ?? (pairs.length && pairs[pairs.length - 1]!.out === null ? rec : null);
   const overnight = open && open.work_date.slice(0, 10) !== today ? open : null;
-  const done = !open && !!rec?.clock_in && !!rec.clock_out;
+  // Clocked out for now: the person can clock in again (back from a split-shift break or from stepping out).
+  const out = !open && pairs.length > 0;
+  const full = pairs.length >= MAX_PUNCHES;
 
   const holiday = cur.data?.holidays.find((h) => h.day === today) ?? null;
   const leave = cur.data?.leave.find((l) => l.status === 'approved' && l.start_date <= today && l.end_date >= today) ?? null;
@@ -47,7 +50,7 @@ export function HrClockCard({ showLink = true }: { showLink?: boolean }) {
         await hrApi.clock(action);
       } catch (e) {
         // Clocked in or out on another device or in the console: show the current state instead of an error.
-        if (isApiError(e, 'already_clocked_in') || isApiError(e, 'not_clocked_in')) setNotice(t(`error.${e.code}` as 'error.already_clocked_in'));
+        if (isApiError(e, 'already_clocked_in') || isApiError(e, 'not_clocked_in') || isApiError(e, 'too_many_clock_ins')) setNotice(t(`error.${e.code}` as 'error.already_clocked_in'));
         // The clinic refuses clocking it cannot verify (not on its network; the app sends no position yet).
         else if (isApiError(e, 'clock_location_not_allowed')) {
           setLocationRefused(true);
@@ -70,14 +73,14 @@ export function HrClockCard({ showLink = true }: { showLink?: boolean }) {
       : leave
         ? t('hr.today.onLeave', { type: pick(leave) })
         : scheduled
-          ? t('hr.today.shift', { start: wallTime(today, c.work_pattern.start, locale), end: wallTime(today, c.work_pattern.end, locale) })
+          ? t('hr.today.shiftHours', { hours: shiftHours(c.work_pattern, today, locale, t) })
           : t('hr.today.restDay');
 
   return (
     <Card>
       <Row style={{ alignItems: 'center', justifyContent: 'space-between' }}>
         <T style={{ fontWeight: '700', fontSize: 18, flex: 1 }}>{t('hr.title')}</T>
-        {open ? <StatusBadge label={t('hr.clock.clockedIn')} tone="success" /> : done ? <StatusBadge label={t('hr.clock.doneToday')} tone="info" /> : null}
+        {open ? <StatusBadge label={t('hr.clock.clockedIn')} tone="success" /> : out ? <StatusBadge label={t('hr.clock.clockedOut')} tone="info" /> : null}
       </Row>
       {me.loading && !me.data ? <Loading /> : null}
       <ErrorBox error={me.error} onRetry={() => void me.reload()} />
@@ -90,22 +93,27 @@ export function HrClockCard({ showLink = true }: { showLink?: boolean }) {
             <T style={{ marginTop: 6, color: colors.warn }}>{t('hr.clock.sinceYesterday', { time: time(overnight.clock_in!, locale) })}</T>
           ) : rec?.clock_in ? (
             <Row style={{ marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <T style={{ fontWeight: '600' }}>{t('hr.clock.inAt', { time: time(rec.clock_in, locale) })}</T>
+              <T style={{ fontWeight: '600' }}>{pairs.length > 1 ? punchesText(rec, locale, t) : t('hr.clock.inAt', { time: time(rec.clock_in, locale) })}</T>
               {rec.late_minutes > 0 ? <StatusBadge label={t('hr.day.late', { time: minutesText(rec.late_minutes, t) })} tone="warn" /> : null}
             </Row>
           ) : null}
           {rec?.clock_out ? (
-            <T style={{ marginTop: 2 }}>{`${t('hr.clock.outAt', { time: time(rec.clock_out, locale) })} · ${t('hr.day.worked', { time: minutesText(rec.worked_minutes, t) })}`}</T>
+            <T style={{ marginTop: 2 }}>
+              {pairs.length > 1 ? t('hr.day.worked', { time: minutesText(rec.worked_minutes, t) }) : `${t('hr.clock.outAt', { time: time(rec.clock_out, locale) })} · ${t('hr.day.worked', { time: minutesText(rec.worked_minutes, t) })}`}
+            </T>
           ) : null}
           {notice ? <Banner kind="info">{notice}</Banner> : null}
           {locationRefused ? <Banner kind="danger">{t('error.clock_location_not_allowed')}</Banner> : null}
           {act.error ? <ErrorBox error={act.error} /> : null}
           {open ? (
             <ActionButton large kind="danger" title={t('hr.clock.out')} onPress={confirmOut} loading={act.busy} style={{ marginTop: 12 }} />
-          ) : !done ? (
-            <ActionButton large title={t('hr.clock.in')} onPress={() => clock('in')} loading={act.busy} style={{ marginTop: 12 }} accessibilityHint={shiftText ?? undefined} />
-          ) : null}
-          {!open && !done && (!scheduled || holiday) && !leave ? <Muted>{t('hr.clock.restDayNote')}</Muted> : null}
+          ) : !full ? (
+            <ActionButton large title={t(out ? 'hr.clock.inAgain' : 'hr.clock.in')} onPress={() => clock('in')} loading={act.busy} style={{ marginTop: 12 }} accessibilityHint={shiftText ?? undefined} />
+          ) : (
+            <Muted style={{ marginTop: 8 }}>{t('hr.clock.maxReached', { n: MAX_PUNCHES })}</Muted>
+          )}
+          {out && !full ? <Muted>{t('hr.clock.inAgainHint')}</Muted> : null}
+          {!open && !out && (!scheduled || holiday) && !leave ? <Muted>{t('hr.clock.restDayNote')}</Muted> : null}
         </View>
       ) : null}
       {showLink ? <Button kind="ghost" title={t('hr.open')} onPress={() => router.push('/hr')} style={{ marginBottom: 0 }} /> : null}

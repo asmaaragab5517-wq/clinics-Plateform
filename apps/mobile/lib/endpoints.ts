@@ -196,6 +196,8 @@ export const staffApi = {
  */
 export const hrApi = {
   me: () => api.get<HrMe>('/v1/hr/me', undefined, 'staff'),
+  /** Same as `me`, with the permission allowance for another month (YYYY-MM). */
+  meForMonth: (month: string) => api.get<HrMe>('/v1/hr/me', { month }, 'staff'),
   /**
    * The server stamps the time; the work day is the Cairo day of the clock-in. No position is sent: the app has no
    * location library yet, so only the clinic network can verify where the person is.

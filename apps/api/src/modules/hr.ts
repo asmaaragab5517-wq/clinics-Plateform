@@ -309,7 +309,7 @@ export class HrController {
         const scheduled = !holidays.has(day) && pattern.days.includes(new Date(`${day}T00:00:00Z`).getUTCDay());
         const rec = r.rec as { clock_in?: string | null; status?: string } | null;
         const expected = holidays.has(day) ? 'holiday' : r.leave ? 'on_leave' : !scheduled ? 'rest_day' : rec?.clock_in ? 'present' : day < today() ? 'absent' : 'not_in_yet';
-        return { userId: r.user_id, nameAr: r.name_ar, nameEn: r.name_en, clinicId: r.clinic_id, jobTitleAr: r.job_title_ar, jobTitleEn: r.job_title_en, shift: scheduled ? { start: pattern.start, end: pattern.end } : null, leave: r.leave, state: expected, record: r.rec };
+        return { userId: r.user_id, nameAr: r.name_ar, nameEn: r.name_en, clinicId: r.clinic_id, jobTitleAr: r.job_title_ar, jobTitleEn: r.job_title_en, shift: scheduled ? { start: pattern.start, end: pattern.end, breakStart: pattern.breakStart ?? null, breakEnd: pattern.breakEnd ?? null } : null, leave: r.leave, state: expected, record: r.rec };
       });
     });
   }
@@ -628,17 +628,10 @@ export class HrController {
       const c = await this.hr.activeContract(tx, uuid(userId));
       if (!c) throw notFound('contract');
       if (b.endDate < c.start_date) throw badRequest('end_before_start');
-      // Unused annual leave is paid out with the final month: this year's entitlement prorated to the end date,
-      // plus carry-over and adjustments, less leave taken. Pending future requests are cancelled.
-      const year = Number(b.endDate.slice(0, 4));
+      // Pending future requests are cancelled; unused annual leave is paid with the final month.
       await tx.query(`update leave_requests set status = 'cancelled', decision_note = 'Employment ended' where user_id = $1 and status in ('pending','approved') and start_date > $2`, [c.user_id, b.endDate]);
-      const bal = await this.hr.annualBalance(tx, c.user_id, year);
-      const earned = leaverEntitlement(bal.entitled, c.start_date, b.endDate, year);
-      const unused = Math.round((earned + bal.carried + bal.adjusted - bal.used) * 2) / 2;
-      const settings = await this.hr.settings(tx);
-      const daily = c.pay_basis === 'monthly' ? c.base_salary / settings.daysPerMonth : 0;
-      const payout = b.payUnusedLeave && unused > 0 && daily > 0 ? Math.round(unused * daily) : 0;
-      const period = `${b.endDate.slice(0, 7)}-01`;
+      const { unused, payout: due, period } = await this.leavePayout(tx, c, b.endDate);
+      const payout = b.payUnusedLeave ? due : 0;
       if (payout > 0) {
         if (await tx.maybeOne(`select 1 from payroll_runs where period = $1 and status in ('approved','paid')`, [period])) throw conflict('payroll_period_closed');
         await tx.query(
@@ -651,6 +644,43 @@ export class HrController {
       // A negative balance (more leave taken than earned) is reported, not deducted automatically.
       return { ok: true, unusedLeaveDays: unused, leavePayout: payout, payoutMonth: period.slice(0, 7) };
     });
+  }
+
+  /** What ending employment on a date would pay for unused leave, before confirming. */
+  @Get('staff/:userId/contract/end-preview')
+  @Staff('payroll:edit')
+  endPreview(@Auth() p: Principal, @Param('userId') userId: string, @Query('endDate') endDate: string) {
+    const s = asStaff(p);
+    const d = parse(zDay, endDate);
+    return this.tenancy.system(s.orgId, async (tx) => {
+      const c = await this.hr.activeContract(tx, uuid(userId));
+      if (!c) throw notFound('contract');
+      if (d < c.start_date) throw badRequest('end_before_start');
+      const r = await this.leavePayout(tx, c, d);
+      const closed = !!(await tx.maybeOne(`select 1 from payroll_runs where period = $1 and status in ('approved','paid')`, [r.period]));
+      return { unusedLeaveDays: r.unused, leavePayout: r.payout, payoutMonth: r.period.slice(0, 7), payrollMonthClosed: closed && r.payout > 0 };
+    });
+  }
+
+  /**
+   * Unused annual leave at an end date: this year's entitlement prorated to the end date, plus carry-over and
+   * adjustments, less leave taken (and pending requests up to that date). Paid at the daily rate for monthly pay only.
+   */
+  private async leavePayout(tx: Tx, c: ContractRow, endDate: string) {
+    const year = Number(endDate.slice(0, 4));
+    const bal = await this.hr.annualBalance(tx, c.user_id, year);
+    const future = await tx.one<{ days: string }>(
+      `select coalesce(sum(r.days), 0) as days from leave_requests r join leave_types t on t.id = r.leave_type_id
+       where r.user_id = $1 and t.uses_annual_balance and r.status in ('pending','approved') and r.start_date > $2 and extract(year from r.start_date) = $3`,
+      [c.user_id, endDate, year],
+    );
+    // Requests after the end date will be cancelled, so they do not reduce the payout.
+    const taken = bal.used + bal.pending - Number(future.days);
+    const earned = leaverEntitlement(bal.entitled, c.start_date, endDate, year);
+    const unused = Math.round((earned + bal.carried + bal.adjusted - taken) * 2) / 2;
+    const settings = await this.hr.settings(tx);
+    const daily = c.pay_basis === 'monthly' ? c.base_salary / settings.daysPerMonth : 0;
+    return { unused, payout: unused > 0 && daily > 0 ? Math.round(unused * daily) : 0, period: `${endDate.slice(0, 7)}-01` };
   }
 
   @Get('settings')
@@ -667,6 +697,7 @@ export class HrController {
       const cur = await tx.one<{ settings: Record<string, unknown> }>('select settings from organisations where id = app_org() for update');
       const effective = hrSettingsSchema.parse(hrSettings({ ...(cur.settings.hr as object | undefined), ...b }));
       if (effective.socialInsurance.maxWage < effective.socialInsurance.minWage) throw badRequest('insurable_wage_limits_invalid');
+      if (effective.nightStart === effective.nightEnd) throw badRequest('night_window_invalid');
       // Store only what differs from the defaults, so later corrections to the defaults still reach this organisation.
       await tx.query(`update organisations set settings = jsonb_set(settings, '{hr}', $1::jsonb) where id = app_org()`, [JSON.stringify(hrOverrides(effective))]);
       await this.audit.record(tx, p, meta, { action: 'hr.settings_update', entity: 'organisation', details: { keys: Object.keys(b) } });
