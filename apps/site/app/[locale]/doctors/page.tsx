@@ -58,6 +58,7 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
   const locale = asLocale((await params).locale);
   const tt = getT(locale);
   const f = parseFilters(await searchParams);
+  const activeFilters = (Object.keys(f) as (keyof typeof f)[]).filter((k) => k !== 'today' && f[k] !== undefined).length;
   const [doctors, specialties, clinics] = await Promise.all([
     publicList<Doctor>('public/doctors', {
       specialty: f.specialty,
@@ -81,8 +82,15 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
       <h1 className="mb-6 text-2xl font-bold">{tt('doctors.title')}</h1>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         <Card className="h-fit lg:sticky lg:top-4">
-          <form method="get" className="flex flex-col gap-3" role="search" aria-label={tt('filter.title')}>
-            <h2 className="font-bold">{tt('filter.title')}</h2>
+          {/* On phones the filters fold behind a toggle so the doctors show first (they open when filters are in use);
+              a visually hidden checkbox keeps it working without JavaScript. Large screens always show the form. */}
+          <input type="checkbox" id="f-toggle" className="peer sr-only" defaultChecked={activeFilters > 0} aria-controls="f-panel" />
+          <label htmlFor="f-toggle" className="btn-secondary btn-sm w-full cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-primary lg:hidden">
+            {tt('filter.title')}
+            {activeFilters > 0 && <span className="num rounded-full bg-primary px-2 text-xs text-primary-fg">{activeFilters}</span>}
+          </label>
+          <form id="f-panel" method="get" className="mt-3 hidden flex-col gap-3 peer-checked:flex lg:mt-0 lg:flex" role="search" aria-label={tt('filter.title')}>
+            <h2 className="hidden font-bold lg:block">{tt('filter.title')}</h2>
             <div className="flex flex-col gap-1">
               <label htmlFor="f-q" className="text-sm font-medium">
                 {tt('filter.name')}
