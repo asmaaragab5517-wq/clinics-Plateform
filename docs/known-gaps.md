@@ -22,6 +22,13 @@ must be closed before go-live.
   Confirm on the staging deploy behind the CDN before treating it as a product issue.
 - Deploy to staging/production waits for `STAGING_APP_ID`, `PRODUCTION_APP_ID` and `DO_TOKEN` (docs/runbooks/deploy.md).
 
+## HR and payroll (Sprint 19)
+- **pilot** Confirm the payroll defaults with the organisation's accountant: social-insurance rates and the yearly
+  minimum/maximum insurable wage (defaults hold the 2025 limits and runs warn until updated), income-tax brackets and
+  personal exemption, Martyrs' Fund rate, overtime multipliers, leave entitlements. All are editable in HR settings.
+- Not modelled (ADR 0008): night overtime, split shifts, the income-tax phase-out above EGP 600,000 a year (flagged for
+  review), sick-leave pay shared with social insurance, end-of-service settlements, clock-in location checks.
+
 ## Product/API
 - Remaining Sprint 16 follow-ups: waitlist offers by message are automatic only (no manual "send offer" message); prescription
   revocation returns the revoking doctor's id, not name; custom-field file values reuse patient documents (needs `emr:create`).
