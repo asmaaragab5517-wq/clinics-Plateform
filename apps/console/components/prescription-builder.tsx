@@ -7,6 +7,7 @@ import { Dialog } from './dialog';
 import { ApiError, post, qs, reauthenticate } from '@/lib/api';
 import { DateText } from '@hf/ui';
 import { useApi, useDebounced } from '@/lib/hooks';
+import { biName } from '@/lib/format';
 import { translate } from '@/lib/i18n';
 import { Check, DataState, FileLink, ReasonDialog, Section, TextField, useAction } from './common';
 import { useI18n } from './i18n';
@@ -368,6 +369,9 @@ interface RxDetail {
   revoked_at: string | null;
   revoked_reason: string | null;
   revoked_by: string | null;
+  /** Name of the person who revoked it (Sprint 21). */
+  revoked_by_name_ar?: string | null;
+  revoked_by_name_en?: string | null;
   lines: { position: number; drug: string | null; strength: string | null; dose: string; route: string; frequency: string; duration_days: number | null; quantity: string | null; instructions_ar: string; instructions_en: string; warnings: unknown }[];
 }
 
@@ -376,8 +380,14 @@ export function PrescriptionDetailDialog({ id, onClose }: { id: string | null; o
   const { t, locale } = useI18n();
   const { me } = useSession();
   const q = useApi<RxDetail>(id ? `/prescriptions/${id}` : null);
-  // The API returns the revoking user's id only; only the prescriber can revoke, so name them by role.
-  const revokedBy = (rx: RxDetail) => (!rx.revoked_by ? '—' : rx.revoked_by === me.userId ? t('rx.revokedByYou') : rx.revoked_by === rx.doctor_id ? t('rx.revokedByPrescriber') : t('rx.revokedByOther'));
+  // "You" for your own revocation; otherwise the name the API returns, falling back to the role for older responses.
+  const revokedBy = (rx: RxDetail) => {
+    if (!rx.revoked_by) return '—';
+    if (rx.revoked_by === me.userId) return t('rx.revokedByYou');
+    const name = biName({ name_ar: rx.revoked_by_name_ar, name_en: rx.revoked_by_name_en }, locale);
+    if (name) return <Bdi>{name}</Bdi>;
+    return rx.revoked_by === rx.doctor_id ? t('rx.revokedByPrescriber') : t('rx.revokedByOther');
+  };
   return (
     <Dialog open={!!id} onClose={onClose} title={t('rx.detailTitle')} wide>
       <DataState loading={q.loading} error={q.error} data={id ? q.data : undefined}>

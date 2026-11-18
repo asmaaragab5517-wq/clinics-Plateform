@@ -8,7 +8,7 @@ import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useApi } from '@/lib/hooks';
 import { biName, num } from '@/lib/format';
-import { fmtDay, patternDays, type HrStaffRow } from '@/lib/hr';
+import { fmtDay, patternDays, shiftText, type HrStaffRow } from '@/lib/hr';
 
 
 /** Staff with their employment contract summary (hr:view); pay columns appear only when the API returns them. */
@@ -68,7 +68,7 @@ export default function HrStaffPage() {
                         <td>{c ? (locale === 'en' ? c.job_title_en || c.job_title_ar : c.job_title_ar) : '—'}</td>
                         <td>{c ? biName(me.clinics.find((x) => x.id === c.clinic_id), locale) : '—'}</td>
                         <td className="text-xs">{c ? `${t(`hr.emp.${c.employment_type}`)} · ${t(`hr.basis.${c.pay_basis}`)}` : '—'}</td>
-                        <td className="text-xs">{c ? `${patternDays(t, c.work_pattern)} · ${c.work_pattern.start}–${c.work_pattern.end}` : '—'}</td>
+                        <td className="text-xs">{c ? `${patternDays(t, c.work_pattern)} · ${shiftText(t, c.work_pattern)}` : '—'}</td>
                         <td className="num">{c ? fmtDay(c.start_date) : '—'}</td>
                         {withPay && <td>{c?.base_salary !== undefined ? <Money value={num(c.base_salary)} locale={locale} /> : '—'}</td>}
                         <td>{c ? <Badge tone="success" className="whitespace-nowrap">{t('hr.contract.active')}</Badge> : <Badge tone="warning" className="whitespace-nowrap">{t('hr.contract.none')}</Badge>}</td>

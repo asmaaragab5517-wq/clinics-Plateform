@@ -1,4 +1,4 @@
-import { addDays, formatDate, weekdayOf, WEEK_ORDER } from '@hf/shared';
+import { addDays, basisQuantity, formatDate, weekdayOf, WEEK_ORDER } from '@hf/shared';
 import { isoDate, num } from './format';
 import type { T } from './i18n';
 
@@ -18,7 +18,19 @@ export interface WorkPattern {
   days: number[];
   start: string;
   end: string;
+  /** Optional unpaid break inside the day (split shift, Sprint 21): both or neither, strictly inside start–end. */
+  breakStart?: string;
+  breakEnd?: string;
 }
+
+/** One clock-in/out pair (ISO times); only the day's last pair may be open. */
+export interface Punch {
+  in: string;
+  out: string | null;
+}
+
+/** Most clock-in/out pairs a day can hold (the API answers too_many_clock_ins beyond this). */
+export const MAX_PUNCHES = 6;
 
 export interface Allowance {
   code: string;
@@ -55,14 +67,19 @@ export interface AttendanceRecord {
   user_id: string;
   work_date: string;
   day?: string;
+  /** First arrival and last departure (null while a pair is open). */
   clock_in: string | null;
   clock_out: string | null;
+  /** Every clock-in/out pair of the day (Sprint 21); older responses have only clock_in/clock_out. */
+  punches?: Punch[] | null;
   source: string;
   status: string;
   late_minutes: number;
   early_leave_minutes: number;
   worked_minutes: number;
   overtime_minutes: number;
+  /** Part of `overtime_minutes` inside the night window (Sprint 21; paid at the night multiplier). */
+  overtime_night_minutes?: number;
   rest_day: boolean;
   overtime_approved: boolean;
   /** Explicit overtime decision (Sprint 20); a rejected decision is not paid and payroll no longer warns about it. */
@@ -139,6 +156,8 @@ export interface MonthSummary {
   unpaidLeaveDays: number;
   latenessMinutes: number;
   overtimeMinutes: number;
+  /** Part of `overtimeMinutes` (approved) worked in the night window. */
+  nightOvertimeMinutes?: number;
   restDayOvertimeMinutes: number;
   pendingOvertimeMinutes: number;
   futureDays: number;
@@ -223,7 +242,16 @@ export interface PayslipLine {
   labelEn: string;
   amount: number;
   kind: 'earning' | 'deduction' | 'employer';
+  /** English shorthand ("3 d", "125 min") or a free-text note (adjustments). */
   basis?: string;
+  /** The same quantity as data (Sprint 21); absent for free-text notes and older payslips. */
+  quantity?: PayslipQuantity;
+}
+
+export interface PayslipQuantity {
+  value: number;
+  unit: 'minutes' | 'days' | 'hours' | 'percent' | 'days_of';
+  of?: number;
 }
 
 export interface HrSettings {
@@ -233,6 +261,10 @@ export interface HrSettings {
   deductLateness: boolean;
   overtimeMultiplier: number;
   restDayMultiplier: number;
+  /** Overtime inside the night window (HH:MM, may wrap past midnight) is paid at this multiplier instead. */
+  nightOvertimeMultiplier: number;
+  nightStart: string;
+  nightEnd: string;
   daysPerMonth: number;
   socialInsurance: { year: number; employeeRate: number; employerRate: number; minWage: number; maxWage: number };
   incomeTax: { personalExemption: number; brackets: { upTo: number | null; rate: number }[] };
@@ -253,6 +285,31 @@ export function patternDays(t: T, p: WorkPattern | null | undefined): string {
     .join(t('common.listSep'));
 }
 
+/** The day's clock-in/out pairs, falling back to the first arrival and last departure for older records. */
+export function recordPunches(r: Pick<AttendanceRecord, 'clock_in' | 'clock_out' | 'punches'>): Punch[] {
+  if (r.punches?.length) return r.punches;
+  return r.clock_in ? [{ in: r.clock_in, out: r.clock_out }] : [];
+}
+
+/** True while the day's last pair has no clock-out. */
+export const hasOpenPunch = (r: Pick<AttendanceRecord, 'clock_in' | 'clock_out' | 'punches'>) => {
+  const p = recordPunches(r);
+  return p.length > 0 && p[p.length - 1]!.out === null;
+};
+
+/** Paid minutes of a scheduled day (the break is unpaid). */
+export function paidMinutes(p: WorkPattern): number {
+  const m = (x: string) => Number(x.slice(0, 2)) * 60 + Number(x.slice(3, 5));
+  const brk = p.breakStart && p.breakEnd ? m(p.breakEnd) - m(p.breakStart) : 0;
+  return m(p.end) - m(p.start) - brk;
+}
+
+/** "09:00–21:00" or "09:00–21:00, break 13:00–17:00". */
+export function shiftText(t: T, p: Pick<WorkPattern, 'start' | 'end' | 'breakStart' | 'breakEnd'>): string {
+  const hours = `${p.start}–${p.end}`;
+  return p.breakStart && p.breakEnd ? t('hr.shiftWithBreak', { hours, break: `${p.breakStart}–${p.breakEnd}` }) : hours;
+}
+
 /** "1 h 25 min" style duration. */
 export function duration(t: T, minutes: number | string | null | undefined): string {
   const m = Math.round(num(minutes));
@@ -260,6 +317,37 @@ export function duration(t: T, minutes: number | string | null | undefined): str
   const h = Math.floor(m / 60);
   const r = m % 60;
   return r ? t('hr.hm', { h, m: r }) : t('hr.hours', { h });
+}
+
+/** "1 day", "2 days", "3 days", "11 days" with the Arabic singular, dual and plural forms; halves use the plain form. */
+export function daysCount(t: T, value: number | string): string {
+  const n = Math.round(num(value) * 100) / 100;
+  if (n === 1) return t('pay.qty.day1');
+  if (n === 2) return t('pay.qty.day2');
+  if (Number.isInteger(n) && n >= 3 && n <= 10) return t('pay.qty.daysFew', { n });
+  return t('pay.qty.days', { n });
+}
+
+/** Minutes as a count ("125 min"), not split into hours, matching how payroll counted them. */
+export function minutesCount(t: T, value: number | string): string {
+  const n = Math.round(num(value));
+  return n >= 3 && n <= 10 ? t('pay.qty.minutesFew', { n }) : t('pay.qty.minutes', { n });
+}
+
+/**
+ * A payslip line's quantity in the reader's language ("3 أيام", "125 دقيقة", "15 من 30 يومًا", "11٪"). Lines from
+ * before Sprint 21 carry only the English `basis`, which is parsed the same way; anything else is a free-text note
+ * and is returned as `note`.
+ */
+export function lineQuantity(t: T, l: Pick<PayslipLine, 'basis' | 'quantity'>): { text: string | null; note: string | null } {
+  const q = l.quantity ?? basisQuantity(l.basis);
+  if (!q) return { text: null, note: l.basis?.trim() || null };
+  const v = Math.round(num(q.value) * 100) / 100;
+  if (q.unit === 'minutes') return { text: minutesCount(t, v), note: null };
+  if (q.unit === 'days') return { text: daysCount(t, v), note: null };
+  if (q.unit === 'hours') return { text: t('pay.qty.hours', { n: v }), note: null };
+  if (q.unit === 'percent') return { text: t('pay.qty.percent', { n: v }), note: null };
+  return { text: t('pay.qty.daysOf', { n: v, of: num(q.of) }), note: null };
 }
 
 /** A `YYYY-MM-DD` calendar date as dd/mm/yyyy (formatted at Cairo noon so the day never shifts). */

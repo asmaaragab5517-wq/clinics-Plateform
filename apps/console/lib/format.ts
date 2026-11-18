@@ -73,3 +73,11 @@ export function bmi(weightKg?: number | null, heightCm?: number | null): number 
 export function monthOf(date: string): string {
   return date.slice(0, 7);
 }
+
+/** Arabic-Indic digits and the Arabic decimal separator (٫) to ASCII, trimmed (for numbers typed or pasted by staff). */
+export function asciiDigits(v: string): string {
+  return v
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/٫/g, '.')
+    .trim();
+}

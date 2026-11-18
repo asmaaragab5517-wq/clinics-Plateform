@@ -4,14 +4,14 @@ import { useState } from 'react';
 import { addDays } from '@hf/shared';
 import { Alert, Bdi, Button, PageHeader, Select, Table } from '@hf/ui';
 import { DataState, Section, useAction } from '@/components/common';
-import { CorrectionDialog, MonthPicker, MonthSheet, OvertimeActions, RecordChips, StateBadge } from '@/components/hr';
+import { CorrectionDialog, MonthPicker, MonthSheet, OvertimeActions, PunchList, RecordChips, StateBadge } from '@/components/hr';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
 import { post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { biName, num, time12, todayCairo } from '@/lib/format';
-import { fmtDay, type AttendanceRecord, type MonthView } from '@/lib/hr';
+import { fmtDay, recordPunches, shiftText, type AttendanceRecord, type MonthView } from '@/lib/hr';
 
 interface BoardRow {
   userId: string;
@@ -20,7 +20,8 @@ interface BoardRow {
   clinicId: string;
   jobTitleAr: string;
   jobTitleEn: string;
-  shift: { start: string; end: string } | null;
+  /** The board does not return the break yet; shown when present. */
+  shift: { start: string; end: string; breakStart?: string; breakEnd?: string } | null;
   leave: string | null;
   state: 'present' | 'not_in_yet' | 'absent' | 'on_leave' | 'rest_day' | 'holiday';
   record: AttendanceRecord | null;
@@ -42,10 +43,10 @@ export default function TeamAttendancePage() {
   const [correct, setCorrect] = useState<{ userId: string; name: string; date: string; rec?: AttendanceRecord | null } | null>(null);
   const a = useAction();
   const name = (r: BoardRow) => (locale === 'en' ? r.nameEn || r.nameAr : r.nameAr);
-  const overtime = async (rec: AttendanceRecord, approved: boolean, after: () => void) => {
+  const overtime = async (rec: AttendanceRecord, approved: boolean | null, after: () => void) => {
     const r = await a.run(() => post(`/hr/attendance/${rec.id}/overtime`, { approved }));
     if (r) {
-      toast(t(approved ? 'hr.otApprovedToast' : 'hr.otRejectedToast'));
+      toast(t(approved === null ? 'hr.otPendingToast' : approved ? 'hr.otApprovedToast' : 'hr.otRejectedToast'));
       after();
     }
   };
@@ -125,13 +126,16 @@ export default function TeamAttendancePage() {
                             {!clinic && me.clinics.length > 1 && <> · {biName(me.clinics.find((c) => c.id === r.clinicId), locale)}</>}
                           </span>
                         </td>
-                        <td className="num whitespace-nowrap">{r.shift ? `${r.shift.start}–${r.shift.end}` : '—'}</td>
+                        <td className="num whitespace-nowrap">{r.shift ? shiftText(t, r.shift) : '—'}</td>
                         <td>
                           <StateBadge state={r.state} />
                         </td>
                         <td className="num whitespace-nowrap">{r.record?.clock_in ? time12(r.record.clock_in, locale) : '—'}</td>
                         <td className="num whitespace-nowrap">{r.record?.clock_out ? time12(r.record.clock_out, locale) : '—'}</td>
-                        <td className="text-xs">{r.record && <RecordChips rec={r.record} />}</td>
+                        <td className="text-xs">
+                          {r.record && recordPunches(r.record).length > 1 && <PunchList rec={r.record} className="mb-1 block" />}
+                          {r.record && <RecordChips rec={r.record} />}
+                        </td>
                         <td>
                           <div className="flex flex-wrap gap-1">
                             <Button size="sm" variant="ghost" onClick={() => {
@@ -180,7 +184,7 @@ function PersonMonth({
 }: {
   person: { userId: string; name: string } | null;
   onClose: () => void;
-  onOvertime: (rec: AttendanceRecord, approved: boolean, after: () => void) => Promise<void>;
+  onOvertime: (rec: AttendanceRecord, approved: boolean | null, after: () => void) => Promise<void>;
   onChanged: () => void;
   error: string | null;
 }) {

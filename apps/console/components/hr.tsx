@@ -12,10 +12,14 @@ import {
   STATE_TONE,
   WEEK,
   duration,
+  MAX_PUNCHES,
   fmtDay,
+  lineQuantity,
+  recordPunches,
   monthDaysInfo,
   nextMonth,
   otStatus,
+  paidMinutes,
   prevMonth,
   weekdayLabel,
   type AttendanceRecord,
@@ -91,6 +95,29 @@ export function LocationBadges({ rec }: { rec: AttendanceRecord }) {
   );
 }
 
+/** Every clock-in/out pair of a day: "In 09:02 · Out 13:00 · In 17:05". */
+export function PunchList({ rec, className }: { rec: AttendanceRecord; className?: string }) {
+  const { t, locale } = useI18n();
+  const pairs = recordPunches(rec);
+  if (!pairs.length) return null;
+  const items: string[] = [];
+  for (const p of pairs) {
+    items.push(t('hr.punch.in', { t: time12(p.in, locale) }));
+    if (p.out) items.push(t('hr.punch.out', { t: time12(p.out, locale) }));
+  }
+  return (
+    <span className={cx('num', className)} title={t('hr.punch.title', { n: pairs.length })}>
+      {items.join(' · ')}
+    </span>
+  );
+}
+
+/** Overtime length with its night part, e.g. "1 h 30 min, 60 min at night". */
+export function otDuration(t: ReturnType<typeof useI18n>['t'], rec: AttendanceRecord): string {
+  const night = num(rec.overtime_night_minutes);
+  return night > 0 ? t('hr.otWithNight', { d: duration(t, rec.overtime_minutes), n: duration(t, night) }) : duration(t, rec.overtime_minutes);
+}
+
 /** Lateness, early leaving, overtime and location chips for one attendance record. */
 export function RecordChips({ rec }: { rec: AttendanceRecord }) {
   const { t } = useI18n();
@@ -101,7 +128,7 @@ export function RecordChips({ rec }: { rec: AttendanceRecord }) {
       {num(rec.early_leave_minutes) > 0 && <Badge tone="warning">{t('hr.earlyBy', { d: duration(t, rec.early_leave_minutes) })}</Badge>}
       {num(rec.overtime_minutes) > 0 && (
         <Badge tone={OT_TONE[ot]} title={ot === 'rejected' ? t('hr.otRejectedHint') : undefined}>
-          {t(`hr.ot.${ot}`, { d: duration(t, rec.overtime_minutes) })}
+          {t(`hr.ot.${ot}`, { d: otDuration(t, rec) })}
         </Badge>
       )}
       <LocationBadges rec={rec} />
@@ -129,7 +156,18 @@ function SummaryStats({ v }: { v: MonthView }) {
       <Stat label={t('hr.sum.absent')} value={s.absentDays} />
       <Stat label={t('hr.sum.leave')} value={s.leaveDays} hint={s.unpaidLeaveDays ? t('hr.sum.unpaid', { n: s.unpaidLeaveDays }) : undefined} />
       <Stat label={t('hr.sum.lateness')} value={d(s.latenessMinutes)} />
-      <Stat label={t('hr.sum.overtime')} value={d(s.overtimeMinutes + s.restDayOvertimeMinutes)} hint={s.restDayOvertimeMinutes ? t('hr.sum.restDayPart', { d: duration(t, s.restDayOvertimeMinutes) }) : undefined} />
+      <Stat
+        label={t('hr.sum.overtime')}
+        value={d(s.overtimeMinutes + s.restDayOvertimeMinutes)}
+        hint={
+          [
+            num(s.nightOvertimeMinutes) > 0 ? t('hr.sum.nightPart', { d: duration(t, s.nightOvertimeMinutes) }) : null,
+            s.restDayOvertimeMinutes ? t('hr.sum.restDayPart', { d: duration(t, s.restDayOvertimeMinutes) }) : null,
+          ]
+            .filter(Boolean)
+            .join(t('common.listSep')) || undefined
+        }
+      />
       <Stat label={t('hr.sum.pendingOt')} value={d(s.pendingOvertimeMinutes)} hint={s.futureDays ? t('hr.sum.future', { n: s.futureDays }) : undefined} />
     </div>
   );
@@ -174,6 +212,7 @@ function MonthCalendar({ days, selected, onSelect }: { days: DayInfo[]; selected
           {d.rec && num(d.rec.overtime_minutes) > 0 && (
             <span className={cx(otStatus(d.rec) === 'approved' && 'text-success', otStatus(d.rec) === 'pending' && 'text-muted', otStatus(d.rec) === 'rejected' && 'text-danger line-through')}>
               {t('hr.otShort', { n: d.rec.overtime_minutes })}
+              {num(d.rec.overtime_night_minutes) > 0 && <span className="block">{t('hr.otNightShort', { n: num(d.rec.overtime_night_minutes) })}</span>}
             </span>
           )}
           {d.rec && (d.rec.clock_in_check === 'outside' || d.rec.clock_out_check === 'outside') && <span className="text-danger">{t('hr.loc.outsideShort')}</span>}
@@ -189,10 +228,10 @@ function MonthCalendar({ days, selected, onSelect }: { days: DayInfo[]; selected
 }
 
 /**
- * Overtime decision buttons: Approve and Reject while pending; once decided, one button to change the decision
- * (POST /hr/attendance/:id/overtime records approved or rejected explicitly).
+ * Overtime decision buttons: Approve and Reject while pending; once decided, one button to change the decision and
+ * one to return it to pending (POST /hr/attendance/:id/overtime with approved true, false or null).
  */
-export function OvertimeActions({ rec, onDecide, busy }: { rec: AttendanceRecord; onDecide: (rec: AttendanceRecord, approved: boolean) => void; busy?: boolean }) {
+export function OvertimeActions({ rec, onDecide, busy }: { rec: AttendanceRecord; onDecide: (rec: AttendanceRecord, approved: boolean | null) => void; busy?: boolean }) {
   const { t } = useI18n();
   const ot = otStatus(rec);
   if (ot === 'pending')
@@ -207,9 +246,14 @@ export function OvertimeActions({ rec, onDecide, busy }: { rec: AttendanceRecord
       </>
     );
   return (
-    <Button size="sm" variant="ghost" onClick={() => onDecide(rec, ot !== 'approved')} disabled={busy} title={rec.overtime_decided_at ? t('hr.otDecidedOn', { d: fmtDay(cairoDate(rec.overtime_decided_at)) }) : undefined}>
-      {t(ot === 'approved' ? 'hr.otChangeToRejected' : 'hr.otChangeToApproved')}
-    </Button>
+    <>
+      <Button size="sm" variant="ghost" onClick={() => onDecide(rec, ot !== 'approved')} disabled={busy} title={rec.overtime_decided_at ? t('hr.otDecidedOn', { d: fmtDay(cairoDate(rec.overtime_decided_at)) }) : undefined}>
+        {t(ot === 'approved' ? 'hr.otChangeToRejected' : 'hr.otChangeToApproved')}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={() => onDecide(rec, null)} disabled={busy} title={t('hr.otToPendingHint')}>
+        {t('hr.otToPending')}
+      </Button>
+    </>
   );
 }
 
@@ -226,7 +270,7 @@ export function MonthSheet({
   view: MonthView;
   today: string;
   onCorrect?: (day: DayInfo) => void;
-  onOvertime?: (rec: AttendanceRecord, approved: boolean) => void;
+  onOvertime?: (rec: AttendanceRecord, approved: boolean | null) => void;
 }) {
   const { t, locale } = useI18n();
   const days = monthDaysInfo(view, today);
@@ -278,6 +322,7 @@ export function MonthSheet({
                   <td className="whitespace-nowrap">{d.rec?.clock_in ? duration(t, d.rec.worked_minutes) : '—'}</td>
                   <td className="text-xs">
                     <div className="flex flex-col gap-1">
+                      {d.rec && recordPunches(d.rec).length > 1 && <PunchList rec={d.rec} />}
                       {d.rec && <RecordChips rec={d.rec} />}
                       {d.holiday && <Bdi>{locale === 'en' ? d.holiday.name_en || d.holiday.name_ar : d.holiday.name_ar}</Bdi>}
                       {d.leave && <span>{locale === 'en' ? d.leave.name_en : d.leave.name_ar}</span>}
@@ -319,35 +364,47 @@ export function MonthSheet({
   );
 }
 
-/** Correct or create one day's attendance (PUT /hr/attendance, hr:edit); a reason is required and audited. */
+/**
+ * Correct or create one day's attendance (PUT /hr/attendance with `punches`, hr:edit): one row per clock-in/out pair,
+ * prefilled from the record. Only the last pair may lack a clock-out; a time earlier than the one before it is the
+ * next day. A reason is required and audited.
+ */
 export function CorrectionDialog({ target, onClose, onSaved }: { target: { userId: string; name: string; date: string; rec?: AttendanceRecord | null } | null; onClose: () => void; onSaved: () => void }) {
   const { t, err } = useI18n();
-  const [f, setF] = useState({ clockIn: '', clockOut: '', status: 'absent', reason: '' });
+  const [pairs, setPairs] = useState<{ in: string; out: string }[]>([]);
+  const [status, setStatus] = useState('absent');
+  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!target) return;
     setError(null);
-    setF({
-      clockIn: target.rec?.clock_in ? cairoTime(target.rec.clock_in) : '',
-      clockOut: target.rec?.clock_out ? cairoTime(target.rec.clock_out) : '',
-      status: target.rec && ['absent', 'on_leave', 'holiday', 'rest_day'].includes(target.rec.status) ? target.rec.status : 'absent',
-      reason: '',
-    });
+    const rec = target.rec;
+    setPairs(rec ? recordPunches(rec).map((p) => ({ in: cairoTime(p.in), out: p.out ? cairoTime(p.out) : '' })) : []);
+    setStatus(rec && ['absent', 'on_leave', 'holiday', 'rest_day'].includes(rec.status) ? rec.status : 'absent');
+    setReason('');
   }, [target]);
   if (!target) return null;
+  const setPair = (i: number, p: Partial<{ in: string; out: string }>) => setPairs(pairs.map((x, j) => (j === i ? { ...x, ...p } : x)));
   return (
     <Dialog open={!!target} onClose={onClose} title={t('hr.correctTitle', { name: target.name, d: fmtDay(target.date) })}>
       <form
         className="flex flex-col gap-3"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (f.reason.trim().length < 3) return setError(t('form.reasonMin', { n: 3 }));
-          if (f.clockOut && !f.clockIn) return setError(t('err.clock_out_without_clock_in'));
+          if (reason.trim().length < 3) return setError(t('form.reasonMin', { n: 3 }));
+          const used = pairs.filter((p) => p.in || p.out);
+          if (used.some((p) => !p.in)) return setError(t('err.clock_out_without_clock_in'));
+          if (used.slice(0, -1).some((p) => !p.out)) return setError(t('err.only_last_pair_may_be_open'));
           setBusy(true);
           setError(null);
           try {
-            await put('/hr/attendance', { userId: target.userId, workDate: isoDate(target.date), clockIn: f.clockIn || null, clockOut: f.clockOut || null, status: f.clockIn ? undefined : f.status, reason: f.reason.trim() });
+            await put('/hr/attendance', {
+              userId: target.userId,
+              workDate: isoDate(target.date),
+              ...(used.length ? { punches: used.map((p) => ({ in: p.in, out: p.out || null })) } : { clockIn: null, clockOut: null, status }),
+              reason: reason.trim(),
+            });
             onSaved();
             onClose();
           } catch (x) {
@@ -357,20 +414,36 @@ export function CorrectionDialog({ target, onClose, onSaved }: { target: { userI
           }
         }}
       >
-        <div className="grid grid-cols-2 gap-3">
-          <TextField label={t('hr.in')} type="time" value={f.clockIn} onChange={(e) => setF({ ...f, clockIn: e.target.value })} />
-          <TextField label={t('hr.out')} type="time" value={f.clockOut} onChange={(e) => setF({ ...f, clockOut: e.target.value })} hint={t('hr.outNextDayHint')} />
-        </div>
-        {!f.clockIn && (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-medium">{t('hr.punch.pairs')}</legend>
+          {pairs.map((p, i) => (
+            <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+              <TextField label={t('hr.punch.inN', { n: i + 1 })} type="time" value={p.in} onChange={(e) => setPair(i, { in: e.target.value })} />
+              <TextField label={t('hr.punch.outN', { n: i + 1 })} type="time" value={p.out} onChange={(e) => setPair(i, { out: e.target.value })} />
+              <Button type="button" size="sm" variant="ghost" onClick={() => setPairs(pairs.filter((_, j) => j !== i))} aria-label={t('hr.punch.removeAria', { n: i + 1 })}>
+                {t('common.remove')}
+              </Button>
+            </div>
+          ))}
+          {pairs.length < MAX_PUNCHES && (
+            <div>
+              <Button type="button" size="sm" variant="secondary" onClick={() => setPairs([...pairs, { in: '', out: '' }])}>
+                {t('hr.punch.add')}
+              </Button>
+            </div>
+          )}
+          <p className="text-xs text-muted">{t('hr.punch.correctHint')}</p>
+        </fieldset>
+        {!pairs.some((p) => p.in || p.out) && (
           <SelectField
             label={t('hr.dayStatus')}
-            value={f.status}
-            onChange={(e) => setF({ ...f, status: e.target.value })}
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
             options={['absent', 'on_leave', 'holiday', 'rest_day'].map((s) => ({ value: s, label: t(`hr.state.${s}`) }))}
           />
         )}
         <p className="text-xs text-muted">{t('hr.correctHint')}</p>
-        <TextAreaField label={t('form.reason')} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} required minLength={3} />
+        <TextAreaField label={t('form.reason')} value={reason} onChange={(e) => setReason(e.target.value)} required minLength={3} />
         <InlineError text={error} />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -388,6 +461,7 @@ export function CorrectionDialog({ target, onClose, onSaved }: { target: { userI
 /** Weekday checkboxes (Saturday first) with start and end times. */
 export function WorkPatternEditor({ value, onChange }: { value: WorkPattern; onChange: (p: WorkPattern) => void }) {
   const { t } = useI18n();
+  const hasBreak = value.breakStart !== undefined || value.breakEnd !== undefined;
   return (
     <fieldset className="flex flex-col gap-2 rounded-xl border border-border p-3">
       <legend className="px-1 text-sm font-medium">{t('hr.workPattern')}</legend>
@@ -400,6 +474,19 @@ export function WorkPatternEditor({ value, onChange }: { value: WorkPattern; onC
         <TextField label={t('hr.shiftStart')} type="time" value={value.start} onChange={(e) => onChange({ ...value, start: e.target.value })} required />
         <TextField label={t('hr.shiftEnd')} type="time" value={value.end} onChange={(e) => onChange({ ...value, end: e.target.value })} required />
       </div>
+      <Check
+        label={t('hr.pattern.break')}
+        checked={hasBreak}
+        onChange={(on) => onChange(on ? { ...value, breakStart: value.breakStart ?? '13:00', breakEnd: value.breakEnd ?? '17:00' } : { days: value.days, start: value.start, end: value.end })}
+        hint={t('hr.pattern.breakHint')}
+      />
+      {hasBreak && (
+        <div className="grid grid-cols-2 gap-3">
+          <TextField label={t('hr.pattern.breakStart')} type="time" value={value.breakStart ?? ''} onChange={(e) => onChange({ ...value, breakStart: e.target.value })} required />
+          <TextField label={t('hr.pattern.breakEnd')} type="time" value={value.breakEnd ?? ''} onChange={(e) => onChange({ ...value, breakEnd: e.target.value })} required />
+        </div>
+      )}
+      {value.end > value.start && <p className="text-xs text-muted">{t('hr.pattern.paidDay', { d: duration(t, paidMinutes(value)) })}</p>}
     </fieldset>
   );
 }
@@ -417,21 +504,25 @@ export function PayslipLines({ lines }: { lines: PayslipLine[] }) {
             <p className="mb-1 text-xs font-semibold text-muted">{t(`pay.kind.${g}`)}</p>
             {ls.length === 0 && <p className="text-xs text-muted">—</p>}
             <ul className="flex flex-col gap-1 text-sm">
-              {ls.map((l, i) => (
-                <li key={`${l.code}${i}`} className="flex items-baseline justify-between gap-2">
-                  <span>
-                    {locale === 'en' ? l.labelEn || l.labelAr : l.labelAr}
-                    {l.basis && (
-                      <span className="ms-1 text-xs text-muted">
-                        (<bdi className="num">{l.basis}</bdi>)
-                      </span>
-                    )}
-                  </span>
-                  <span className={cx('whitespace-nowrap', g === 'deduction' && 'text-danger')}>
-                    <Money value={num(l.amount)} locale={locale} />
-                  </span>
-                </li>
-              ))}
+              {ls.map((l, i) => {
+                const q = lineQuantity(t, l);
+                return (
+                  <li key={`${l.code}${i}`} className="flex items-baseline justify-between gap-2">
+                    <span>
+                      {locale === 'en' ? l.labelEn || l.labelAr : l.labelAr || l.labelEn}
+                      {q.text && <span className="ms-1 text-xs text-muted">({q.text})</span>}
+                      {q.note && (
+                        <span className="block text-xs text-muted">
+                          <Bdi>{q.note}</Bdi>
+                        </span>
+                      )}
+                    </span>
+                    <span className={cx('whitespace-nowrap', g === 'deduction' && 'text-danger')}>
+                      <Money value={num(l.amount)} locale={locale} />
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         );

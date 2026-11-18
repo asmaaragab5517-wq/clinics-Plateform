@@ -4,16 +4,20 @@ import { useEffect, useState } from 'react';
 import { PERMISSION_KINDS, weekdayOf } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, PageHeader, Stat, Table, Tabs } from '@hf/ui';
 import { ConfirmDialog, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
-import { BalanceView, MonthPicker, MonthSheet, RecordChips, useReloadOn } from '@/components/hr';
+import { BalanceView, MonthPicker, MonthSheet, PunchList, RecordChips, useReloadOn } from '@/components/hr';
 import { useI18n } from '@/components/i18n';
 import { useToast } from '@/components/toast';
 import { ApiError, get, post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { biName, isoDate, num, time12, todayCairo } from '@/lib/format';
 import {
+  MAX_PUNCHES,
   REQUEST_TONE,
+  hasOpenPunch,
+  recordPunches,
   duration,
   fmtDay,
+  fmtMonth,
   weekdayLabel,
   type AttendanceRecord,
   type Balances,
@@ -97,8 +101,10 @@ function ClockCard({ data, holidays, onDone }: { data: MeHr; holidays: MonthView
   const scheduled = !holiday && c.work_pattern.days.includes(weekdayOf(today));
   const rec = data.today;
   // The API reports the open shift, including yesterday's when it crossed midnight; clocking out closes that one.
-  const open = data.openRecord ?? (rec?.clock_in && !rec.clock_out ? rec : null);
+  const open = data.openRecord ?? (rec && hasOpenPunch(rec) ? rec : null);
   const overnight = open && isoDate(open.work_date) !== today ? open : null;
+  // Today's clock-in/out pairs: after clocking out (e.g. for a split-shift break) the person can clock in again.
+  const pairs = rec ? recordPunches(rec).length : 0;
   const [refused, setRefused] = useState(false);
   // No position is sent: the console's Permissions-Policy blocks geolocation, so only the clinic network can verify.
   const clock = async (action: 'in' | 'out') => {
@@ -125,7 +131,11 @@ function ClockCard({ data, holidays, onDone }: { data: MeHr; holidays: MonthView
               {t('hr.todayHoliday')} <Bdi>{biName(holiday, locale)}</Bdi>
             </>
           ) : scheduled ? (
-            <span>{t('hr.todayShift', { start: c.work_pattern.start, end: c.work_pattern.end })}</span>
+            <span>
+              {c.work_pattern.breakStart && c.work_pattern.breakEnd
+                ? t('hr.todayShiftBreak', { start: c.work_pattern.start, end: c.work_pattern.end, bs: c.work_pattern.breakStart, be: c.work_pattern.breakEnd })
+                : t('hr.todayShift', { start: c.work_pattern.start, end: c.work_pattern.end })}
+            </span>
           ) : (
             t('hr.todayRest')
           )}
@@ -136,6 +146,11 @@ function ClockCard({ data, holidays, onDone }: { data: MeHr; holidays: MonthView
           <Stat label={t('hr.worked')} value={rec?.clock_out ? <span dir={dir}>{duration(t, rec.worked_minutes)}</span> : '—'} />
         </div>
         {overnight?.clock_in && <Alert tone="warning">{t('hr.openSinceYesterday', { time: time12(overnight.clock_in, locale) })}</Alert>}
+        {rec && recordPunches(rec).length > 1 && (
+          <p className="text-sm">
+            {t('hr.punch.today')} <PunchList rec={rec} />
+          </p>
+        )}
         {rec && <RecordChips rec={rec} />}
         {a.error && (
           <Alert tone="danger">
@@ -144,14 +159,15 @@ function ClockCard({ data, holidays, onDone }: { data: MeHr; holidays: MonthView
           </Alert>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button size="lg" onClick={() => void clock('in')} disabled={a.busy || !!rec?.clock_in || !!open}>
-            {t('hr.clockIn')}
+          <Button size="lg" onClick={() => void clock('in')} disabled={a.busy || !!open || pairs >= MAX_PUNCHES}>
+            {t(pairs > 0 ? 'hr.clockInAgain' : 'hr.clockIn')}
           </Button>
           <Button size="lg" variant="secondary" onClick={() => void clock('out')} disabled={a.busy || !open}>
             {t('hr.clockOut')}
           </Button>
         </div>
         <p className="text-xs text-muted">{t('hr.clockHint')}</p>
+        {pairs > 0 && !open && <p className="text-xs text-muted">{pairs >= MAX_PUNCHES ? t('hr.punch.maxReached', { n: MAX_PUNCHES }) : t('hr.clockInAgainHint')}</p>}
       </div>
     </Section>
   );
@@ -353,17 +369,21 @@ function PermissionForm({ onDone, allowance }: { onDone: () => void; allowance?:
   const toast = useToast();
   const [f, setF] = useState({ workDate: todayCairo(), kind: 'late_arrival', startTime: '09:00', endTime: '10:00', reason: '' });
   const a = useAction();
-  const left = allowance ? { n: Math.max(0, allowance.perMonth - allowance.used), minutes: Math.max(0, allowance.minutesPerMonth - allowance.usedMinutes) } : null;
-  const thisMonth = f.workDate.slice(0, 7) === todayCairo().slice(0, 7);
+  const month = f.workDate.slice(0, 7);
+  const thisMonth = month === todayCairo().slice(0, 7);
+  // Another month's allowance comes from GET /hr/me?month= (the page's own /hr/me is for the current month).
+  const other = useApi<MeHr>(!thisMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? `/hr/me${qs({ month })}` : null);
+  const shown = thisMonth ? allowance : other.loading ? undefined : other.data?.permissionAllowance;
+  const left = shown ? { n: Math.max(0, shown.perMonth - shown.used), minutes: Math.max(0, shown.minutesPerMonth - shown.usedMinutes) } : null;
   return (
     <Section title={t('hr.perm.request')}>
-      {allowance && left && (
+      {shown && left && (
         <div className="mb-3 flex flex-col gap-1">
           <p className="text-sm">
-            {t('hr.perm.left', { n: left.n, of: allowance.perMonth, d: duration(t, left.minutes), ofD: duration(t, allowance.minutesPerMonth) })}
+            {t(thisMonth ? 'hr.perm.left' : 'hr.perm.leftIn', { n: left.n, of: shown.perMonth, d: duration(t, left.minutes), ofD: duration(t, shown.minutesPerMonth), month: fmtMonth(month) })}
           </p>
-          <p className="text-xs text-muted">{t('hr.perm.leftHint', { used: allowance.used, d: duration(t, allowance.usedMinutes) })}</p>
-          {(left.n === 0 || left.minutes === 0) && <Alert tone="warning">{t('hr.perm.noneLeft')}</Alert>}
+          <p className="text-xs text-muted">{t('hr.perm.leftHint', { used: shown.used, d: duration(t, shown.usedMinutes) })}</p>
+          {(left.n === 0 || left.minutes === 0) && <Alert tone="warning">{t(thisMonth ? 'hr.perm.noneLeft' : 'hr.perm.noneLeftIn', { month: fmtMonth(month) })}</Alert>}
         </div>
       )}
       <form
@@ -375,6 +395,7 @@ function PermissionForm({ onDone, allowance }: { onDone: () => void; allowance?:
           if (r) {
             toast(t('hr.perm.sent'));
             setF({ ...f, reason: '' });
+            if (!thisMonth) other.reload();
             onDone();
           }
         }}
@@ -386,7 +407,7 @@ function PermissionForm({ onDone, allowance }: { onDone: () => void; allowance?:
           <TextField label={t('common.to')} type="time" value={f.endTime} onChange={(e) => setF({ ...f, endTime: e.target.value })} required />
         </div>
         <p className="text-xs text-muted">{t('hr.perm.hint')}</p>
-        {allowance && !thisMonth && <p className="text-xs text-muted">{t('hr.perm.otherMonth')}</p>}
+        {!thisMonth && !other.data && !other.loading && <p className="text-xs text-muted">{t('hr.perm.otherMonth')}</p>}
         <TextAreaField label={t('hr.reasonOptional')} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} maxLength={1000} />
         {a.error && <Alert tone="danger">{a.error}</Alert>}
         <Button type="submit" disabled={a.busy}>
