@@ -118,8 +118,8 @@ export class HrService {
 
   /** Recalculate lateness, early leaving and overtime for one attendance record. */
   async recompute(tx: Tx, recordId: string) {
-    const r = await tx.one<{ user_id: string; work_date: string; clock_in: Date | null; clock_out: Date | null }>(
-      `select user_id, to_char(work_date, 'YYYY-MM-DD') as work_date, clock_in, clock_out from attendance_records where id = $1`,
+    const r = await tx.one<{ user_id: string; work_date: string; clock_in: Date | null; clock_out: Date | null; punches: { in: string; out: string | null }[] }>(
+      `select user_id, to_char(work_date, 'YYYY-MM-DD') as work_date, clock_in, clock_out, punches from attendance_records where id = $1`,
       [recordId],
     );
     const c = await this.activeContract(tx, r.user_id);
@@ -134,6 +134,9 @@ export class HrService {
       shift,
       clockIn: toMinutes(r.work_date, r.clock_in),
       clockOut: toMinutes(r.work_date, r.clock_out),
+      punches: r.punches?.length
+        ? r.punches.map((x) => ({ in: toMinutes(r.work_date, new Date(x.in))!, out: x.out ? toMinutes(r.work_date, new Date(x.out)) : null }))
+        : undefined,
       graceMinutes: s.graceMinutes,
       permissions: perms.map((p) => ({ start: minutesOf(p.s), end: minutesOf(p.e) })),
       night: { start: minutesOf(s.nightStart), end: minutesOf(s.nightEnd) },

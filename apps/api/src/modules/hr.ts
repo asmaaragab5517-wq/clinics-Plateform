@@ -107,20 +107,35 @@ export class HrController {
       const day = localDate(now);
       let rec: { id: string } | null;
       if (b.action === 'in') {
-        const existing = await tx.maybeOne<{ id: string; clock_in: Date | null }>('select id, clock_in from attendance_records where user_id = $1 and work_date = $2 for update', [s.userId, day]);
-        if (existing?.clock_in) throw conflict('already_clocked_in');
+        // A day can hold several clock-in/out pairs (split shifts, back from a break); only one may be open.
+        const existing = await tx.maybeOne<{ id: string; clock_in: Date | null; open: boolean }>(
+          `select id, clock_in, (jsonb_array_length(punches) > 0 and punches->-1->>'out' is null) as open from attendance_records where user_id = $1 and work_date = $2 for update`,
+          [s.userId, day],
+        );
+        if (existing?.open) throw conflict('already_clocked_in');
+        if (existing && (await tx.one<{ n: number }>('select jsonb_array_length(punches) as n from attendance_records where id = $1', [existing.id])).n >= 6) throw conflict('too_many_clock_ins');
+        const punch = JSON.stringify([{ in: now.toISOString(), out: null }]);
         rec = existing
-          ? await tx.one<{ id: string }>(`update attendance_records set clock_in = $2, source = $3, status = 'open', updated_at = now() where id = $1 returning id`, [existing.id, now, b.source])
-          : await tx.one<{ id: string }>(`insert into attendance_records (organisation_id, user_id, clinic_id, work_date, clock_in, source) values (app_org(), $1,$2,$3,$4,$5) returning id`, [s.userId, c.clinic_id, day, now, b.source]);
+          ? await tx.one<{ id: string }>(
+              `update attendance_records set punches = punches || $2::jsonb, clock_in = coalesce(clock_in, $3), clock_out = null, source = $4, status = 'open', updated_at = now() where id = $1 returning id`,
+              [existing.id, punch, now, b.source],
+            )
+          : await tx.one<{ id: string }>(
+              `insert into attendance_records (organisation_id, user_id, clinic_id, work_date, clock_in, punches, source) values (app_org(), $1,$2,$3,$4,$5,$6) returning id`,
+              [s.userId, c.clinic_id, day, now, punch, b.source],
+            );
       } else {
-        // The open record from today, or from yesterday for a shift that crosses midnight (within 16 hours).
+        // The open pair from today, or from yesterday for a shift that crosses midnight (opened within 16 hours).
         rec = await tx.maybeOne<{ id: string }>(
-          `select id from attendance_records where user_id = $1 and clock_in is not null and clock_out is null and work_date >= $2::date - 1
-             and clock_in > now() - interval '16 hours' order by work_date desc limit 1 for update`,
+          `select id from attendance_records where user_id = $1 and work_date >= $2::date - 1 and jsonb_array_length(punches) > 0
+             and punches->-1->>'out' is null and (punches->-1->>'in')::timestamptz > now() - interval '16 hours' order by work_date desc limit 1 for update`,
           [s.userId, day],
         );
         if (!rec) throw new DomainError('not_clocked_in', HttpStatus.CONFLICT);
-        await tx.query(`update attendance_records set clock_out = $2, updated_at = now() where id = $1`, [rec.id, now]);
+        await tx.query(
+          `update attendance_records set punches = jsonb_set(punches, array[(jsonb_array_length(punches) - 1)::text, 'out'], to_jsonb($2::timestamptz)), clock_out = $2, updated_at = now() where id = $1`,
+          [rec.id, now],
+        );
       }
       if (check.mode !== 'off') {
         const col = b.action === 'in' ? 'clock_in' : 'clock_out';
@@ -320,28 +335,43 @@ export class HrController {
     const s = asStaff(p);
     const b = parse(
       z.object({
-        userId: z.string().uuid(), workDate: zDay, clockIn: z.string().regex(/^\d{2}:\d{2}$/).nullable(), clockOut: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
+        userId: z.string().uuid(), workDate: zDay,
+        clockIn: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), clockOut: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
+        // Several pairs for a split shift or stepping out, in order; a later time earlier than the previous one is the next day.
+        punches: z.array(z.object({ in: z.string().regex(/^\d{2}:\d{2}$/), out: z.string().regex(/^\d{2}:\d{2}$/).nullable() })).min(1).max(6).optional(),
         status: z.enum(['absent', 'on_leave', 'holiday', 'rest_day']).optional(), reason: z.string().trim().min(3).max(500),
       }),
       body,
     );
     if (b.clockOut && !b.clockIn) throw badRequest('clock_out_without_clock_in');
+    if (b.punches && (b.clockIn || b.clockOut)) throw badRequest('use_punches_or_clock_times');
+    if (b.punches?.slice(0, -1).some((x) => x.out === null)) throw badRequest('only_last_pair_may_be_open');
     if (b.workDate > today()) throw badRequest('future_date');
     return this.tenancy.system(s.orgId, async (tx) => {
       await this.assertTeamMember(tx, s, b.userId);
       const c = await this.hr.requireContract(tx, b.userId);
-      const inAt = b.clockIn ? zonedToUtc(b.workDate, b.clockIn) : null;
-      let outAt = b.clockOut ? zonedToUtc(b.workDate, b.clockOut) : null;
-      if (inAt && outAt && outAt < inAt) outAt = zonedToUtc(addDays(b.workDate, 1), b.clockOut!);
-      const status = inAt ? (outAt ? 'complete' : 'open') : (b.status ?? 'absent');
+      // Times in order on the work date, rolling into the next day when a time is earlier than the one before.
+      const pairs = b.punches ?? (b.clockIn ? [{ in: b.clockIn, out: b.clockOut ?? null }] : []);
+      let dayOffset = 0;
+      let prev = -1;
+      const at = (t: string) => {
+        const m = minutesOf(t);
+        if (m < prev) dayOffset++;
+        prev = m;
+        return zonedToUtc(addDays(b.workDate, dayOffset), t);
+      };
+      const punches = pairs.map((x) => ({ in: at(x.in).toISOString(), out: x.out ? at(x.out).toISOString() : null }));
+      const inAt = punches[0]?.in ?? null;
+      const lastOut = punches.length ? punches[punches.length - 1]!.out : null;
+      const status = inAt ? (lastOut ? 'complete' : 'open') : (b.status ?? 'absent');
       const r = await tx.one<{ id: string }>(
-        `insert into attendance_records (organisation_id, user_id, clinic_id, work_date, clock_in, clock_out, source, status, adjusted_by, adjusted_reason)
-         values (app_org(), $1,$2,$3,$4,$5,'manual',$6,$7,$8)
-         on conflict (user_id, work_date) do update set clock_in = excluded.clock_in, clock_out = excluded.clock_out, source = 'manual', status = excluded.status,
+        `insert into attendance_records (organisation_id, user_id, clinic_id, work_date, clock_in, clock_out, punches, source, status, adjusted_by, adjusted_reason)
+         values (app_org(), $1,$2,$3,$4,$5,$9,'manual',$6,$7,$8)
+         on conflict (user_id, work_date) do update set clock_in = excluded.clock_in, clock_out = excluded.clock_out, punches = excluded.punches, source = 'manual', status = excluded.status,
            adjusted_by = excluded.adjusted_by, adjusted_reason = excluded.adjusted_reason, overtime_approved = false, overtime_status = 'pending',
            overtime_decided_by = null, overtime_decided_at = null, updated_at = now()
          returning id`,
-        [b.userId, c.clinic_id, b.workDate, inAt, outAt, status, s.userId, b.reason],
+        [b.userId, c.clinic_id, b.workDate, inAt, lastOut, status, s.userId, b.reason, JSON.stringify(punches)],
       );
       const out = await this.hr.recompute(tx, r.id);
       await this.audit.record(tx, s, meta, { action: 'hr.attendance_correct', entity: 'attendance_record', entityId: r.id, clinicId: c.clinic_id, reason: b.reason, details: { userId: b.userId, workDate: b.workDate } });

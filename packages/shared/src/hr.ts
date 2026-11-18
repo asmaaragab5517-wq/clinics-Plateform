@@ -96,8 +96,20 @@ export function hrSettings(overrides?: Partial<HrSettings> | null): HrSettings {
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 /** Weekly working pattern: weekdays 0 = Sunday … 6 = Saturday (Egyptian week starts Saturday). */
 export const workPatternSchema = z
-  .object({ days: z.array(z.number().int().min(0).max(6)).max(7), start: hhmm, end: hhmm })
-  .refine((p) => minutesOf(p.end) > minutesOf(p.start), { message: 'end must be after start', path: ['end'] });
+  .object({
+    days: z.array(z.number().int().min(0).max(6)).max(7),
+    start: hhmm,
+    end: hhmm,
+    /** Optional unpaid break inside the day, e.g. a split shift 09:00–21:00 with 13:00–17:00 off. */
+    breakStart: hhmm.optional(),
+    breakEnd: hhmm.optional(),
+  })
+  .refine((p) => minutesOf(p.end) > minutesOf(p.start), { message: 'end must be after start', path: ['end'] })
+  .refine((p) => !p.breakStart === !p.breakEnd, { message: 'break needs a start and an end', path: ['breakEnd'] })
+  .refine(
+    (p) => !p.breakStart || !p.breakEnd || (minutesOf(p.breakStart) > minutesOf(p.start) && minutesOf(p.breakEnd) > minutesOf(p.breakStart) && minutesOf(p.breakEnd) < minutesOf(p.end)),
+    { message: 'break must fall inside the working day', path: ['breakStart'] },
+  );
 export type WorkPattern = z.infer<typeof workPatternSchema>;
 
 export const DEFAULT_WORK_PATTERN: WorkPattern = { days: [6, 0, 1, 2, 3], start: '09:00', end: '17:00' };
@@ -106,21 +118,37 @@ export const PERMISSION_KINDS = ['late_arrival', 'early_leave', 'during_day'] as
 export type PermissionKind = (typeof PERMISSION_KINDS)[number];
 
 /** Scheduled shift for a date, or null on a rest day or public holiday. */
-export function scheduledShift(pattern: WorkPattern, date: string, holidays: ReadonlySet<string> = new Set()): { start: number; end: number } | null {
-  if (holidays.has(date) || !pattern.days.includes(weekdayOf(date))) return null;
-  return { start: minutesOf(pattern.start), end: minutesOf(pattern.end) };
+export interface Shift {
+  start: number;
+  end: number;
+  breakStart?: number;
+  breakEnd?: number;
 }
 
+export function scheduledShift(pattern: WorkPattern, date: string, holidays: ReadonlySet<string> = new Set()): Shift | null {
+  if (holidays.has(date) || !pattern.days.includes(weekdayOf(date))) return null;
+  const s: Shift = { start: minutesOf(pattern.start), end: minutesOf(pattern.end) };
+  if (pattern.breakStart && pattern.breakEnd) {
+    s.breakStart = minutesOf(pattern.breakStart);
+    s.breakEnd = minutesOf(pattern.breakEnd);
+  }
+  return s;
+}
+
+/** Paid minutes in a scheduled day (the break is unpaid). */
 export function shiftMinutes(pattern: WorkPattern): number {
-  return minutesOf(pattern.end) - minutesOf(pattern.start);
+  const brk = pattern.breakStart && pattern.breakEnd ? minutesOf(pattern.breakEnd) - minutesOf(pattern.breakStart) : 0;
+  return minutesOf(pattern.end) - minutesOf(pattern.start) - brk;
 }
 
 export interface AttendanceInput {
   /** Scheduled shift in local minutes after midnight, or null on a rest day/holiday. */
-  shift: { start: number; end: number } | null;
+  shift: Shift | null;
   /** Local clock-in/out minutes after midnight (clock-out may exceed 1440 for a shift past midnight). */
   clockIn: number | null;
   clockOut: number | null;
+  /** Several clock-in/out pairs in one day (split shifts, stepping out); overrides clockIn/clockOut when given. */
+  punches?: { in: number; out: number | null }[];
   graceMinutes: number;
   /** Approved permissions for the day as local minute ranges. */
   permissions: { start: number; end: number }[];
@@ -145,17 +173,47 @@ const overlap = (a0: number, a1: number, b0: number, b1: number) => Math.max(0, 
  * approved permission is excused. Work on a rest day is all overtime (paid at the rest-day multiplier).
  */
 export function computeAttendance(i: AttendanceInput): AttendanceResult {
-  if (i.clockIn === null) return { workedMinutes: 0, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0, overtimeNightMinutes: 0, restDay: i.shift === null };
-  const out = i.clockOut ?? i.clockIn;
-  const worked = Math.max(0, out - i.clockIn);
-  if (!i.shift) return { workedMinutes: worked, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: i.clockOut === null ? 0 : worked, overtimeNightMinutes: 0, restDay: true };
-  const excused = (from: number, to: number) => i.permissions.reduce((a, p) => a + overlap(from, to, p.start, p.end), 0);
-  const lateRaw = Math.max(0, i.clockIn - i.shift.start);
-  const late = lateRaw <= i.graceMinutes ? 0 : Math.max(0, lateRaw - excused(i.shift.start, i.clockIn));
-  const earlyRaw = i.clockOut === null ? 0 : Math.max(0, i.shift.end - out);
-  const early = Math.max(0, earlyRaw - excused(out, i.shift.end));
-  const overtime = i.clockOut === null ? 0 : Math.max(0, out - i.shift.end);
-  const night = overtime > 0 && i.night ? nightOverlap(i.shift.end, out, i.night) : 0;
+  const punches = (i.punches ?? (i.clockIn === null ? [] : [{ in: i.clockIn, out: i.clockOut }])).slice().sort((a, b) => a.in - b.in);
+  if (!punches.length) return { workedMinutes: 0, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0, overtimeNightMinutes: 0, restDay: i.shift === null };
+  const last = punches[punches.length - 1]!;
+  const open = last.out === null;
+  const worked = punches.reduce((a, p) => a + Math.max(0, (p.out ?? p.in) - p.in), 0);
+  if (!i.shift) return { workedMinutes: worked, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: open ? 0 : worked, overtimeNightMinutes: 0, restDay: true };
+  const sh = i.shift;
+
+  // Minute map of the day (two days, for shifts past midnight). Every scheduled minute outside the break that is not
+  // covered by a clock-in pair or an approved permission is missed: arriving late, leaving early, stepping out, or
+  // coming back late from the break. Grace applies to the first arrival only.
+  const span = 2880;
+  const covered = new Uint8Array(span);
+  const mark = (from: number, to: number) => {
+    for (let m = Math.max(0, from); m < Math.min(span, to); m++) covered[m] = 1;
+  };
+  for (const p of punches) mark(p.in, p.out ?? span); // an open pair counts as still working
+  for (const p of i.permissions) mark(p.start, p.end);
+  const firstIn = punches[0]!.in;
+  if (firstIn > sh.start && firstIn - sh.start <= i.graceMinutes) mark(sh.start, firstIn);
+  const lastOut = open ? span : last.out!;
+  let late = 0;
+  let early = 0;
+  for (let m = sh.start; m < sh.end; m++) {
+    if (sh.breakStart !== undefined && sh.breakEnd !== undefined && m >= sh.breakStart && m < sh.breakEnd) continue;
+    if (covered[m]) continue;
+    if (m >= lastOut) early++;
+    else late++;
+  }
+  // Overtime: clocked time after the scheduled end (only once the last pair is closed).
+  let overtime = 0;
+  let night = 0;
+  if (!open) {
+    for (const p of punches) {
+      const from = Math.max(p.in, sh.end);
+      if (p.out! > from) {
+        overtime += p.out! - from;
+        if (i.night) night += nightOverlap(from, p.out!, i.night);
+      }
+    }
+  }
   return { workedMinutes: worked, lateMinutes: late, earlyLeaveMinutes: early, overtimeMinutes: overtime, overtimeNightMinutes: night, restDay: false };
 }
 

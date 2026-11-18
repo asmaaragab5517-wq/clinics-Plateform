@@ -168,3 +168,24 @@ describe('night overtime, leave payout and structured quantities', () => {
     expect(basisQuantity('Excellent feedback')).toBeUndefined();
   });
 });
+
+describe('split shifts and several clock-in pairs', () => {
+  it('handles a break, a late return and stepping out', async () => {
+    const { computeAttendance, shiftMinutes, workPatternSchema } = await import('../src/hr');
+    const pattern = workPatternSchema.parse({ days: [6], start: '09:00', end: '21:00', breakStart: '13:00', breakEnd: '17:00' });
+    expect(shiftMinutes(pattern)).toBe(480);
+    const shift = { start: 540, end: 1260, breakStart: 780, breakEnd: 1020 };
+    // On time, out for the break, back 20 minutes late, leaves 10 minutes early.
+    const a = computeAttendance({ shift, clockIn: null, clockOut: null, punches: [{ in: 540, out: 780 }, { in: 1040, out: 1250 }], graceMinutes: 15, permissions: [] });
+    expect(a).toMatchObject({ workedMinutes: 450, lateMinutes: 20, earlyLeaveMinutes: 10, overtimeMinutes: 0 });
+    // Stepping out 10:00–10:30 without a permission counts as missed time; with one it is excused.
+    const out = [{ in: 540, out: 600 }, { in: 630, out: 780 }, { in: 1020, out: 1260 }];
+    expect(computeAttendance({ shift, clockIn: null, clockOut: null, punches: out, graceMinutes: 15, permissions: [] }).lateMinutes).toBe(30);
+    expect(computeAttendance({ shift, clockIn: null, clockOut: null, punches: out, graceMinutes: 15, permissions: [{ start: 600, end: 630 }] }).lateMinutes).toBe(0);
+    // Working through the break is not overtime; staying past the end is.
+    expect(computeAttendance({ shift, clockIn: 540, clockOut: 1290, graceMinutes: 15, permissions: [] })).toMatchObject({ lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 30 });
+    // Still clocked in: nothing counts as early leaving yet.
+    expect(computeAttendance({ shift, clockIn: null, clockOut: null, punches: [{ in: 540, out: 780 }, { in: 1020, out: null }], graceMinutes: 15, permissions: [] }).earlyLeaveMinutes).toBe(0);
+    expect(() => workPatternSchema.parse({ days: [6], start: '09:00', end: '21:00', breakStart: '08:00', breakEnd: '10:00' })).toThrow();
+  });
+});

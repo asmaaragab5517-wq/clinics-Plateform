@@ -26,7 +26,7 @@ must be closed before go-live.
 - **pilot** Confirm the payroll defaults with the organisation's accountant: social-insurance rates and the yearly
   minimum/maximum insurable wage (defaults hold the 2025 limits and runs warn until updated), income-tax brackets and
   personal exemption, Martyrs' Fund rate, overtime multipliers, leave entitlements. All are editable in HR settings.
-- Not modelled (ADR 0008): split shifts, the income-tax phase-out above EGP 600,000 a year (flagged for
+- Not modelled (ADR 0008): the income-tax phase-out above EGP 600,000 a year (flagged for
   review), sick-leave pay shared with social insurance, end-of-service gratuity and notice pay (unused annual leave is paid out
   when employment ends).
 - Mobile clock-in by GPS radius needs `expo-location` (blocked until the lockfile can change); until then the mobile app

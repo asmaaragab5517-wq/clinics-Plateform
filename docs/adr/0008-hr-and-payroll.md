@@ -30,6 +30,9 @@ which the platform already calculates (FR-STF-3).
   social-insurance limits updated every January.
 - Sprint 21 added night overtime (its own window and multiplier, default 19:00–07:00 at +70%) and the payout of
   unused annual leave when employment ends (prorated entitlement, added to the final month as a taxable item).
-- Not modelled: more than one shift per day, the income-tax phase-out for annual taxable
+- Sprint 21 also added split shifts: a work pattern may have an unpaid break, a day may hold several clock-in/out
+  pairs, and every scheduled minute not covered by a pair or an approved permission counts as missed time (late
+  arrival, leaving early, stepping out or returning late from the break); grace applies to the first arrival only.
+- Not modelled: the income-tax phase-out for annual taxable
   income above EGP 600,000 (such payslips are flagged for manual review), sick-leave pay split with the social
   insurance authority, end-of-service settlements, and clock-in location checks (geofencing or clinic network).
