@@ -104,11 +104,15 @@ if (process.env.LIGHTHOUSE !== '0') {
         failures.push(`lighthouse ${p}: performance ${s.performance} (target 90; measure on staging/Vercel, local servers are not representative)`);
         // Diagnostics in the CI log: every run's score and the median run's slowest parts.
         const a = r.lhr.audits;
-        const lcpEl = a['largest-contentful-paint-element']?.details?.items?.flatMap((g) => g.items ?? []).find((x) => x.node)?.node;
+        // Lighthouse 12 names this audit 'largest-contentful-paint-element'; Lighthouse 13 reports it as 'lcp-breakdown-insight'.
+        const lcpAudit = a['lcp-breakdown-insight'] ?? a['largest-contentful-paint-element'];
+        const lcpItems = lcpAudit?.details?.items ?? [];
+        const lcpEl = lcpItems.find((x) => x.type === 'node') ?? lcpItems.flatMap((g) => g.items ?? []).find((x) => x.node)?.node;
+        const phases = lcpItems.flatMap((g) => g.items ?? []).filter((x) => x.subpart || x.phase).map((x) => `${x.subpart ?? x.phase} ${Math.round(x.duration ?? x.timing)}ms`);
         console.log(`[lighthouse ${p}] runs ${runs.map((x) => Math.round(x.lhr.categories.performance.score * 100)).join('/')}; ` +
           ['first-contentful-paint', 'largest-contentful-paint', 'total-blocking-time', 'cumulative-layout-shift', 'speed-index'].map((k) => `${k}=${a[k]?.displayValue}`).join(', ') +
-          `; LCP element ${lcpEl?.selector ?? '?'} "${(lcpEl?.nodeLabel ?? '').slice(0, 60)}"`);
-        for (const k of ['largest-contentful-paint-element', 'render-blocking-resources', 'bootup-time', 'unused-javascript', 'server-response-time', 'font-display', 'uses-rel-preconnect'])
+          `; LCP element ${lcpEl?.selector ?? '?'} "${(lcpEl?.nodeLabel ?? '').slice(0, 60)}"; LCP parts: ${phases.join(', ') || '?'}`);
+        for (const k of ['render-blocking-insight', 'render-blocking-resources', 'lcp-discovery-insight', 'font-display-insight', 'font-display', 'bootup-time', 'unused-javascript', 'server-response-time', 'document-latency-insight'])
           if (a[k] && a[k].score !== null && a[k].score < 0.9) console.log(`  ${k}: ${a[k].displayValue ?? ''} ${JSON.stringify((a[k].details?.items ?? []).flatMap((g) => g.items ?? [g]).slice(0, 4).map((x) => x.phase ? `${x.phase} ${Math.round(x.timing)}ms` : `${(x.url ?? '').slice(-50)} ${Math.round(x.wastedMs ?? x.total ?? 0)}ms`))}`);
       }
     }
