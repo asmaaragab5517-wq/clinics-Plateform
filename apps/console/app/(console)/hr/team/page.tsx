@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { addDays } from '@hf/shared';
 import { Alert, Bdi, Button, PageHeader, Select, Table } from '@hf/ui';
 import { DataState, Section, useAction } from '@/components/common';
-import { CorrectionDialog, MonthPicker, MonthSheet, RecordChips, StateBadge } from '@/components/hr';
+import { CorrectionDialog, MonthPicker, MonthSheet, OvertimeActions, RecordChips, StateBadge } from '@/components/hr';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
@@ -45,7 +45,7 @@ export default function TeamAttendancePage() {
   const overtime = async (rec: AttendanceRecord, approved: boolean, after: () => void) => {
     const r = await a.run(() => post(`/hr/attendance/${rec.id}/overtime`, { approved }));
     if (r) {
-      toast(t(approved ? 'hr.otApprovedToast' : 'hr.otRevokedToast'));
+      toast(t(approved ? 'hr.otApprovedToast' : 'hr.otRejectedToast'));
       after();
     }
   };
@@ -146,9 +146,7 @@ export default function TeamAttendancePage() {
                               </Button>
                             )}
                             {can('hr:approve') && r.record && num(r.record.overtime_minutes) > 0 && r.userId !== me.userId && (
-                              <Button size="sm" variant="secondary" onClick={() => void overtime(r.record!, !r.record!.overtime_approved, board.reload)}>
-                                {t(r.record.overtime_approved ? 'hr.otRevoke' : 'hr.otApprove')}
-                              </Button>
+                              <OvertimeActions rec={r.record} busy={a.busy} onDecide={(rec, approved) => void overtime(rec, approved, board.reload)} />
                             )}
                           </div>
                         </td>

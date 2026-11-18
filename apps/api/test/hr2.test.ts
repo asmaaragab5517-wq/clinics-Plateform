@@ -57,6 +57,13 @@ describe('Sprint 20: clock-in location, overtime decisions, settings, previews',
     const raw = await admin.query('select clock_in_check_detail::text as d from attendance_records where user_id = $1', [id.nurse]);
     expect(raw.rows[0].d).not.toMatch(/30\.07|31\.35/);
     await rules({ mode: 'off', allowedNetworks: [], geofenceMeters: null }).expect(200);
+    // A clinic manager cannot read or change another clinic's rules.
+    const other = (await admin.query('select id from clinics where organisation_id = $1 and id <> $2 limit 1', [h.env.demo.orgId, id.clinic])).rows[0].id;
+    await h.http().put(`/v1/hr/clinics/${other}/attendance-rules`).set(auth(h.staff.manager!)).send({ mode: 'off', allowedNetworks: [], geofenceMeters: null }).expect(404);
+    await h.http().get(`/v1/hr/clinics/${other}/attendance-rules`).set(auth(h.staff.manager!)).expect(404);
+    await h.http().put(`/v1/hr/clinics/${other}/attendance-rules`).set(auth(h.staff.owner!)).send({ mode: 'off', allowedNetworks: [], geofenceMeters: null }).expect(200);
+    const net = await h.http().get('/v1/hr/my-network').set(auth(h.staff.manager!));
+    expect(net.body.suggestedRange).toMatch(/^(127\.0\.0\.1\/32|::1\/128)$/);
   });
 
   it('accepts only properly signed client addresses from the web proxies', () => {

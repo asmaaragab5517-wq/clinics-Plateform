@@ -6,7 +6,7 @@ import { plainDate, time } from '../../lib/format';
 import { daysText, dayTone, minutesText, monthDays, monthLabel, shiftMonth, todayCairo, wallTime, weekOf, weekdayName, type DayRow } from '../../lib/hr';
 import { useI18n, type TKey } from '../../lib/i18n';
 import { useQuery } from '../../lib/useQuery';
-import type { MonthSummary } from '../../lib/types';
+import type { AttendanceRecord, LocationCheck, LocationCheckDetail, MonthSummary } from '../../lib/types';
 
 /** My month (GET /v1/hr/me/attendance?month=): one row per day with its status, and the month's summary. */
 export default function MyMonth() {
@@ -76,8 +76,13 @@ function DayCard({ r }: { r: DayRow }) {
   if (rec?.clock_in) details.push({ text: `${time(rec.clock_in, locale)} – ${rec.clock_out ? time(rec.clock_out, locale) : '…'}` });
   if (rec?.late_minutes) details.push({ text: t('hr.day.late', { time: minutesText(rec.late_minutes, t) }), tone: colors.warn });
   if (rec?.early_leave_minutes) details.push({ text: t('hr.day.early', { time: minutesText(rec.early_leave_minutes, t) }), tone: colors.warn });
-  if (rec?.overtime_minutes)
-    details.push({ text: t(rec.overtime_approved ? 'hr.day.overtime' : 'hr.day.overtimePending', { time: minutesText(rec.overtime_minutes, t) }), tone: colors.success });
+  if (rec?.overtime_minutes) {
+    const ot = rec.overtime_status ?? (rec.overtime_approved ? 'approved' : 'pending');
+    details.push({
+      text: t(ot === 'approved' ? 'hr.day.overtime' : ot === 'rejected' ? 'hr.day.overtimeRejected' : 'hr.day.overtimePending', { time: minutesText(rec.overtime_minutes, t) }),
+      tone: ot === 'approved' ? colors.success : ot === 'rejected' ? colors.danger : colors.warn,
+    });
+  }
   if (r.holiday) details.push({ text: r.holiday });
   if (r.leave) details.push({ text: pick(r.leave) });
   if (r.pendingLeave) details.push({ text: t('hr.day.leavePending', { type: pick(r.pendingLeave) }), tone: colors.warn });
@@ -100,7 +105,33 @@ function DayCard({ r }: { r: DayRow }) {
           {d.text}
         </T>
       ))}
+      {rec ? <LocationBadges rec={rec} /> : null}
       {rec?.source === 'manual' ? <Muted style={{ fontSize: 12 }}>{t('hr.day.adjusted')}</Muted> : null}
     </Card>
+  );
+}
+
+const CHECK_TONE: Record<LocationCheck, 'success' | 'danger' | 'warn'> = { ok: 'success', outside: 'danger', unverified: 'warn' };
+
+/** Clock-in/out location verdicts; nothing when the clinic does not check location (null). */
+function LocationBadges({ rec }: { rec: AttendanceRecord }) {
+  const { t } = useI18n();
+  const label = (check: LocationCheck, d: LocationCheckDetail | null | undefined) => {
+    const m = Math.round(Number(d?.distance ?? 0));
+    if (check === 'ok') return d?.method === 'gps' ? t('hr.loc.okGps', { m }) : t('hr.loc.okNetwork');
+    if (check === 'outside') return d?.distance !== undefined ? t('hr.loc.outside', { m }) : t('hr.loc.outsideNoDistance');
+    return t('hr.loc.unverified');
+  };
+  const items = [
+    { key: 'in', when: t('hr.loc.in'), check: rec.clock_in_check, detail: rec.clock_in_check_detail },
+    { key: 'out', when: t('hr.loc.out'), check: rec.clock_out_check, detail: rec.clock_out_check_detail },
+  ].filter((x) => !!x.check);
+  if (!items.length) return null;
+  return (
+    <Row style={{ flexWrap: 'wrap', marginTop: 6, marginStart: -8 }}>
+      {items.map((x) => (
+        <StatusBadge key={x.key} label={t('hr.loc.badge', { when: x.when, what: label(x.check!, x.detail) })} tone={CHECK_TONE[x.check!]} />
+      ))}
+    </Row>
   );
 }

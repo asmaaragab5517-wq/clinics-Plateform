@@ -10,7 +10,7 @@ import { useToast } from './toast';
 import { del, post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { biName, num, parseEgp } from '@/lib/format';
-import { fmtMonth, type HrStaffRow, type PayslipLine } from '@/lib/hr';
+import { fmtMonth, type PayrollPerson, type PayslipLine } from '@/lib/hr';
 
 export interface RunTotals {
   net: number;
@@ -35,6 +35,10 @@ export interface PayrollRun {
   calculated_at: string | null;
   approved_by: string | null;
   approved_at: string | null;
+  created_by_name_ar?: string | null;
+  created_by_name_en?: string | null;
+  approved_by_name_ar?: string | null;
+  approved_by_name_en?: string | null;
   paid_at: string | null;
   created_at: string;
 }
@@ -83,12 +87,17 @@ export function Adjustments({ month, closed, onChanged }: { month: string; close
   const { can } = useSession();
   const toast = useToast();
   const q = useApi<Adjustment[]>(`/payroll/adjustments${qs({ month })}`);
-  const staff = useApi<HrStaffRow[]>(can('payroll:edit') && can('hr:view') ? '/hr/staff' : null);
+  // Contract holders from payroll itself, so preparing payroll does not need HR access.
+  const peopleQ = useApi<PayrollPerson[]>(can('payroll:edit') ? '/payroll/people' : null);
   const [f, setF] = useState({ userId: '', kind: 'bonus', amount: '', taxable: true, note: '' });
   const [removing, setRemoving] = useState<Adjustment | null>(null);
   const a = useAction();
   const edit = can('payroll:edit') && !closed;
-  const people = (staff.data ?? []).filter((s) => s.contract);
+  const people = [...(peopleQ.data ?? [])].sort((x, y) => (x.status === y.status ? biName(x, locale).localeCompare(biName(y, locale), locale) : x.status === 'active' ? -1 : 1));
+  const personLabel = (p: PayrollPerson) => {
+    const job = locale === 'en' ? p.job_title_en || p.job_title_ar : p.job_title_ar;
+    return [biName(p, locale), job, p.status === 'ended' ? t('pay.adj.contractEnded') : null].filter(Boolean).join(' · ');
+  };
   return (
     <div className="grid gap-4 xl:grid-cols-3">
       <Section title={t('pay.adj.title', { month: fmtMonth(month) })} className={edit ? 'xl:col-span-2' : 'xl:col-span-3'}>
@@ -150,7 +159,7 @@ export function Adjustments({ month, closed, onChanged }: { month: string; close
               }
             }}
           >
-            <SelectField label={t('hr.person')} value={f.userId} placeholder={t('form.choose')} onChange={(e) => setF({ ...f, userId: e.target.value })} options={people.map((p) => ({ value: p.id, label: biName(p, locale) }))} required />
+            <SelectField label={t('hr.person')} value={f.userId} placeholder={t('form.choose')} onChange={(e) => setF({ ...f, userId: e.target.value })} options={people.map((p) => ({ value: p.id, label: personLabel(p) }))} required error={peopleQ.error ? t('pay.adj.peopleError') : undefined} />
             <SelectField label={t('pay.adj.kind')} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value, taxable: !NON_TAXABLE.has(e.target.value) })} options={ADJUSTMENT_KINDS.map((k) => ({ value: k, label: t(`pay.adjKind.${k}`) }))} />
             <p className="text-xs text-muted">{t(`pay.adjHint.${f.kind}`)}</p>
             <TextField label={t('pay.adj.amountEgp')} value={f.amount} onChange={(e) => setF({ ...f, amount: e.target.value })} inputMode="decimal" dir="ltr" required />
@@ -179,4 +188,11 @@ export function Adjustments({ month, closed, onChanged }: { month: string; close
       />
     </div>
   );
+}
+
+/** Name of the person who prepared or approved a run (null when unknown). */
+export function runPerson(r: PayrollRun, who: 'created_by' | 'approved_by', locale: 'ar' | 'en'): string | null {
+  const ar = r[`${who}_name_ar`];
+  const en = r[`${who}_name_en`];
+  return (locale === 'en' ? en || ar : ar || en) || null;
 }

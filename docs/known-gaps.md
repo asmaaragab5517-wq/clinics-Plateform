@@ -30,6 +30,8 @@ must be closed before go-live.
   review), sick-leave pay shared with social insurance, end-of-service settlements, clock-in location checks.
 - Mobile clock-in by GPS radius needs `expo-location` (blocked until the lockfile can change); until then the mobile app
   is verified by the clinic network (phone on the clinic Wi-Fi). The console deliberately does not use browser location.
+- The console's clinic admin page cannot set a clinic's map position (the API accepts it), so a GPS radius rule needs
+  the position set through the API first. A decided overtime cannot be returned to pending (approve or reject only).
 - Smaller follow-ups: payslip line `basis`
   text ("20 d", "125 min") is English only; (the rest were closed in Sprint 20).
 

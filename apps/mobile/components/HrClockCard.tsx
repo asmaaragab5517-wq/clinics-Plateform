@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { router } from 'expo-router';
-import { addDays } from '@hf/shared';
 import { ActionButton, Banner, Button, Card, ErrorBox, Loading, Muted, Row, StatusBadge, T, colors } from './ui';
 import { isApiError } from '../lib/api';
 import { hrApi } from '../lib/endpoints';
@@ -9,10 +8,6 @@ import { time } from '../lib/format';
 import { isWorkDay, jobTitle, minutesText, todayCairo, wallTime } from '../lib/hr';
 import { useI18n } from '../lib/i18n';
 import { useAction, useQuery } from '../lib/useQuery';
-import type { AttendanceRecord } from '../lib/types';
-
-/** The API closes an open record from yesterday when its clock-in is under 16 hours old (hr.ts `clock`). */
-const OVERNIGHT_MS = 16 * 3600 * 1000;
 
 /**
  * My HR home card for the staff modes: today's shift, a large Clock in / Clock out button and the clock-in time.
@@ -25,37 +20,39 @@ export function HrClockCard({ showLink = true }: { showLink?: boolean }) {
   const me = useQuery('hr:me', hrApi.me);
   const c = me.data?.contract ?? null;
   const rec = me.data?.today ?? null;
-  // The month gives today's holiday and approved leave, and yesterday's record for a shift past midnight.
+  // The month gives today's holiday and approved leave.
   const cur = useQuery(c ? `hr:card:${month}` : null, () => hrApi.month(month));
-  const yesterday = addDays(today, -1);
-  const needPrev = !!c && !rec?.clock_in && yesterday.slice(0, 7) !== month;
-  const prev = useQuery(needPrev ? `hr:card:${yesterday.slice(0, 7)}` : null, () => hrApi.month(yesterday.slice(0, 7)));
   const act = useAction();
   const [notice, setNotice] = useState<string | null>(null);
+  const [locationRefused, setLocationRefused] = useState(false);
 
-  const yRec = [...(cur.data?.days ?? []), ...(prev.data?.days ?? [])].find((d) => d.day === yesterday) ?? null;
-  const overnight: AttendanceRecord | null =
-    !rec?.clock_in && yRec?.clock_in && !yRec.clock_out && Date.now() - new Date(yRec.clock_in).getTime() < OVERNIGHT_MS ? yRec : null;
-  const open = overnight ?? (rec?.clock_in && !rec.clock_out ? rec : null);
-  const done = !!rec?.clock_in && !!rec.clock_out;
+  // GET /hr/me reports the open shift, including yesterday's when it crossed midnight (the one clock-out closes).
+  const open = me.data?.openRecord ?? (rec?.clock_in && !rec.clock_out ? rec : null);
+  const overnight = open && open.work_date.slice(0, 10) !== today ? open : null;
+  const done = !open && !!rec?.clock_in && !!rec.clock_out;
 
   const holiday = cur.data?.holidays.find((h) => h.day === today) ?? null;
   const leave = cur.data?.leave.find((l) => l.status === 'approved' && l.start_date <= today && l.end_date >= today) ?? null;
   const scheduled = c ? isWorkDay(c.work_pattern, today) : false;
 
   const reload = async () => {
-    await Promise.all([me.reload(), cur.reload(), needPrev ? prev.reload() : Promise.resolve()]);
+    await Promise.all([me.reload(), cur.reload()]);
   };
 
   const clock = (action: 'in' | 'out') =>
     void act.run(async () => {
       setNotice(null);
+      setLocationRefused(false);
       try {
         await hrApi.clock(action);
       } catch (e) {
         // Clocked in or out on another device or in the console: show the current state instead of an error.
         if (isApiError(e, 'already_clocked_in') || isApiError(e, 'not_clocked_in')) setNotice(t(`error.${e.code}` as 'error.already_clocked_in'));
-        else throw e;
+        // The clinic refuses clocking it cannot verify (not on its network; the app sends no position yet).
+        else if (isApiError(e, 'clock_location_not_allowed')) {
+          setLocationRefused(true);
+          return;
+        } else throw e;
       }
       await reload();
     });
@@ -101,6 +98,7 @@ export function HrClockCard({ showLink = true }: { showLink?: boolean }) {
             <T style={{ marginTop: 2 }}>{`${t('hr.clock.outAt', { time: time(rec.clock_out, locale) })} · ${t('hr.day.worked', { time: minutesText(rec.worked_minutes, t) })}`}</T>
           ) : null}
           {notice ? <Banner kind="info">{notice}</Banner> : null}
+          {locationRefused ? <Banner kind="danger">{t('error.clock_location_not_allowed')}</Banner> : null}
           {act.error ? <ErrorBox error={act.error} /> : null}
           {open ? (
             <ActionButton large kind="danger" title={t('hr.clock.out')} onPress={confirmOut} loading={act.busy} style={{ marginTop: 12 }} />

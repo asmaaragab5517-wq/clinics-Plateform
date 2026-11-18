@@ -65,7 +65,67 @@ export interface AttendanceRecord {
   overtime_minutes: number;
   rest_day: boolean;
   overtime_approved: boolean;
+  /** Explicit overtime decision (Sprint 20); a rejected decision is not paid and payroll no longer warns about it. */
+  overtime_status?: OvertimeStatus;
+  overtime_decided_by?: string | null;
+  overtime_decided_at?: string | null;
   adjusted_reason: string | null;
+  /** Clock-in location verdicts; null when the clinic does not check location. */
+  clock_in_check?: LocationCheck | null;
+  clock_in_check_detail?: LocationCheckDetail | null;
+  clock_out_check?: LocationCheck | null;
+  clock_out_check_detail?: LocationCheckDetail | null;
+}
+
+export type OvertimeStatus = 'pending' | 'approved' | 'rejected';
+export type LocationCheck = 'ok' | 'outside' | 'unverified';
+export interface LocationCheckDetail {
+  method?: 'network' | 'gps' | 'none' | 'gps_unavailable';
+  distance?: number;
+  accuracy?: number;
+}
+
+/** Overtime decision, falling back to the Sprint 19 boolean for records the API returns without a status. */
+export const otStatus = (r: AttendanceRecord): OvertimeStatus => r.overtime_status ?? (r.overtime_approved ? 'approved' : 'pending');
+
+export const OT_TONE: Record<OvertimeStatus, 'neutral' | 'success' | 'danger'> = { pending: 'neutral', approved: 'success', rejected: 'danger' };
+
+/** Per-clinic clock-in location rules (GET/PUT /hr/clinics/:clinicId/attendance-rules). */
+export interface AttendanceRules {
+  mode: 'off' | 'flag' | 'block';
+  allowedNetworks: string[];
+  geofenceMeters: number | null;
+  clinicHasLocation?: boolean;
+}
+
+/** GET /hr/leave-preview: nulls where the leave type has no balance, quota or consecutive-day limit. */
+export interface LeavePreview {
+  days: number;
+  available: number | null;
+  remainingAfter: number | null;
+  quota: number | null;
+  quotaRemainingAfter: number | null;
+  maxConsecutiveDays: number | null;
+}
+
+/** GET /hr/me `permissionAllowance`: this month's allowance and what is used (pending and approved). */
+export interface PermissionAllowance {
+  perMonth: number;
+  minutesPerMonth: number;
+  used: number;
+  usedMinutes: number;
+}
+
+/** GET /payroll/people: contract holders payroll can act on (latest contract per person). */
+export interface PayrollPerson {
+  id: string;
+  name_ar: string;
+  name_en: string;
+  job_title_ar: string;
+  job_title_en: string;
+  clinic_id: string;
+  pay_basis: 'monthly' | 'hourly' | 'commission_only';
+  status: 'active' | 'ended';
 }
 
 export interface MonthSummary {
@@ -310,3 +370,12 @@ export function cleanIban(v: string): string {
 /** Fraction ↔ percent without floating noise (0.1875 ↔ 18.75). */
 export const toPercent = (f: number) => Math.round(f * 100 * 1e6) / 1e6;
 export const fromPercent = (p: number) => Math.round((p / 100) * 1e8) / 1e8;
+
+/** A typed network becomes a CIDR range: a bare IPv4 address is one address (/32), a bare IPv6 address /128. */
+export function normaliseNetwork(v: string): string {
+  const x = v.trim().replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  if (!x || x.includes('/')) return x;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(x)) return `${x}/32`;
+  if (x.includes(':')) return `${x}/128`;
+  return x;
+}

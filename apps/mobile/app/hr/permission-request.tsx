@@ -29,6 +29,8 @@ export default function PermissionRequestScreen() {
   const [reason, setReason] = useState('');
   const [touched, setTouched] = useState(false);
   const pattern = me.data?.contract?.work_pattern ?? null;
+  const allowance = me.data?.permissionAllowance ?? null;
+  const left = allowance ? { n: Math.max(0, allowance.perMonth - allowance.used), minutes: Math.max(0, allowance.minutesPerMonth - allowance.usedMinutes) } : null;
 
   const pickKind = (k: PermissionKind) => {
     setKind(k);
@@ -96,6 +98,17 @@ export default function PermissionRequestScreen() {
       <Field label={t('hr.permission.to')} value={end} onChangeText={setEnd} ltr keyboardType="numbers-and-punctuation" maxLength={5} placeholder="11:30" error={endError} />
       {minutes !== null ? <T style={{ marginBottom: 12 }}>{t('hr.permission.duration', { time: minutesText(minutes, t) })}</T> : null}
       <Field label={t('hr.form.reason')} value={reason} onChangeText={setReason} multiline maxLength={1000} />
+      {allowance && left ? (
+        <View style={{ marginBottom: 12 }}>
+          <T style={{ fontWeight: '600' }}>
+            {t('hr.permission.left', { n: left.n, of: allowance.perMonth, time: minutesText(left.minutes, t), ofTime: minutesText(allowance.minutesPerMonth, t) })}
+          </T>
+          {left.n === 0 || left.minutes === 0 ? <Banner kind="warn">{t('hr.permission.noneLeft')}</Banner> : null}
+          {minutes !== null && left.n > 0 && minutes > left.minutes && dayYmd?.slice(0, 7) === todayCairo().slice(0, 7) ? (
+            <Banner kind="warn">{t('hr.permission.overMinutes', { time: minutesText(left.minutes, t) })}</Banner>
+          ) : null}
+        </View>
+      ) : null}
       <Muted style={{ marginBottom: 12 }}>{t('hr.permission.allowanceNote')}</Muted>
       {act.error ? <Banner kind="danger">{message(act.error)}</Banner> : null}
       <ActionButton title={t('hr.form.submit')} onPress={submit} loading={act.busy} />

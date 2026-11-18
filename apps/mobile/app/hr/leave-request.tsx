@@ -40,6 +40,29 @@ export default function LeaveRequestScreen() {
   const annual = bal.data?.annual;
   const typeUsed = bal.data?.types.find((x) => x.id === typeId)?.used ?? null;
 
+  // Live preview of the days this range uses and what remains (GET /v1/hr/leave-preview); only for a complete range.
+  const rangeOk = !!type && !!fromYmd && !!toYmd && toYmd >= fromYmd && fromYmd.slice(0, 4) === toYmd.slice(0, 4);
+  const pvKey = rangeOk ? `hr:leavePreview:${type!.id}:${fromYmd}:${toYmd}` : null;
+  const pv = useQuery(pvKey, async () => ({ key: pvKey, p: await hrApi.leavePreview({ leaveTypeId: type!.id, startDate: fromYmd!, endDate: toYmd! }) }));
+  const preview = pv.data && pv.data.key === pvKey ? pv.data.p : null;
+  const pDays = num(preview?.days) ?? 0;
+  const problems: string[] = [];
+  if (preview) {
+    if (pDays <= 0) problems.push(t('error.no_working_days_in_range'));
+    if (preview.remainingAfter !== null && Number(preview.remainingAfter) < 0) problems.push(t('hr.leave.error.balance', { available: daysText(preview.available ?? 0, t), requested: daysText(pDays, t) }));
+    if (preview.quotaRemainingAfter !== null && Number(preview.quotaRemainingAfter) < 0) problems.push(t('hr.leave.error.quota', { quota: daysText(preview.quota ?? 0, t) }));
+    if (preview.maxConsecutiveDays !== null && pDays > Number(preview.maxConsecutiveDays)) problems.push(t('hr.leave.error.maxDays', { max: daysText(preview.maxConsecutiveDays, t) }));
+  }
+  const previewText = preview && pDays > 0
+    ? [
+        t('hr.leave.preview.days', { days: daysText(pDays, t) }),
+        preview.remainingAfter !== null && Number(preview.remainingAfter) >= 0 ? t('hr.leave.preview.left', { days: daysText(preview.remainingAfter, t) }) : null,
+        preview.quotaRemainingAfter !== null && Number(preview.quotaRemainingAfter) >= 0 ? t('hr.leave.preview.quotaLeft', { days: daysText(preview.quotaRemainingAfter, t) }) : null,
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : null;
+
   const message = (e: unknown): string => {
     const d = isApiError(e) ? ((e.details ?? {}) as Record<string, number>) : {};
     if (isApiError(e, 'insufficient_leave_balance')) return t('hr.leave.error.balance', { available: daysText(d.available ?? 0, t), requested: daysText(d.requested ?? 0, t) });
@@ -50,7 +73,7 @@ export default function LeaveRequestScreen() {
 
   const submit = () => {
     setTouched(true);
-    if (!valid) return;
+    if (!valid || problems.length) return;
     void act.run(async () => {
       await hrApi.requestLeave({ leaveTypeId: type!.id, startDate: fromYmd!, endDate: toYmd!, ...(reason.trim() ? { reason: reason.trim() } : {}) });
       Alert.alert(t('hr.leave.submitted'), t('hr.leave.submittedBody'));
@@ -83,9 +106,14 @@ export default function LeaveRequestScreen() {
       <Field label={t('hr.leave.from')} value={from} onChangeText={setFrom} ltr keyboardType="numbers-and-punctuation" maxLength={10} placeholder="2026-01-31" error={fromError} />
       <Field label={t('hr.leave.to')} value={to} onChangeText={setTo} ltr keyboardType="numbers-and-punctuation" maxLength={10} placeholder={t('hr.leave.toHint')} error={toError} />
       <Field label={t('hr.form.reason')} value={reason} onChangeText={setReason} multiline maxLength={1000} />
+      {rangeOk && pv.loading && !preview ? <Muted style={{ marginBottom: 8 }}>{t('hr.leave.preview.loading')}</Muted> : null}
+      {previewText ? <T style={{ fontWeight: '600', marginBottom: 8 }}>{previewText}</T> : null}
+      {problems.length ? (
+        <Banner kind="warn">{`${problems.join('\n')}\n${t('hr.leave.preview.willRefuse')}`}</Banner>
+      ) : null}
       <Muted style={{ marginBottom: 12 }}>{t('hr.leave.daysNote')}</Muted>
       {act.error ? <Banner kind="danger">{message(act.error)}</Banner> : null}
-      <ActionButton title={t('hr.form.submit')} onPress={submit} loading={act.busy} />
+      <ActionButton title={t('hr.form.submit')} onPress={submit} loading={act.busy} disabled={problems.length > 0 || (rangeOk && pv.loading && !preview)} />
       <Button kind="ghost" title={t('common.cancel')} onPress={() => router.back()} disabled={act.busy} />
     </Screen>
   );

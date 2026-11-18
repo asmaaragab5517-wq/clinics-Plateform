@@ -665,6 +665,7 @@ export class HrController {
   @Get('clinics/:clinicId/attendance-rules')
   @Staff('hr:view')
   getRules(@Auth() p: Principal, @Param('clinicId') clinicId: string) {
+    this.assertClinic(asStaff(p), uuid(clinicId));
     return this.tenancy.run(p, async (tx) => {
       const c = await tx.maybeOne<{ settings: { attendance?: unknown }; lat: number | null; lng: number | null }>('select settings, lat, lng from clinics where id = $1', [uuid(clinicId)]);
       if (!c) throw notFound('clinic');
@@ -675,6 +676,7 @@ export class HrController {
   @Put('clinics/:clinicId/attendance-rules')
   @Staff('hr:edit')
   saveRules(@Auth() p: Principal, @Param('clinicId') clinicId: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    this.assertClinic(asStaff(p), uuid(clinicId));
     const b = parse(attendanceRulesSchema, body);
     for (const n of b.allowedNetworks) {
       const [addr, bits] = n.split('/');
@@ -690,6 +692,20 @@ export class HrController {
       await this.audit.record(tx, p, meta, { action: 'hr.attendance_rules_update', entity: 'clinic', entityId: clinicId, clinicId, details: { mode: b.mode, networks: b.allowedNetworks.length, geofence: b.geofenceMeters } });
       return b;
     });
+  }
+
+  /** The address the API sees for this request, so a manager at the clinic can add "this connection" to the rules. */
+  @Get('my-network')
+  @Staff('hr:edit')
+  myNetwork(@Meta() meta: RequestMeta) {
+    const ip = meta.ip?.replace(/^::ffff:/, '') ?? null;
+    const v = ip ? isIP(ip) : 0;
+    return { ip, suggestedRange: ip && v ? `${ip}/${v === 4 ? 32 : 128}` : null };
+  }
+
+  /** Clinic-scoped staff may only manage clinics they belong to; network roles manage all. */
+  private assertClinic(s: StaffPrincipal, clinicId: string) {
+    if (!s.network && !s.clinicIds.includes(clinicId)) throw notFound('clinic');
   }
 
   /**
@@ -749,7 +765,8 @@ export class HrController {
     const period = `${month}-01`;
     const c = await this.hr.activeContract(tx, userId);
     const days = await tx.query(
-      `select a.*, to_char(a.work_date, 'YYYY-MM-DD') as day from attendance_records a where a.user_id = $1 and a.work_date >= $2::date and a.work_date < ($2::date + interval '1 month') order by a.work_date`,
+      `select a.*, to_char(a.work_date, 'YYYY-MM-DD') as day, du.name_ar as overtime_decided_by_name_ar, du.name_en as overtime_decided_by_name_en
+       from attendance_records a left join users du on du.id = a.overtime_decided_by where a.user_id = $1 and a.work_date >= $2::date and a.work_date < ($2::date + interval '1 month') order by a.work_date`,
       [userId, period],
     );
     const leave = await tx.query(

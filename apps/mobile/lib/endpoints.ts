@@ -10,6 +10,7 @@ import type {
   HrBalances,
   HrMe,
   HrMonth,
+  LeavePreview,
   LeaveRequest,
   LeaveType,
   MyPayslip,
@@ -187,18 +188,24 @@ export const staffApi = {
 
 /**
  * Staff self-service HR (hr.ts) and payslips (payroll.ts). Every staff member may call these for their own records.
- * Errors: clock → no_active_contract, already_clocked_in, not_clocked_in; leave → overlapping_leave,
+ * Errors: clock → no_active_contract, already_clocked_in, not_clocked_in, clock_location_not_allowed (403, details
+ * {method, distance?, accuracy?}) when the clinic blocks clocking it cannot verify; leave → overlapping_leave,
  * insufficient_leave_balance {available}, leave_quota_exceeded {quota}, exceeds_max_consecutive_days {max},
  * no_working_days_in_range, leave_must_stay_within_one_year; permission → permission_allowance_exceeded
  * {perMonth, minutesPerMonth, used, usedMinutes}; cancel → 404 when the request can no longer be cancelled.
  */
 export const hrApi = {
   me: () => api.get<HrMe>('/v1/hr/me', undefined, 'staff'),
-  /** The server stamps the time; the work day is the Cairo day of the clock-in. */
+  /**
+   * The server stamps the time; the work day is the Cairo day of the clock-in. No position is sent: the app has no
+   * location library yet, so only the clinic network can verify where the person is.
+   */
   clock: (action: 'in' | 'out') => api.post<AttendanceRecord>('/v1/hr/attendance/clock', { action, source: 'mobile' }, 'staff'),
   month: (month: string) => api.get<HrMonth>('/v1/hr/me/attendance', { month }, 'staff'),
   balances: (year?: number) => api.get<HrBalances>('/v1/hr/me/balances', { year }, 'staff'),
   leaveTypes: () => api.get<LeaveType[]>('/v1/hr/leave-types', undefined, 'staff'),
+  /** Days a leave range would use and what would remain, before submitting. */
+  leavePreview: (q: { leaveTypeId: string; startDate: string; endDate: string }) => api.get<LeavePreview>('/v1/hr/leave-preview', q, 'staff'),
   requests: () => api.get<MyRequests>('/v1/hr/me/requests', undefined, 'staff'),
   requestLeave: (b: { leaveTypeId: string; startDate: string; endDate: string; reason?: string }) => api.post<LeaveRequest>('/v1/hr/leave-requests', b, 'staff'),
   requestPermission: (b: { workDate: string; kind: PermissionKind; startTime: string; endTime: string; reason?: string }) =>

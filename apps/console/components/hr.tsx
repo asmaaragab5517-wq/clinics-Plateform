@@ -6,17 +6,21 @@ import { Check, SelectField, TextAreaField, TextField, InlineError } from './com
 import { Dialog } from './dialog';
 import { useI18n } from './i18n';
 import { put } from '@/lib/api';
-import { biName, cairoTime, isoDate, num, time12 } from '@/lib/format';
+import { biName, cairoDate, cairoTime, isoDate, num, time12 } from '@/lib/format';
 import {
+  OT_TONE,
   STATE_TONE,
   WEEK,
   duration,
   fmtDay,
   monthDaysInfo,
   nextMonth,
+  otStatus,
   prevMonth,
   weekdayLabel,
   type AttendanceRecord,
+  type LocationCheck,
+  type LocationCheckDetail,
   type Balances,
   type DayInfo,
   type MonthView,
@@ -52,18 +56,55 @@ export function StateBadge({ state }: { state: string }) {
   return <Badge tone={STATE_TONE[state] ?? 'neutral'}>{t(`hr.state.${state}`)}</Badge>;
 }
 
-/** Lateness, early leaving and overtime chips for one attendance record. */
+const CHECK_TONE: Record<LocationCheck, 'success' | 'danger' | 'warning'> = { ok: 'success', outside: 'danger', unverified: 'warning' };
+
+/** Plain words for a clock-in/out location verdict: how it was verified, or how far away the device was. */
+function checkText(t: ReturnType<typeof useI18n>['t'], check: LocationCheck, d: LocationCheckDetail | null | undefined): { label: string; title: string } {
+  const m = Math.round(num(d?.distance));
+  if (check === 'ok')
+    return d?.method === 'gps'
+      ? { label: t('hr.loc.okGps', { m }), title: t('hr.loc.okGpsTitle', { m, a: Math.round(num(d.accuracy)) }) }
+      : { label: t('hr.loc.okNetwork'), title: t('hr.loc.okNetworkTitle') };
+  if (check === 'outside') return { label: d?.distance !== undefined ? t('hr.loc.outside', { m }) : t('hr.loc.outsideNoDistance'), title: t('hr.loc.outsideTitle') };
+  return { label: t('hr.loc.unverified'), title: t(d?.method === 'gps_unavailable' ? 'hr.loc.unverifiedGpsTitle' : 'hr.loc.unverifiedTitle') };
+}
+
+/** Small badges for the clock-in and clock-out location checks; nothing when the clinic does not check location. */
+export function LocationBadges({ rec }: { rec: AttendanceRecord }) {
+  const { t } = useI18n();
+  const items = [
+    { when: t('hr.in'), check: rec.clock_in_check, detail: rec.clock_in_check_detail },
+    { when: t('hr.out'), check: rec.clock_out_check, detail: rec.clock_out_check_detail },
+  ];
+  return (
+    <>
+      {items.map((x) => {
+        if (!x.check) return null;
+        const { label, title } = checkText(t, x.check, x.detail);
+        return (
+          <Badge key={x.when} tone={CHECK_TONE[x.check]} title={title}>
+            {t('hr.loc.badge', { when: x.when, what: label })}
+          </Badge>
+        );
+      })}
+    </>
+  );
+}
+
+/** Lateness, early leaving, overtime and location chips for one attendance record. */
 export function RecordChips({ rec }: { rec: AttendanceRecord }) {
   const { t } = useI18n();
+  const ot = otStatus(rec);
   return (
     <span className="inline-flex flex-wrap gap-1">
       {num(rec.late_minutes) > 0 && <Badge tone="warning">{t('hr.lateBy', { d: duration(t, rec.late_minutes) })}</Badge>}
       {num(rec.early_leave_minutes) > 0 && <Badge tone="warning">{t('hr.earlyBy', { d: duration(t, rec.early_leave_minutes) })}</Badge>}
       {num(rec.overtime_minutes) > 0 && (
-        <Badge tone={rec.overtime_approved ? 'success' : 'neutral'}>
-          {t(rec.overtime_approved ? 'hr.otApproved' : 'hr.otPending', { d: duration(t, rec.overtime_minutes) })}
+        <Badge tone={OT_TONE[ot]} title={ot === 'rejected' ? t('hr.otRejectedHint') : undefined}>
+          {t(`hr.ot.${ot}`, { d: duration(t, rec.overtime_minutes) })}
         </Badge>
       )}
+      <LocationBadges rec={rec} />
       {rec.rest_day && <Badge tone="primary">{t('hr.restDayWork')}</Badge>}
       {rec.clock_in && !rec.clock_out && <Badge tone={rec.status === 'incomplete' ? 'danger' : 'neutral'}>{t(rec.status === 'incomplete' ? 'hr.missingOut' : 'hr.stillIn')}</Badge>}
       {rec.source === 'manual' && rec.adjusted_reason && (
@@ -130,7 +171,15 @@ function MonthCalendar({ days, selected, onSelect }: { days: DayInfo[]; selected
           <span className="num font-medium">{Number(d.date.slice(8))}</span>
           <span className="leading-tight">{t(`hr.state.${d.state}`)}</span>
           {d.rec && num(d.rec.late_minutes) > 0 && <span className="text-warning">{t('hr.lateShort', { n: d.rec.late_minutes })}</span>}
-          {d.rec && num(d.rec.overtime_minutes) > 0 && <span className={d.rec.overtime_approved ? 'text-success' : 'text-muted'}>{t('hr.otShort', { n: d.rec.overtime_minutes })}</span>}
+          {d.rec && num(d.rec.overtime_minutes) > 0 && (
+            <span className={cx(otStatus(d.rec) === 'approved' && 'text-success', otStatus(d.rec) === 'pending' && 'text-muted', otStatus(d.rec) === 'rejected' && 'text-danger line-through')}>
+              {t('hr.otShort', { n: d.rec.overtime_minutes })}
+            </span>
+          )}
+          {d.rec && (d.rec.clock_in_check === 'outside' || d.rec.clock_out_check === 'outside') && <span className="text-danger">{t('hr.loc.outsideShort')}</span>}
+          {d.rec && d.rec.clock_in_check !== 'outside' && d.rec.clock_out_check !== 'outside' && (d.rec.clock_in_check === 'unverified' || d.rec.clock_out_check === 'unverified') && (
+            <span className="text-warning">{t('hr.loc.unverifiedShort')}</span>
+          )}
           {d.pendingLeave && <span className="text-warning">{t('hr.leavePendingShort')}</span>}
           {d.permissions.length > 0 && <span className="text-accent">{t('hr.permShort')}</span>}
         </button>
@@ -140,8 +189,33 @@ function MonthCalendar({ days, selected, onSelect }: { days: DayInfo[]; selected
 }
 
 /**
+ * Overtime decision buttons: Approve and Reject while pending; once decided, one button to change the decision
+ * (POST /hr/attendance/:id/overtime records approved or rejected explicitly).
+ */
+export function OvertimeActions({ rec, onDecide, busy }: { rec: AttendanceRecord; onDecide: (rec: AttendanceRecord, approved: boolean) => void; busy?: boolean }) {
+  const { t } = useI18n();
+  const ot = otStatus(rec);
+  if (ot === 'pending')
+    return (
+      <>
+        <Button size="sm" variant="secondary" onClick={() => onDecide(rec, true)} disabled={busy} aria-label={t('hr.otApproveAria', { d: duration(t, rec.overtime_minutes) })}>
+          {t('hr.otApprove')}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => onDecide(rec, false)} disabled={busy} aria-label={t('hr.otRejectAria', { d: duration(t, rec.overtime_minutes) })}>
+          {t('hr.otReject')}
+        </Button>
+      </>
+    );
+  return (
+    <Button size="sm" variant="ghost" onClick={() => onDecide(rec, ot !== 'approved')} disabled={busy} title={rec.overtime_decided_at ? t('hr.otDecidedOn', { d: fmtDay(cairoDate(rec.overtime_decided_at)) }) : undefined}>
+      {t(ot === 'approved' ? 'hr.otChangeToRejected' : 'hr.otChangeToApproved')}
+    </Button>
+  );
+}
+
+/**
  * One person's month: summary, calendar and a day table. In team mode each day offers a correction and, for
- * overtime, approve/revoke (the API checks hr:edit / hr:approve).
+ * overtime, approve/reject (the API checks hr:edit / hr:approve).
  */
 export function MonthSheet({
   view,
@@ -224,11 +298,7 @@ export function MonthSheet({
                             {t('hr.correct')}
                           </Button>
                         )}
-                        {onOvertime && d.rec && num(d.rec.overtime_minutes) > 0 && (
-                          <Button size="sm" variant={d.rec.overtime_approved ? 'ghost' : 'secondary'} onClick={() => onOvertime(d.rec!, !d.rec!.overtime_approved)}>
-                            {t(d.rec.overtime_approved ? 'hr.otRevoke' : 'hr.otApprove')}
-                          </Button>
-                        )}
+                        {onOvertime && d.rec && num(d.rec.overtime_minutes) > 0 && <OvertimeActions rec={d.rec} onDecide={onOvertime} />}
                       </div>
                     </td>
                   )}

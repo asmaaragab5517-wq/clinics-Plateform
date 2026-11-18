@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { Alert, Badge, Button, Money, PageHeader, Table, Tabs } from '@hf/ui';
+import { Alert, Badge, Bdi, Button, Money, PageHeader, Table, Tabs } from '@hf/ui';
 import { DataState, Section, useAction } from '@/components/common';
 import { MonthPicker } from '@/components/hr';
-import { Adjustments, type PayrollRun } from '@/components/payroll';
+import { Adjustments, runPerson, type PayrollRun } from '@/components/payroll';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
@@ -100,6 +100,7 @@ function Runs() {
                   <th>{t('pay.gross')}</th>
                   <th>{t('pay.net')}</th>
                   <th>{t('pay.employerCost')}</th>
+                  <th>{t('pay.preparedApproved')}</th>
                   <th>{t('pay.warnings')}</th>
                   <th />
                 </tr>
@@ -120,6 +121,14 @@ function Runs() {
                     </td>
                     <td>
                       <Money value={num(r.totals?.employerCost)} locale={locale} />
+                    </td>
+                    <td className="text-xs">
+                      <Bdi>{runPerson(r, 'created_by', locale) ?? '—'}</Bdi>
+                      {runPerson(r, 'approved_by', locale) && (
+                        <span className="block text-muted">
+                          {t('pay.approvedBy')} <Bdi>{runPerson(r, 'approved_by', locale)}</Bdi>
+                        </span>
+                      )}
                     </td>
                     <td>{(r.warnings ?? []).length > 0 ? <Badge tone="warning">{(r.warnings ?? []).length}</Badge> : '—'}</td>
                     <td>

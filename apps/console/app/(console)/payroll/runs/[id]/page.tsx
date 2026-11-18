@@ -5,7 +5,7 @@ import { Fragment, use, useState } from 'react';
 import { Alert, Badge, Bdi, Button, DateText, Money, PageHeader, Stat, Table } from '@hf/ui';
 import { ConfirmDialog, DataState, FileLink, ReasonDialog, Section } from '@/components/common';
 import { PayslipLines } from '@/components/hr';
-import { Adjustments, type PayrollRun, type Payslip } from '@/components/payroll';
+import { Adjustments, runPerson, type PayrollRun, type Payslip } from '@/components/payroll';
 import { useI18n } from '@/components/i18n';
 import { useSession } from '@/components/session';
 import { useToast } from '@/components/toast';
@@ -78,6 +78,12 @@ export default function PayrollRunPage({ params }: { params: Promise<{ id: strin
               />
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge tone={RUN_TONE[r.status]}>{t(`pay.status.${r.status}`)}</Badge>
+                {runPerson(r, 'created_by', locale) && (
+                  <span className="text-muted">
+                    {t('pay.preparedBy')} <Bdi>{runPerson(r, 'created_by', locale)}</Bdi>
+                    {r.created_by === me.userId && <> ({t('pay.you')})</>} ·
+                  </span>
+                )}
                 {r.calculated_at && (
                   <span className="text-muted">
                     {t('pay.calculated')} <DateText value={r.calculated_at} locale={locale} withTime />
@@ -86,6 +92,12 @@ export default function PayrollRunPage({ params }: { params: Promise<{ id: strin
                 {r.approved_at && (
                   <span className="text-muted">
                     · {t('pay.approvedOn')} <DateText value={r.approved_at} locale={locale} withTime />
+                    {runPerson(r, 'approved_by', locale) && (
+                      <>
+                        {' '}
+                        {t('pay.byName')} <Bdi>{runPerson(r, 'approved_by', locale)}</Bdi>
+                      </>
+                    )}
                   </span>
                 )}
                 {r.paid_at && (
@@ -93,7 +105,7 @@ export default function PayrollRunPage({ params }: { params: Promise<{ id: strin
                     · {t('pay.paidOn')} <DateText value={r.paid_at} locale={locale} withTime />
                   </span>
                 )}
-                {r.created_by === me.userId && <span className="text-muted">· {t('pay.createdByYou')}</span>}
+                {r.created_by === me.userId && !runPerson(r, 'created_by', locale) && <span className="text-muted">· {t('pay.createdByYou')}</span>}
               </div>
               {own && r.status === 'draft' && can('payroll:approve') && <Alert tone="info">{t('pay.fourEyesHint')}</Alert>}
               {r.status === 'draft' && <p className="text-xs text-muted">{t('pay.draftHint')}</p>}

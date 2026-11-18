@@ -551,6 +551,20 @@ export interface AttendanceRecord {
   overtime_minutes: number;
   rest_day: boolean;
   overtime_approved: boolean;
+  /** Explicit overtime decision (Sprint 20); rejected overtime is not paid. */
+  overtime_status?: 'pending' | 'approved' | 'rejected';
+  overtime_decided_at?: string | null;
+  /** Clock-in/out location verdicts; null when the clinic does not check location. */
+  clock_in_check?: LocationCheck | null;
+  clock_in_check_detail?: LocationCheckDetail | null;
+  clock_out_check?: LocationCheck | null;
+  clock_out_check_detail?: LocationCheckDetail | null;
+}
+export type LocationCheck = 'ok' | 'outside' | 'unverified';
+export interface LocationCheckDetail {
+  method?: 'network' | 'gps' | 'none' | 'gps_unavailable';
+  distance?: number;
+  accuracy?: number;
 }
 export interface AnnualBalance {
   year: number;
@@ -589,6 +603,10 @@ export interface PermissionRequest {
 export interface HrMe {
   contract: HrContract | null;
   today: AttendanceRecord | null;
+  /** The shift still open: today's, or yesterday's when it crossed midnight (clock-in under 16 hours ago). */
+  openRecord?: AttendanceRecord | null;
+  /** This month's hourly-permission allowance and what is used (pending and approved). */
+  permissionAllowance?: { perMonth: number; minutesPerMonth: number; used: number; usedMinutes: number };
   annualBalance: AnnualBalance | null;
   pending: { leave: LeaveRequest[]; permissions: PermissionRequest[] };
 }
@@ -624,6 +642,15 @@ export interface LeaveType extends Named {
   annual_quota: number | string | null;
   max_consecutive_days: number | string | null;
   is_active: boolean;
+}
+/** GET /v1/hr/leave-preview: nulls where the leave type has no balance, quota or consecutive-day limit. */
+export interface LeavePreview {
+  days: number;
+  available: number | null;
+  remainingAfter: number | null;
+  quota: number | null;
+  quotaRemainingAfter: number | null;
+  maxConsecutiveDays: number | null;
 }
 export interface HrBalances {
   year: number;

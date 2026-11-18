@@ -1,20 +1,37 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PERMISSION_KINDS, weekdayOf } from '@hf/shared';
 import { Alert, Badge, Bdi, Button, PageHeader, Stat, Table, Tabs } from '@hf/ui';
 import { ConfirmDialog, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { BalanceView, MonthPicker, MonthSheet, RecordChips, useReloadOn } from '@/components/hr';
 import { useI18n } from '@/components/i18n';
 import { useToast } from '@/components/toast';
-import { post, qs } from '@/lib/api';
+import { ApiError, get, post, qs } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
-import { biName, num, time12, todayCairo } from '@/lib/format';
-import { REQUEST_TONE, duration, fmtDay, weekdayLabel, type AttendanceRecord, type Balances, type ContractView, type LeaveRequest, type LeaveType, type MonthView, type PermissionRequest } from '@/lib/hr';
+import { biName, isoDate, num, time12, todayCairo } from '@/lib/format';
+import {
+  REQUEST_TONE,
+  duration,
+  fmtDay,
+  weekdayLabel,
+  type AttendanceRecord,
+  type Balances,
+  type ContractView,
+  type LeavePreview,
+  type LeaveRequest,
+  type LeaveType,
+  type MonthView,
+  type PermissionAllowance,
+  type PermissionRequest,
+} from '@/lib/hr';
 
 interface MeHr {
   contract: ContractView | null;
   today: AttendanceRecord | null;
+  /** A shift still open (today's, or yesterday's past midnight within 16 hours); clocking out closes it. */
+  openRecord?: AttendanceRecord | null;
+  permissionAllowance?: PermissionAllowance;
   annualBalance: Balances['annual'] | null;
 }
 
@@ -64,7 +81,7 @@ export default function MyHrPage() {
           </DataState>
         </Section>
       ) : (
-        <Requests version={requestsVersion} onChanged={refreshAll} hasContract={!!me.data?.contract} />
+        <Requests version={requestsVersion} onChanged={refreshAll} hasContract={!!me.data?.contract} allowance={me.data?.permissionAllowance} />
       )}
     </div>
   );
@@ -79,8 +96,21 @@ function ClockCard({ data, holidays, onDone }: { data: MeHr; holidays: MonthView
   const holiday = holidays.find((h) => h.day === today);
   const scheduled = !holiday && c.work_pattern.days.includes(weekdayOf(today));
   const rec = data.today;
+  // The API reports the open shift, including yesterday's when it crossed midnight; clocking out closes that one.
+  const open = data.openRecord ?? (rec?.clock_in && !rec.clock_out ? rec : null);
+  const overnight = open && isoDate(open.work_date) !== today ? open : null;
+  const [refused, setRefused] = useState(false);
+  // No position is sent: the console's Permissions-Policy blocks geolocation, so only the clinic network can verify.
   const clock = async (action: 'in' | 'out') => {
-    const r = await a.run(() => post('/hr/attendance/clock', { action, source: 'console' }));
+    setRefused(false);
+    const r = await a.run(async () => {
+      try {
+        return await post('/hr/attendance/clock', { action, source: 'console' });
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'clock_location_not_allowed') setRefused(true);
+        throw e;
+      }
+    });
     if (r) {
       toast(t(action === 'in' ? 'hr.clockedIn' : 'hr.clockedOut'));
       onDone();
@@ -105,13 +135,19 @@ function ClockCard({ data, holidays, onDone }: { data: MeHr; holidays: MonthView
           <Stat label={t('hr.out')} value={rec?.clock_out ? time12(rec.clock_out, locale) : '—'} />
           <Stat label={t('hr.worked')} value={rec?.clock_out ? <span dir={dir}>{duration(t, rec.worked_minutes)}</span> : '—'} />
         </div>
+        {overnight?.clock_in && <Alert tone="warning">{t('hr.openSinceYesterday', { time: time12(overnight.clock_in, locale) })}</Alert>}
         {rec && <RecordChips rec={rec} />}
-        {a.error && <Alert tone="danger">{a.error}</Alert>}
+        {a.error && (
+          <Alert tone="danger">
+            {a.error}
+            {refused && <span className="mt-1 block text-xs">{t('hr.locRefusedConsole')}</span>}
+          </Alert>
+        )}
         <div className="flex flex-wrap gap-2">
-          <Button size="lg" onClick={() => void clock('in')} disabled={a.busy || !!rec?.clock_in}>
+          <Button size="lg" onClick={() => void clock('in')} disabled={a.busy || !!rec?.clock_in || !!open}>
             {t('hr.clockIn')}
           </Button>
-          <Button size="lg" variant="secondary" onClick={() => void clock('out')} disabled={a.busy || !!rec?.clock_out || (!!rec && !rec.clock_in)}>
+          <Button size="lg" variant="secondary" onClick={() => void clock('out')} disabled={a.busy || !open}>
             {t('hr.clockOut')}
           </Button>
         </div>
@@ -134,7 +170,7 @@ function BalanceCard({ version }: { version: number }) {
   );
 }
 
-function Requests({ version, onChanged, hasContract }: { version: number; onChanged: () => void; hasContract: boolean }) {
+function Requests({ version, onChanged, hasContract, allowance }: { version: number; onChanged: () => void; hasContract: boolean; allowance?: PermissionAllowance }) {
   const { t, locale } = useI18n();
   const toast = useToast();
   const today = todayCairo();
@@ -236,7 +272,7 @@ function Requests({ version, onChanged, hasContract }: { version: number; onChan
       {hasContract && (
         <div className="flex flex-col gap-4">
           <LeaveForm onDone={onChanged} />
-          <PermissionForm onDone={onChanged} />
+          <PermissionForm onDone={onChanged} allowance={allowance} />
         </div>
       )}
       <ConfirmDialog
@@ -265,6 +301,8 @@ function LeaveForm({ onDone }: { onDone: () => void }) {
   const a = useAction();
   const active = (types.data ?? []).filter((x) => x.is_active);
   const chosen = active.find((x) => x.id === f.leaveTypeId);
+  const preview = useLeavePreview(f.leaveTypeId, f.startDate, f.endDate);
+  const blocking = preview.data ? previewProblems(t, preview.data) : [];
   return (
     <Section title={t('hr.leave.request')}>
       <form
@@ -272,6 +310,7 @@ function LeaveForm({ onDone }: { onDone: () => void }) {
         onSubmit={async (e) => {
           e.preventDefault();
           if (f.endDate < f.startDate) return a.setError(t('hr.leave.endBeforeStart'));
+          if (blocking.length) return a.setError(blocking.join(' '));
           const r = await a.run(() => post('/hr/leave-requests', { leaveTypeId: f.leaveTypeId, startDate: f.startDate, endDate: f.endDate, reason: f.reason.trim() || undefined }));
           if (r) {
             toast(t('hr.leave.sent'));
@@ -297,10 +336,11 @@ function LeaveForm({ onDone }: { onDone: () => void }) {
           <TextField label={t('common.from')} type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value, endDate: e.target.value > f.endDate ? e.target.value : f.endDate })} required />
           <TextField label={t('common.to')} type="date" value={f.endDate} min={f.startDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} required />
         </div>
+        <LeavePreviewText preview={preview} problems={blocking} />
         <p className="text-xs text-muted">{t('hr.leave.daysHint')}</p>
         <TextAreaField label={t('hr.reasonOptional')} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} maxLength={1000} />
         {a.error && <Alert tone="danger">{a.error}</Alert>}
-        <Button type="submit" disabled={a.busy || !f.leaveTypeId}>
+        <Button type="submit" disabled={a.busy || !f.leaveTypeId || blocking.length > 0 || preview.loading}>
           {t('hr.leave.submit')}
         </Button>
       </form>
@@ -308,13 +348,24 @@ function LeaveForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function PermissionForm({ onDone }: { onDone: () => void }) {
+function PermissionForm({ onDone, allowance }: { onDone: () => void; allowance?: PermissionAllowance }) {
   const { t } = useI18n();
   const toast = useToast();
   const [f, setF] = useState({ workDate: todayCairo(), kind: 'late_arrival', startTime: '09:00', endTime: '10:00', reason: '' });
   const a = useAction();
+  const left = allowance ? { n: Math.max(0, allowance.perMonth - allowance.used), minutes: Math.max(0, allowance.minutesPerMonth - allowance.usedMinutes) } : null;
+  const thisMonth = f.workDate.slice(0, 7) === todayCairo().slice(0, 7);
   return (
     <Section title={t('hr.perm.request')}>
+      {allowance && left && (
+        <div className="mb-3 flex flex-col gap-1">
+          <p className="text-sm">
+            {t('hr.perm.left', { n: left.n, of: allowance.perMonth, d: duration(t, left.minutes), ofD: duration(t, allowance.minutesPerMonth) })}
+          </p>
+          <p className="text-xs text-muted">{t('hr.perm.leftHint', { used: allowance.used, d: duration(t, allowance.usedMinutes) })}</p>
+          {(left.n === 0 || left.minutes === 0) && <Alert tone="warning">{t('hr.perm.noneLeft')}</Alert>}
+        </div>
+      )}
       <form
         className="flex flex-col gap-3"
         onSubmit={async (e) => {
@@ -335,6 +386,7 @@ function PermissionForm({ onDone }: { onDone: () => void }) {
           <TextField label={t('common.to')} type="time" value={f.endTime} onChange={(e) => setF({ ...f, endTime: e.target.value })} required />
         </div>
         <p className="text-xs text-muted">{t('hr.perm.hint')}</p>
+        {allowance && !thisMonth && <p className="text-xs text-muted">{t('hr.perm.otherMonth')}</p>}
         <TextAreaField label={t('hr.reasonOptional')} value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} maxLength={1000} />
         {a.error && <Alert tone="danger">{a.error}</Alert>}
         <Button type="submit" disabled={a.busy}>
@@ -342,5 +394,73 @@ function PermissionForm({ onDone }: { onDone: () => void }) {
         </Button>
       </form>
     </Section>
+  );
+}
+
+interface PreviewState {
+  data: LeavePreview | null;
+  error: string | null;
+  loading: boolean;
+}
+
+/** Live GET /hr/leave-preview for the chosen type and dates (debounced; skipped while the range is invalid). */
+function useLeavePreview(leaveTypeId: string, startDate: string, endDate: string): PreviewState {
+  const { err } = useI18n();
+  const [st, setSt] = useState<PreviewState>({ data: null, error: null, loading: false });
+  const valid = !!leaveTypeId && /^\d{4}-\d{2}-\d{2}$/.test(startDate) && /^\d{4}-\d{2}-\d{2}$/.test(endDate) && endDate >= startDate;
+  useEffect(() => {
+    if (!valid) return setSt({ data: null, error: null, loading: false });
+    const ac = new AbortController();
+    setSt((s) => ({ ...s, loading: true }));
+    const timer = setTimeout(() => {
+      get<LeavePreview>(`/hr/leave-preview${qs({ leaveTypeId, startDate, endDate })}`, ac.signal).then(
+        (data) => setSt({ data, error: null, loading: false }),
+        (e: unknown) => {
+          if ((e as Error)?.name !== 'AbortError') setSt({ data: null, error: err(e), loading: false });
+        },
+      );
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      ac.abort();
+    };
+  }, [leaveTypeId, startDate, endDate, valid]); // eslint-disable-line react-hooks/exhaustive-deps
+  return st;
+}
+
+/** Reasons the API will refuse this request (it checks the same balance, quota and consecutive-day limits). */
+function previewProblems(t: ReturnType<typeof useI18n>['t'], p: LeavePreview): string[] {
+  const out: string[] = [];
+  const days = num(p.days);
+  if (days <= 0) out.push(t('err.no_working_days_in_range'));
+  if (p.remainingAfter !== null && num(p.remainingAfter) < 0) out.push(t('hr.leave.pvOverBalance', { available: num(p.available), n: days }));
+  if (p.quotaRemainingAfter !== null && num(p.quotaRemainingAfter) < 0) out.push(t('hr.leave.pvOverQuota', { quota: num(p.quota), left: Math.max(0, num(p.quotaRemainingAfter) + days) }));
+  if (p.maxConsecutiveDays !== null && days > num(p.maxConsecutiveDays)) out.push(t('hr.leave.pvOverMax', { max: num(p.maxConsecutiveDays) }));
+  return out;
+}
+
+function LeavePreviewText({ preview, problems }: { preview: PreviewState; problems: string[] }) {
+  const { t } = useI18n();
+  const p = preview.data;
+  if (preview.error) return <p className="text-xs text-muted">{preview.error}</p>;
+  if (!p) return preview.loading ? <p className="text-xs text-muted">{t('hr.leave.pvLoading')}</p> : null;
+  const days = num(p.days);
+  const parts = [t('hr.leave.pvDays', { n: days })];
+  if (p.remainingAfter !== null && num(p.remainingAfter) >= 0) parts.push(t('hr.leave.pvLeft', { n: num(p.remainingAfter) }));
+  if (p.quotaRemainingAfter !== null && num(p.quotaRemainingAfter) >= 0) parts.push(t('hr.leave.pvQuotaLeft', { n: num(p.quotaRemainingAfter), quota: num(p.quota) }));
+  return (
+    <div className="flex flex-col gap-2" aria-live="polite">
+      {days > 0 && <p className="text-sm font-medium">{parts.join(' ')}</p>}
+      {problems.length > 0 && (
+        <Alert tone="warning">
+          <ul className="flex flex-col gap-1">
+            {problems.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
+          </ul>
+          <span className="mt-1 block text-xs">{t('hr.leave.pvWillRefuse')}</span>
+        </Alert>
+      )}
+    </div>
   );
 }
