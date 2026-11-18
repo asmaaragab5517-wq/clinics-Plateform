@@ -1,6 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
 import {
+  DEFAULT_ATTENDANCE_RULES,
+  attendanceRulesSchema,
+  clockPositionSchema,
+  hrOverrides,
+  hrSettings,
+  insideGeofence,
   contractSchema,
   hrSettingsSchema,
   leaveRequestSchema,
@@ -18,6 +24,7 @@ import type { Principal, RequestMeta, StaffPrincipal } from '../common/principal
 import { AuditService, Tenancy } from '../common/services';
 import { DomainError, badRequest, conflict, forbidden, notFound } from '../common/errors';
 import { parse, uuid } from '../common/zod';
+import { BlockList, isIP } from 'node:net';
 import { HrService, type ContractRow } from './hr.service';
 
 const zDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -89,9 +96,11 @@ export class HrController {
   @HttpCode(200)
   clock(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ action: z.enum(['in', 'out']), source: z.enum(['console', 'mobile']).default('console') }), body);
+    const b = parse(z.object({ action: z.enum(['in', 'out']), source: z.enum(['console', 'mobile']).default('console'), position: clockPositionSchema.optional() }), body);
     return this.tenancy.system(s.orgId, async (tx) => {
       const c = await this.hr.requireContract(tx, s.userId);
+      const check = await this.locationCheck(tx, c.clinic_id, meta.ip, b.position);
+      if (check.mode === 'block' && check.verdict !== 'ok') throw new DomainError('clock_location_not_allowed', HttpStatus.FORBIDDEN, check.detail);
       const now = new Date();
       const day = localDate(now);
       let rec: { id: string } | null;
@@ -111,8 +120,12 @@ export class HrController {
         if (!rec) throw new DomainError('not_clocked_in', HttpStatus.CONFLICT);
         await tx.query(`update attendance_records set clock_out = $2, updated_at = now() where id = $1`, [rec.id, now]);
       }
+      if (check.mode !== 'off') {
+        const col = b.action === 'in' ? 'clock_in' : 'clock_out';
+        await tx.query(`update attendance_records set ${col}_check = $2, ${col}_check_detail = $3 where id = $1`, [rec!.id, check.verdict, JSON.stringify(check.detail)]);
+      }
       const out = await this.hr.recompute(tx, rec!.id);
-      await this.audit.record(tx, s, meta, { action: `hr.clock_${b.action}`, entity: 'attendance_record', entityId: rec!.id, clinicId: c.clinic_id });
+      await this.audit.record(tx, s, meta, { action: `hr.clock_${b.action}`, entity: 'attendance_record', entityId: rec!.id, clinicId: c.clinic_id, details: check.mode === 'off' ? undefined : { check: check.verdict } });
       return out;
     });
   }
@@ -323,7 +336,8 @@ export class HrController {
         `insert into attendance_records (organisation_id, user_id, clinic_id, work_date, clock_in, clock_out, source, status, adjusted_by, adjusted_reason)
          values (app_org(), $1,$2,$3,$4,$5,'manual',$6,$7,$8)
          on conflict (user_id, work_date) do update set clock_in = excluded.clock_in, clock_out = excluded.clock_out, source = 'manual', status = excluded.status,
-           adjusted_by = excluded.adjusted_by, adjusted_reason = excluded.adjusted_reason, overtime_approved = false, updated_at = now()
+           adjusted_by = excluded.adjusted_by, adjusted_reason = excluded.adjusted_reason, overtime_approved = false, overtime_status = 'pending',
+           overtime_decided_by = null, overtime_decided_at = null, updated_at = now()
          returning id`,
         [b.userId, c.clinic_id, b.workDate, inAt, outAt, status, s.userId, b.reason],
       );
@@ -340,9 +354,14 @@ export class HrController {
     const s = asStaff(p);
     const b = parse(z.object({ approved: z.boolean() }), body);
     return this.tenancy.run(s, async (tx) => {
-      const r = await tx.maybeOne<{ user_id: string; clinic_id: string }>('update attendance_records set overtime_approved = $2, updated_at = now() where id = $1 and overtime_minutes > 0 returning user_id, clinic_id', [uuid(id), b.approved]);
-      if (!r) throw notFound('attendance_record');
-      if (r.user_id === s.userId) throw forbidden('cannot_approve_own_request');
+      const cur = await tx.maybeOne<{ user_id: string }>('select user_id from attendance_records where id = $1 and overtime_minutes > 0 for update', [uuid(id)]);
+      if (!cur) throw notFound('attendance_record');
+      if (cur.user_id === s.userId) throw forbidden('cannot_approve_own_request');
+      // Approve or reject; a rejected decision is explicit so payroll no longer reports it as waiting.
+      const r = await tx.one<{ user_id: string; clinic_id: string }>(
+        `update attendance_records set overtime_approved = $2, overtime_status = $3, overtime_decided_by = $4, overtime_decided_at = now(), updated_at = now() where id = $1 returning user_id, clinic_id`,
+        [id, b.approved, b.approved ? 'approved' : 'rejected', s.userId],
+      );
       await this.audit.record(tx, s, meta, { action: 'hr.overtime_decide', entity: 'attendance_record', entityId: id, clinicId: r.clinic_id, details: b });
       return { ok: true };
     });
@@ -593,11 +612,111 @@ export class HrController {
     const b = parse(hrSettingsSchema.partial(), body);
     return this.tenancy.run(p, async (tx) => {
       const cur = await tx.one<{ settings: Record<string, unknown> }>('select settings from organisations where id = app_org() for update');
-      const merged = { ...(cur.settings.hr as object | undefined), ...b };
-      await tx.query(`update organisations set settings = jsonb_set(settings, '{hr}', $1::jsonb) where id = app_org()`, [JSON.stringify(merged)]);
+      const effective = hrSettingsSchema.parse(hrSettings({ ...(cur.settings.hr as object | undefined), ...b }));
+      if (effective.socialInsurance.maxWage < effective.socialInsurance.minWage) throw badRequest('insurable_wage_limits_invalid');
+      // Store only what differs from the defaults, so later corrections to the defaults still reach this organisation.
+      await tx.query(`update organisations set settings = jsonb_set(settings, '{hr}', $1::jsonb) where id = app_org()`, [JSON.stringify(hrOverrides(effective))]);
       await this.audit.record(tx, p, meta, { action: 'hr.settings_update', entity: 'organisation', details: { keys: Object.keys(b) } });
       return this.hr.settings(tx);
     });
+  }
+
+  /** Return to the built-in defaults (drops every organisation override). */
+  @Delete('settings')
+  @Staff('settings:edit')
+  resetSettings(@Auth() p: Principal, @Meta() meta: RequestMeta) {
+    return this.tenancy.run(p, async (tx) => {
+      await tx.query(`update organisations set settings = settings - 'hr' where id = app_org()`);
+      await this.audit.record(tx, p, meta, { action: 'hr.settings_reset', entity: 'organisation' });
+      return this.hr.settings(tx);
+    });
+  }
+
+  /** Days a leave range would use and what would remain, before submitting. */
+  @Get('leave-preview')
+  @Staff()
+  leavePreview(@Auth() p: Principal, @Query() q: Record<string, string>) {
+    const s = asStaff(p);
+    const b = parse(z.object({ leaveTypeId: z.string().uuid(), startDate: zDay, endDate: zDay, userId: z.string().uuid().optional() }), q);
+    if (b.endDate < b.startDate) throw badRequest('end_before_start');
+    const userId = b.userId ?? s.userId;
+    if (userId !== s.userId && !can(s, 'hr:view')) throw forbidden();
+    return this.tenancy.system(s.orgId, async (tx) => {
+      if (userId !== s.userId) await this.assertTeamMember(tx, s, userId);
+      const c = await this.hr.requireContract(tx, userId);
+      const type = await tx.maybeOne<{ id: string; code: string; uses_annual_balance: boolean; annual_quota: number | null; max_consecutive_days: number | null }>('select * from leave_types where id = $1 and is_active', [b.leaveTypeId]);
+      if (!type) throw notFound('leave_type');
+      const days = await this.hr.leaveDays(tx, workPatternSchema.parse(c.work_pattern), type.code, b.startDate, b.endDate);
+      const year = Number(b.startDate.slice(0, 4));
+      const balance = type.uses_annual_balance ? await this.hr.annualBalance(tx, userId, year) : null;
+      const quotaUsed = type.annual_quota !== null ? await this.hr.typeUsage(tx, userId, type.id, year) : null;
+      return {
+        days,
+        available: balance?.available ?? null,
+        remainingAfter: balance ? balance.available - days : null,
+        quota: type.annual_quota !== null ? Number(type.annual_quota) : null,
+        quotaRemainingAfter: quotaUsed !== null ? Number(type.annual_quota) - quotaUsed - days : null,
+        maxConsecutiveDays: type.max_consecutive_days !== null ? Number(type.max_consecutive_days) : null,
+      };
+    });
+  }
+
+  /** Clock-in location rules for a clinic (stored in the clinic's settings). */
+  @Get('clinics/:clinicId/attendance-rules')
+  @Staff('hr:view')
+  getRules(@Auth() p: Principal, @Param('clinicId') clinicId: string) {
+    return this.tenancy.run(p, async (tx) => {
+      const c = await tx.maybeOne<{ settings: { attendance?: unknown }; lat: number | null; lng: number | null }>('select settings, lat, lng from clinics where id = $1', [uuid(clinicId)]);
+      if (!c) throw notFound('clinic');
+      return { ...DEFAULT_ATTENDANCE_RULES, ...(c.settings.attendance as object | undefined), clinicHasLocation: c.lat !== null && c.lng !== null };
+    });
+  }
+
+  @Put('clinics/:clinicId/attendance-rules')
+  @Staff('hr:edit')
+  saveRules(@Auth() p: Principal, @Param('clinicId') clinicId: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
+    const b = parse(attendanceRulesSchema, body);
+    for (const n of b.allowedNetworks) {
+      const [addr, bits] = n.split('/');
+      const v = isIP(addr ?? '');
+      if (!v || Number(bits) > (v === 4 ? 32 : 128)) throw badRequest('invalid_network', { network: n });
+    }
+    return this.tenancy.run(p, async (tx) => {
+      const c = await tx.maybeOne<{ lat: number | null }>('select lat from clinics where id = $1 for update', [uuid(clinicId)]);
+      if (!c) throw notFound('clinic');
+      if (b.geofenceMeters !== null && c.lat === null) throw badRequest('clinic_location_missing');
+      if (b.mode !== 'off' && !b.allowedNetworks.length && b.geofenceMeters === null) throw badRequest('no_location_rule');
+      await tx.query(`update clinics set settings = jsonb_set(coalesce(settings, '{}'), '{attendance}', $2::jsonb) where id = $1`, [clinicId, JSON.stringify(b)]);
+      await this.audit.record(tx, p, meta, { action: 'hr.attendance_rules_update', entity: 'clinic', entityId: clinicId, clinicId, details: { mode: b.mode, networks: b.allowedNetworks.length, geofence: b.geofenceMeters } });
+      return b;
+    });
+  }
+
+  /**
+   * Proof of presence for clocking: the request comes from a listed clinic network, or the device position is inside
+   * the clinic geofence. Only the verdict and method (and distance) are kept, never the IP address or coordinates.
+   */
+  private async locationCheck(tx: Tx, clinicId: string, ip: string | null, position?: { lat: number; lng: number; accuracy: number }) {
+    const c = await tx.one<{ settings: { attendance?: unknown }; lat: number | null; lng: number | null }>('select settings, lat, lng from clinics where id = $1', [clinicId]);
+    const rules = attendanceRulesSchema.safeParse(c.settings.attendance ?? DEFAULT_ATTENDANCE_RULES);
+    const r = rules.success ? rules.data : DEFAULT_ATTENDANCE_RULES;
+    if (r.mode === 'off') return { mode: r.mode, verdict: 'ok' as const, detail: {} };
+    const addr = ip?.replace(/^::ffff:/, '') ?? '';
+    if (addr && r.allowedNetworks.length) {
+      const list = new BlockList();
+      for (const n of r.allowedNetworks) {
+        const [a, bits] = n.split('/');
+        const fam = isIP(a ?? '');
+        if (fam) list.addSubnet(a!, Number(bits), fam === 4 ? 'ipv4' : 'ipv6');
+      }
+      const fam = isIP(addr);
+      if (fam && list.check(addr, fam === 4 ? 'ipv4' : 'ipv6')) return { mode: r.mode, verdict: 'ok' as const, detail: { method: 'network' } };
+    }
+    if (position && r.geofenceMeters !== null && c.lat !== null && c.lng !== null) {
+      const g = insideGeofence({ lat: c.lat, lng: c.lng }, position, r.geofenceMeters);
+      return { mode: r.mode, verdict: g.inside ? ('ok' as const) : ('outside' as const), detail: { method: 'gps', distance: g.distance, accuracy: Math.round(position.accuracy) } };
+    }
+    return { mode: r.mode, verdict: 'unverified' as const, detail: { method: position ? 'gps_unavailable' : 'none' } };
   }
 
   // ---- Helpers -------------------------------------------------------------------------------------------------

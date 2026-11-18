@@ -172,6 +172,18 @@ export class PayrollController {
     res.setHeader('content-type', 'text/csv; charset=utf-8').setHeader('content-disposition', `attachment; filename="insurance-${id}.csv"`).setHeader('cache-control', 'no-store').send('﻿' + csv);
   }
 
+  /** People payroll can act on (contract holders), without needing HR access. */
+  @Get('people')
+  @Staff('payroll:view')
+  people(@Auth() p: Principal) {
+    return this.tenancy.system(p.orgId, (tx) =>
+      tx.query(
+        `select distinct on (u.id) u.id, u.name_ar, u.name_en, c.job_title_ar, c.job_title_en, c.clinic_id, c.pay_basis, c.status
+         from employment_contracts c join users u on u.id = c.user_id order by u.id, (c.status = 'active') desc, c.start_date desc`,
+      ),
+    );
+  }
+
   // ---- Adjustments ---------------------------------------------------------------------------------------------
 
   @Get('adjustments')

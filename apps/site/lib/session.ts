@@ -1,3 +1,4 @@
+import { signClientIp } from './client-ip';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type { NextRequest, NextResponse } from 'next/server';
 import { API_URL, ORG_SLUG } from './config';
@@ -62,6 +63,8 @@ export function apiHeaders(req: NextRequest, extra: Record<string, string> = {})
   // The API trusts one proxy hop for OTP per-IP limits; pass the client address our own edge recorded (not a client-supplied chain).
   const ip = req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for')?.split(',').pop()?.trim();
   if (ip && /^[\d.:a-fA-F]{3,45}$/.test(ip)) h['x-forwarded-for'] = ip;
+  const signed = signClientIp(req);
+  if (signed) h['x-hf-client-ip'] = signed;
   const lang = req.headers.get('accept-language');
   if (lang) h['accept-language'] = lang.slice(0, 50);
   return h;

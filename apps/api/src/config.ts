@@ -11,6 +11,8 @@ const schema = z.object({
   PUBLIC_SITE_URL: z.string().default('http://localhost:3000'),
   CONSOLE_URL: z.string().default('http://localhost:3001'),
   API_PUBLIC_URL: z.string().default('http://localhost:4000'),
+  /** Shared with the site and console proxies: they sign the browser's address so audit, rate limits and clock-in checks see the real client. */
+  CLIENT_IP_SECRET: z.string().min(32).optional(),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
   DEFAULT_ORG_SLUG: z.string().default('demo'),
   // Staff auth (Keycloak OIDC)

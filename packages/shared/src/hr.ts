@@ -389,3 +389,48 @@ export const contractSchema = z.object({
   dateOfBirth: zDay.nullable().optional(),
 });
 export type ContractInput = z.infer<typeof contractSchema>;
+
+// ---- Clock-in location rules (Sprint 20) ---------------------------------------------------------------------
+
+/**
+ * Per-clinic proof of presence for clocking in/out: the request comes from the clinic's network (CIDR ranges) or the
+ * device reports a position within `geofenceMeters` of the clinic. `flag` records the verdict for managers; `block`
+ * refuses clocking that cannot be verified.
+ */
+export const attendanceRulesSchema = z.object({
+  mode: z.enum(['off', 'flag', 'block']),
+  allowedNetworks: z.array(z.string().regex(/^[0-9a-fA-F:.]+\/\d{1,3}$/, 'CIDR, e.g. 197.32.10.0/24')).max(20).default([]),
+  geofenceMeters: z.number().int().min(25).max(2000).nullable().default(null),
+});
+export type AttendanceRules = z.infer<typeof attendanceRulesSchema>;
+export const DEFAULT_ATTENDANCE_RULES: AttendanceRules = { mode: 'off', allowedNetworks: [], geofenceMeters: null };
+
+export const clockPositionSchema = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180), accuracy: z.number().min(0).max(5000) });
+
+/** Great-circle distance in metres. */
+export function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371000;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * Whether a reported position is inside the clinic geofence. Reported accuracy is credited up to 100 m so a weak
+ * GPS fix inside the clinic still passes, while a very vague fix cannot stretch the fence.
+ */
+export function insideGeofence(clinic: { lat: number; lng: number }, pos: { lat: number; lng: number; accuracy: number }, radius: number) {
+  const distance = Math.round(haversineMeters(clinic, pos));
+  return { distance, inside: distance - Math.min(pos.accuracy, 100) <= radius };
+}
+
+/** Only the figures that differ from the defaults, so later corrections to the defaults still apply. */
+export function hrOverrides(s: HrSettings): Partial<HrSettings> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(s) as [keyof HrSettings, unknown][]) {
+    if (JSON.stringify(v) !== JSON.stringify(HR_DEFAULTS[k])) out[k] = v;
+  }
+  return out as Partial<HrSettings>;
+}

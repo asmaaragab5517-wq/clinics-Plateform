@@ -202,8 +202,8 @@ export class HrService {
     if (from > to) return sum;
     sum.employedDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
     const holidays = await this.holidays(tx, from, to);
-    const records = await tx.query<{ d: string; clock_in: Date | null; late_minutes: number; early_leave_minutes: number; worked_minutes: number; overtime_minutes: number; rest_day: boolean; overtime_approved: boolean }>(
-      `select to_char(work_date, 'YYYY-MM-DD') as d, clock_in, late_minutes, early_leave_minutes, worked_minutes, overtime_minutes, rest_day, overtime_approved
+    const records = await tx.query<{ d: string; clock_in: Date | null; late_minutes: number; early_leave_minutes: number; worked_minutes: number; overtime_minutes: number; rest_day: boolean; overtime_approved: boolean; overtime_status: string }>(
+      `select to_char(work_date, 'YYYY-MM-DD') as d, clock_in, late_minutes, early_leave_minutes, worked_minutes, overtime_minutes, rest_day, overtime_approved, overtime_status
        from attendance_records where user_id = $1 and work_date between $2 and $3`,
       [c.user_id, from, to],
     );
@@ -220,7 +220,7 @@ export class HrService {
         if (rec.overtime_approved) {
           if (rec.rest_day) sum.restDayOvertimeMinutes += rec.overtime_minutes;
           else sum.overtimeMinutes += rec.overtime_minutes;
-        } else sum.pendingOvertimeMinutes += rec.overtime_minutes;
+        } else if (rec.overtime_status === 'pending') sum.pendingOvertimeMinutes += rec.overtime_minutes;
       }
       if (!scheduledShift(pattern, d, holidays)) continue;
       sum.scheduledDays++;

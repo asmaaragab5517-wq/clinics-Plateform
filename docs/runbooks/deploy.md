@@ -5,6 +5,8 @@ Until these exist, `deploy.yml` builds and pushes the image, then **skips** stag
 - Repository variables: `STAGING_APP_ID`, `PRODUCTION_APP_ID` (DigitalOcean App Platform app IDs, from Terraform output).
 - Environments `staging` and `production`, each with the secret `DO_TOKEN` (DigitalOcean API token scoped to the app).
 - On `production`, add required reviewers so promotion waits for approval.
+- Set the same `CLIENT_IP_SECRET` (32+ random characters) on the API and on both Vercel projects (site and console).
+  Without it, audit entries, per-IP rate limits and clinic-network clock-in checks see the proxy's address, not the user's.
 
 ## Each release
 

@@ -31,5 +31,5 @@ export const DisplayAuth = () => SetMetadata(ACCESS_KEY, 'display');
 export const Auth = createParamDecorator((_: unknown, ctx: ExecutionContext): Principal => ctx.switchToHttp().getRequest().principal);
 export const Meta = createParamDecorator((_: unknown, ctx: ExecutionContext): RequestMeta => {
   const req = ctx.switchToHttp().getRequest();
-  return { ip: req.ip ?? null, userAgent: req.headers['user-agent'] ?? null };
+  return { ip: req.clientIp ?? req.ip ?? null, userAgent: req.headers['user-agent'] ?? null };
 });

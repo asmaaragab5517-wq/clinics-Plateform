@@ -125,3 +125,21 @@ describe('payroll', () => {
     expect(s.socialInsurance.year).toBe(2026);
   });
 });
+
+describe('clock-in location and settings overrides', () => {
+  it('measures distance and credits limited GPS accuracy', async () => {
+    const { haversineMeters, insideGeofence } = await import('../src/hr');
+    const clinic = { lat: 30.0566, lng: 31.3301 }; // Nasr City
+    expect(Math.round(haversineMeters(clinic, { lat: 30.0566, lng: 31.3311 }))).toBe(96);
+    expect(insideGeofence(clinic, { lat: 30.0566, lng: 31.3311, accuracy: 10 }, 100).inside).toBe(true);
+    expect(insideGeofence(clinic, { lat: 30.0566, lng: 31.3331, accuracy: 20 }, 100)).toMatchObject({ inside: false, distance: 289 });
+    // A 2 km "accuracy" cannot pull a far position inside: only 100 m is credited.
+    expect(insideGeofence(clinic, { lat: 30.0566, lng: 31.3331, accuracy: 2000 }, 100).inside).toBe(false);
+  });
+  it('stores only settings that differ from the defaults', async () => {
+    const { hrOverrides } = await import('../src/hr');
+    expect(hrOverrides(hrSettings())).toEqual({});
+    const o = hrOverrides(hrSettings({ graceMinutes: 10, socialInsurance: { ...HR_DEFAULTS.socialInsurance, year: 2026 } }));
+    expect(Object.keys(o).sort()).toEqual(['graceMinutes', 'socialInsurance']);
+  });
+});

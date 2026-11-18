@@ -1,3 +1,4 @@
+import { signClientIp } from '@/lib/server/client-ip';
 import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from '@/lib/server/config';
 import { refreshTokens } from '@/lib/server/oidc';
@@ -57,6 +58,9 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path: string[] 
   headers.set('authorization', `Bearer ${accessToken}`);
   const fwd = req.headers.get('x-forwarded-for');
   if (fwd) headers.set('x-forwarded-for', fwd);
+  // Signed browser address so the API's audit log and clock-in network checks see the clinic PC, not this server.
+  const signed = signClientIp(req);
+  if (signed) headers.set('x-hf-client-ip', signed);
 
   let upstream: Response;
   try {
