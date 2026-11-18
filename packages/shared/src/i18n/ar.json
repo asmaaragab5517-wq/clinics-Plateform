@@ -125,5 +125,6 @@
   "msg.otp": "كود هيلث فلو الخاص بك {{code}}. صالح لمدة ٥ دقائق.",
   "msg.staff_invite": "تمت دعوتك إلى هيلث فلو كلينكس: {{link}}",
   "msg.shift_variance_alert": "تم إغلاق الوردية {{shift}} بفرق {{amount}}.",
-  "msg.director_daily_summary": "الملخص اليومي ليوم {{date}}"
+  "msg.director_daily_summary": "الملخص اليومي ليوم {{date}}",
+  "msg.waitlist_offer": "أصبح لدى {{doctor}} موعد متاح {{date}}. احجزه الآن قبل أن يُحجز: {{link}}"
 }

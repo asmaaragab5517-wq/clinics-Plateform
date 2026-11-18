@@ -143,3 +143,28 @@ describe('clock-in location and settings overrides', () => {
     expect(Object.keys(o).sort()).toEqual(['graceMinutes', 'socialInsurance']);
   });
 });
+
+describe('night overtime, leave payout and structured quantities', () => {
+  it('splits overtime inside the night window and pays it at the night rate', async () => {
+    const { computeAttendance, nightOverlap, computePayslip } = await import('../src/hr');
+    const night = { start: 19 * 60, end: 7 * 60 };
+    expect(nightOverlap(17 * 60, 21 * 60, night)).toBe(120); // 19:00–21:00
+    expect(nightOverlap(22 * 60, 26 * 60, night)).toBe(240); // across midnight
+    expect(nightOverlap(6 * 60, 8 * 60, night)).toBe(60); // early morning
+    const a = computeAttendance({ shift: { start: 9 * 60, end: 17 * 60 }, clockIn: 9 * 60, clockOut: 20 * 60, graceMinutes: 15, permissions: [], night });
+    expect(a).toMatchObject({ overtimeMinutes: 180, overtimeNightMinutes: 60 });
+    const p = computePayslip({ payBasis: 'monthly', baseSalary: 1200000, allowances: [], insurableWage: null, dayMinutes: 480, periodDays: 30, employedDays: 30, workedMinutes: 0, absentDays: 0, unpaidLeaveDays: 0, latenessMinutes: 0, overtimeMinutes: 180, nightOvertimeMinutes: 60, restDayOvertimeMinutes: 0, commission: 0, adjustments: [] }, hrSettings());
+    // Hourly 50 EGP: 2 h × 1.35 = 135 EGP day overtime; 1 h × 1.7 = 85 EGP night overtime.
+    expect(p.lines.find((l) => l.code === 'overtime')).toMatchObject({ amount: 13500, quantity: { value: 120, unit: 'minutes' } });
+    expect(p.lines.find((l) => l.code === 'overtime_night')?.amount).toBe(8500);
+  });
+  it('prorates a leaver\'s entitlement and describes quantities as data', async () => {
+    const { leaverEntitlement, basisQuantity } = await import('../src/hr');
+    expect(leaverEntitlement(21, '2020-01-01', '2026-06-30', 2026)).toBe(10); // 181/365 × 21 = 10.4 → 10
+    expect(leaverEntitlement(21, '2026-03-01', '2026-06-30', 2026)).toBe(7); // 122/365 × 21 = 7.0
+    expect(basisQuantity('3 d')).toEqual({ value: 3, unit: 'days' });
+    expect(basisQuantity('15/30')).toEqual({ value: 15, unit: 'days_of', of: 30 });
+    expect(basisQuantity('11%')).toEqual({ value: 11, unit: 'percent' });
+    expect(basisQuantity('Excellent feedback')).toBeUndefined();
+  });
+});

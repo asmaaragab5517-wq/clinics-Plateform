@@ -26,6 +26,10 @@ export const hrSettingsSchema = z.object({
   /** Overtime pay multipliers on the hourly rate. */
   overtimeMultiplier: z.number().min(1).max(5),
   restDayMultiplier: z.number().min(1).max(5),
+  /** Overtime worked inside the night window is paid at this multiplier instead (Egyptian practice: +70%). */
+  nightOvertimeMultiplier: z.number().min(1).max(5),
+  nightStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  nightEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   /** Days used to derive the daily rate from a monthly salary (Egyptian practice: 30). */
   daysPerMonth: z.number().int().min(20).max(31),
   socialInsurance: z.object({
@@ -55,6 +59,9 @@ export const HR_DEFAULTS: HrSettings = {
   permissionMinutesPerMonth: 240,
   deductLateness: true,
   overtimeMultiplier: 1.35,
+  nightOvertimeMultiplier: 1.7,
+  nightStart: '19:00',
+  nightEnd: '07:00',
   restDayMultiplier: 2,
   daysPerMonth: 30,
   socialInsurance: { year: 2025, employeeRate: 0.11, employerRate: 0.1875, minWage: egp(2300), maxWage: egp(14500) },
@@ -117,6 +124,8 @@ export interface AttendanceInput {
   graceMinutes: number;
   /** Approved permissions for the day as local minute ranges. */
   permissions: { start: number; end: number }[];
+  /** Night window in local minutes (end before start wraps past midnight); overtime inside it is night overtime. */
+  night?: { start: number; end: number };
 }
 
 export interface AttendanceResult {
@@ -124,6 +133,8 @@ export interface AttendanceResult {
   lateMinutes: number;
   earlyLeaveMinutes: number;
   overtimeMinutes: number;
+  /** Part of `overtimeMinutes` inside the night window (0 on rest days, which have their own rate). */
+  overtimeNightMinutes: number;
   restDay: boolean;
 }
 
@@ -134,17 +145,28 @@ const overlap = (a0: number, a1: number, b0: number, b1: number) => Math.max(0, 
  * approved permission is excused. Work on a rest day is all overtime (paid at the rest-day multiplier).
  */
 export function computeAttendance(i: AttendanceInput): AttendanceResult {
-  if (i.clockIn === null) return { workedMinutes: 0, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0, restDay: i.shift === null };
+  if (i.clockIn === null) return { workedMinutes: 0, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: 0, overtimeNightMinutes: 0, restDay: i.shift === null };
   const out = i.clockOut ?? i.clockIn;
   const worked = Math.max(0, out - i.clockIn);
-  if (!i.shift) return { workedMinutes: worked, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: i.clockOut === null ? 0 : worked, restDay: true };
+  if (!i.shift) return { workedMinutes: worked, lateMinutes: 0, earlyLeaveMinutes: 0, overtimeMinutes: i.clockOut === null ? 0 : worked, overtimeNightMinutes: 0, restDay: true };
   const excused = (from: number, to: number) => i.permissions.reduce((a, p) => a + overlap(from, to, p.start, p.end), 0);
   const lateRaw = Math.max(0, i.clockIn - i.shift.start);
   const late = lateRaw <= i.graceMinutes ? 0 : Math.max(0, lateRaw - excused(i.shift.start, i.clockIn));
   const earlyRaw = i.clockOut === null ? 0 : Math.max(0, i.shift.end - out);
   const early = Math.max(0, earlyRaw - excused(out, i.shift.end));
   const overtime = i.clockOut === null ? 0 : Math.max(0, out - i.shift.end);
-  return { workedMinutes: worked, lateMinutes: late, earlyLeaveMinutes: early, overtimeMinutes: overtime, restDay: false };
+  const night = overtime > 0 && i.night ? nightOverlap(i.shift.end, out, i.night) : 0;
+  return { workedMinutes: worked, lateMinutes: late, earlyLeaveMinutes: early, overtimeMinutes: overtime, overtimeNightMinutes: night, restDay: false };
+}
+
+/** Minutes of [from, to) (local minutes, `to` may pass 1440) inside a daily night window that may wrap midnight. */
+export function nightOverlap(from: number, to: number, night: { start: number; end: number }): number {
+  const spans: [number, number][] = [];
+  for (const day of [-1440, 0, 1440]) {
+    if (night.start < night.end) spans.push([night.start + day, night.end + day]);
+    else spans.push([night.start + day, night.end + 1440 + day]);
+  }
+  return spans.reduce((a, [s0, s1]) => a + overlap(from, to, s0, s1), 0);
 }
 
 /** Working days in [from, to] under a pattern, excluding public holidays. */
@@ -197,7 +219,7 @@ export function annualLeaveEntitlement(startDate: string, year: number, dateOfBi
 export const ALLOWANCE_SCHEMA = z.object({ code: z.string().min(1).max(30), nameAr: z.string().min(1), nameEn: z.string().default(''), amount: z.number().int().min(0), taxable: z.boolean().default(true) });
 export type Allowance = z.infer<typeof ALLOWANCE_SCHEMA>;
 
-export const ADJUSTMENT_KINDS = ['bonus', 'allowance', 'overtime', 'reimbursement', 'deduction', 'advance', 'advance_repayment'] as const;
+export const ADJUSTMENT_KINDS = ['bonus', 'allowance', 'overtime', 'reimbursement', 'deduction', 'advance', 'advance_repayment', 'leave_encashment'] as const;
 export type AdjustmentKind = (typeof ADJUSTMENT_KINDS)[number];
 
 export interface PayslipInput {
@@ -217,6 +239,8 @@ export interface PayslipInput {
   unpaidLeaveDays: number;
   latenessMinutes: number;
   overtimeMinutes: number;
+  /** Part of `overtimeMinutes` worked in the night window. */
+  nightOvertimeMinutes?: number;
   restDayOvertimeMinutes: number;
   commission: Piastres;
   adjustments: { kind: AdjustmentKind; amount: Piastres; taxable: boolean; note?: string | null }[];
@@ -229,8 +253,22 @@ export interface PayslipLine {
   /** Positive amounts; `kind` says whether the line adds to or reduces pay. */
   amount: Piastres;
   kind: 'earning' | 'deduction' | 'employer';
-  /** Quantity basis shown on the payslip, e.g. "3 days" or "125 min". */
+  /** Quantity basis shown on the payslip, e.g. "3 d" or "125 min" (English shorthand or a free-text note). */
   basis?: string;
+  /** The same quantity as data, so apps can show it in the reader's language. Absent for free-text notes. */
+  quantity?: { value: number; unit: 'minutes' | 'days' | 'hours' | 'percent' | 'days_of'; of?: number };
+}
+
+/** Structured form of the payroll engine's basis strings ("3 d", "125 min", "7.5 h", "11%", "15/30"). */
+export function basisQuantity(basis: string | undefined): PayslipLine['quantity'] {
+  if (!basis) return undefined;
+  let m = /^(\d+(?:\.\d+)?) (min|d|h)$/.exec(basis);
+  if (m) return { value: Number(m[1]), unit: m[2] === 'min' ? 'minutes' : m[2] === 'd' ? 'days' : 'hours' };
+  m = /^(\d+(?:\.\d+)?)%$/.exec(basis);
+  if (m) return { value: Number(m[1]), unit: 'percent' };
+  m = /^(\d+)\/(\d+)$/.exec(basis);
+  if (m) return { value: Number(m[1]), unit: 'days_of', of: Number(m[2]) };
+  return undefined;
 }
 
 export interface PayslipResult {
@@ -269,12 +307,13 @@ export function annualIncomeTax(annualTaxable: Piastres, s: HrSettings['incomeTa
 export function computePayslip(i: PayslipInput, s: HrSettings): PayslipResult {
   const lines: PayslipLine[] = [];
   const warnings: string[] = [];
-  const earn = (code: string, labelAr: string, labelEn: string, amount: number, basis?: string) => {
-    if (amount > 0) lines.push({ code, labelAr, labelEn, amount, kind: 'earning', basis });
+  const line = (kind: PayslipLine['kind'], code: string, labelAr: string, labelEn: string, amount: number, basis?: string) => {
+    if (amount <= 0) return;
+    const quantity = basisQuantity(basis);
+    lines.push({ code, labelAr, labelEn, amount, kind, ...(basis ? { basis } : {}), ...(quantity ? { quantity } : {}) });
   };
-  const deduct = (code: string, labelAr: string, labelEn: string, amount: number, basis?: string) => {
-    if (amount > 0) lines.push({ code, labelAr, labelEn, amount, kind: 'deduction', basis });
-  };
+  const earn = (code: string, labelAr: string, labelEn: string, amount: number, basis?: string) => line('earning', code, labelAr, labelEn, amount, basis);
+  const deduct = (code: string, labelAr: string, labelEn: string, amount: number, basis?: string) => line('deduction', code, labelAr, labelEn, amount, basis);
 
   const monthly = i.payBasis === 'monthly' ? i.baseSalary : 0;
   const dailyRate = i.payBasis === 'monthly' ? monthly / s.daysPerMonth : 0;
@@ -285,13 +324,17 @@ export function computePayslip(i: PayslipInput, s: HrSettings): PayslipResult {
   if (i.payBasis === 'monthly') earn('base', 'الأجر الأساسي', 'Basic salary', Math.round(monthly * prorate), prorate < 1 ? `${i.employedDays}/${i.periodDays}` : undefined);
   if (i.payBasis === 'hourly') earn('base', 'أجر الساعات', 'Hours worked', Math.round((hourlyRate * i.workedMinutes) / 60), `${Math.round(i.workedMinutes / 6) / 10} h`);
   for (const a of i.allowances) earn(`allowance:${a.code}`, a.nameAr, a.nameEn || a.nameAr, Math.round(a.amount * prorate));
-  earn('overtime', 'أجر إضافي', 'Overtime', Math.round((hourlyRate * i.overtimeMinutes * s.overtimeMultiplier) / 60), `${i.overtimeMinutes} min`);
+  const nightOt = Math.min(i.nightOvertimeMinutes ?? 0, i.overtimeMinutes);
+  const dayOt = i.overtimeMinutes - nightOt;
+  earn('overtime', 'أجر إضافي', 'Overtime', Math.round((hourlyRate * dayOt * s.overtimeMultiplier) / 60), `${dayOt} min`);
+  earn('overtime_night', 'أجر إضافي ليلي', 'Night overtime', Math.round((hourlyRate * nightOt * s.nightOvertimeMultiplier) / 60), `${nightOt} min`);
   earn('overtime_rest', 'عمل في يوم الراحة', 'Rest-day work', Math.round((hourlyRate * i.restDayOvertimeMinutes * s.restDayMultiplier) / 60), `${i.restDayOvertimeMinutes} min`);
   earn('commission', 'عمولة الطبيب', 'Doctor commission', i.commission);
   for (const a of i.adjustments) {
     if (a.kind === 'bonus') earn('bonus', 'مكافأة', 'Bonus', a.amount, a.note ?? undefined);
     if (a.kind === 'allowance') earn('allowance:extra', 'بدل إضافي', 'Additional allowance', a.amount, a.note ?? undefined);
     if (a.kind === 'overtime') earn('overtime_manual', 'أجر إضافي (يدوي)', 'Overtime (manual)', a.amount, a.note ?? undefined);
+    if (a.kind === 'leave_encashment') earn('leave_encashment', 'بدل رصيد الإجازات', 'Unused leave payout', a.amount, a.note ?? undefined);
   }
 
   // Pay-reducing items (before tax)
@@ -433,4 +476,17 @@ export function hrOverrides(s: HrSettings): Partial<HrSettings> {
     if (JSON.stringify(v) !== JSON.stringify(HR_DEFAULTS[k])) out[k] = v;
   }
   return out as Partial<HrSettings>;
+}
+
+/**
+ * Annual leave a leaver has earned in their final year: the year's entitlement prorated by days employed that year,
+ * rounded down to half days.
+ */
+export function leaverEntitlement(entitled: number, startDate: string, endDate: string, year: number): number {
+  const from = Math.max(Date.parse(startDate), Date.UTC(year, 0, 1));
+  const to = Math.min(Date.parse(endDate), Date.UTC(year, 11, 31));
+  if (to < from) return 0;
+  const daysInYear = (Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 86400000;
+  const employed = (to - from) / 86400000 + 1;
+  return Math.floor(((entitled * employed) / daysInYear) * 2) / 2;
 }

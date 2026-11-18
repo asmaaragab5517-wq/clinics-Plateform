@@ -64,6 +64,7 @@ export const MESSAGE_EVENTS = [
   'report_ready',
   'prescription_shared',
   'follow_up_due',
+  'waitlist_offer',
   'review_request',
   'otp',
   'staff_invite',

@@ -5,6 +5,7 @@ import {
   attendanceRulesSchema,
   clockPositionSchema,
   hrOverrides,
+  leaverEntitlement,
   hrSettings,
   insideGeofence,
   contractSchema,
@@ -57,8 +58,9 @@ export class HrController {
 
   @Get('me')
   @Staff()
-  me(@Auth() p: Principal) {
+  me(@Auth() p: Principal, @Query('month') month?: string) {
     const s = asStaff(p);
+    const allowanceDay = month ? `${parse(zMonth, month)}-01` : null;
     return this.tenancy.system(s.orgId, async (tx) => {
       await this.hr.ensureLeaveTypes(tx);
       const c = await this.hr.activeContract(tx, s.userId);
@@ -69,7 +71,7 @@ export class HrController {
       const used = await tx.one<{ n: number; minutes: number }>(
         `select count(*)::int as n, coalesce(sum(minutes), 0)::int as minutes from permission_requests
          where user_id = $1 and status in ('pending','approved') and work_date >= date_trunc('month', $2::date) and work_date < date_trunc('month', $2::date) + interval '1 month'`,
-        [s.userId, day],
+        [s.userId, allowanceDay ?? day],
       );
       // A shift that crossed midnight leaves yesterday's record open.
       const openRecord = await tx.maybeOne(
@@ -352,15 +354,17 @@ export class HrController {
   @HttpCode(200)
   approveOvertime(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ approved: z.boolean() }), body);
+    // approved: true approves, false rejects, null returns the overtime to "awaiting a decision".
+    const b = parse(z.object({ approved: z.boolean().nullable() }), body);
     return this.tenancy.run(s, async (tx) => {
       const cur = await tx.maybeOne<{ user_id: string }>('select user_id from attendance_records where id = $1 and overtime_minutes > 0 for update', [uuid(id)]);
       if (!cur) throw notFound('attendance_record');
       if (cur.user_id === s.userId) throw forbidden('cannot_approve_own_request');
       // Approve or reject; a rejected decision is explicit so payroll no longer reports it as waiting.
       const r = await tx.one<{ user_id: string; clinic_id: string }>(
-        `update attendance_records set overtime_approved = $2, overtime_status = $3, overtime_decided_by = $4, overtime_decided_at = now(), updated_at = now() where id = $1 returning user_id, clinic_id`,
-        [id, b.approved, b.approved ? 'approved' : 'rejected', s.userId],
+        `update attendance_records set overtime_approved = $2, overtime_status = $3, overtime_decided_by = $4,
+           overtime_decided_at = case when $4::uuid is null then null else now() end, updated_at = now() where id = $1 returning user_id, clinic_id`,
+        [id, b.approved === true, b.approved === null ? 'pending' : b.approved ? 'approved' : 'rejected', b.approved === null ? null : s.userId],
       );
       await this.audit.record(tx, s, meta, { action: 'hr.overtime_decide', entity: 'attendance_record', entityId: id, clinicId: r.clinic_id, details: b });
       return { ok: true };
@@ -589,14 +593,33 @@ export class HrController {
   @HttpCode(200)
   endContract(@Auth() p: Principal, @Param('userId') userId: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ endDate: zDay, reason: z.string().trim().min(3).max(300) }), body);
+    const b = parse(z.object({ endDate: zDay, reason: z.string().trim().min(3).max(300), payUnusedLeave: z.boolean().default(true) }), body);
     return this.tenancy.system(s.orgId, async (tx) => {
       const c = await this.hr.activeContract(tx, uuid(userId));
       if (!c) throw notFound('contract');
       if (b.endDate < c.start_date) throw badRequest('end_before_start');
+      // Unused annual leave is paid out with the final month: this year's entitlement prorated to the end date,
+      // plus carry-over and adjustments, less leave taken. Pending future requests are cancelled.
+      const year = Number(b.endDate.slice(0, 4));
+      await tx.query(`update leave_requests set status = 'cancelled', decision_note = 'Employment ended' where user_id = $1 and status in ('pending','approved') and start_date > $2`, [c.user_id, b.endDate]);
+      const bal = await this.hr.annualBalance(tx, c.user_id, year);
+      const earned = leaverEntitlement(bal.entitled, c.start_date, b.endDate, year);
+      const unused = Math.round((earned + bal.carried + bal.adjusted - bal.used) * 2) / 2;
+      const settings = await this.hr.settings(tx);
+      const daily = c.pay_basis === 'monthly' ? c.base_salary / settings.daysPerMonth : 0;
+      const payout = b.payUnusedLeave && unused > 0 && daily > 0 ? Math.round(unused * daily) : 0;
+      const period = `${b.endDate.slice(0, 7)}-01`;
+      if (payout > 0) {
+        if (await tx.maybeOne(`select 1 from payroll_runs where period = $1 and status in ('approved','paid')`, [period])) throw conflict('payroll_period_closed');
+        await tx.query(
+          `insert into payroll_adjustments (organisation_id, user_id, period, kind, amount, taxable, note, created_by) values (app_org(), $1, $2, 'leave_encashment', $3, true, $4, $5)`,
+          [c.user_id, period, payout, `${unused} d`, s.userId],
+        );
+      }
       await tx.query(`update employment_contracts set end_date = $2, status = 'ended', updated_at = now() where id = $1`, [c.id, b.endDate]);
-      await this.audit.record(tx, s, meta, { action: 'payroll.contract_end', entity: 'employment_contract', entityId: c.id, reason: b.reason, details: { endDate: b.endDate } });
-      return { ok: true };
+      await this.audit.record(tx, s, meta, { action: 'payroll.contract_end', entity: 'employment_contract', entityId: c.id, reason: b.reason, details: { endDate: b.endDate, unusedLeaveDays: unused, payout } });
+      // A negative balance (more leave taken than earned) is reported, not deducted automatically.
+      return { ok: true, unusedLeaveDays: unused, leavePayout: payout, payoutMonth: period.slice(0, 7) };
     });
   }
 

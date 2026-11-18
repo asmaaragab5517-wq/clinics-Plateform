@@ -103,7 +103,10 @@ describe('Sprint 18 API follow-ups', () => {
 
   it('marks waitlist offers, shows the service, finds partial file numbers and returns the doctor\'s specialties', async () => {
     const wl = await h.http().post('/v1/waitlist').set(auth(h.staff.reception)).send({ patientId: ctx.patient, clinicId: ctx.clinic, doctorId: h.env.demo.doctorIds[0], serviceId: ctx.consult, earliest: '2030-01-01' });
-    await h.http().patch(`/v1/waitlist/${wl.body.id}`).set(auth(h.staff.reception)).send({ status: 'offered' }).expect(200);
+    await h.http().patch(`/v1/waitlist/${wl.body.id}`).set(auth(h.staff.reception)).send({ status: 'offered', notify: true, slot: 'الأحد 10:00' }).expect(200);
+    const msg = await admin.query(`select body from messages where patient_id = $1 and event = 'waitlist_offer' limit 1`, [ctx.patient]);
+    expect(msg.rows[0].body).toContain('الأحد 10:00');
+    await h.http().patch(`/v1/waitlist/${wl.body.id}`).set(auth(h.staff.reception)).send({ status: 'booked', notify: true }).expect(400);
     const offered = await h.http().get('/v1/waitlist?status=offered').set(auth(h.staff.reception));
     const row = offered.body.find((x: { id: string }) => x.id === wl.body.id);
     expect(row.offered_at).toBeTruthy();

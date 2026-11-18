@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Tx } from '@hf/db';
-import { TRANSACTIONAL_URGENT_EVENTS, inQuietHours, localTime, renderTemplate, smsSegments, zonedToUtc, localDate, addDays, type MessageEvent } from '@hf/shared';
+import { TRANSACTIONAL_URGENT_EVENTS, inQuietHours, localTime, renderTemplate, smsSegments, zonedToUtc, localDate, addDays, type MessageEvent, catalogs } from '@hf/shared';
 import { CHANNELS, type ChannelRegistry } from '../integrations/messaging';
 import { Tenancy } from '../common/services';
 
@@ -78,7 +78,9 @@ export class MessagingService {
           [input.event, channel === 'email' ? 'sms' : channel, locale],
         );
         if (tpl && !tpl.is_enabled) continue;
-        const body = tpl ? renderTemplate(tpl.body, input.vars) : JSON.stringify(input.vars);
+        // Organisations without their own template get the built-in wording for the event.
+        const builtIn = catalogs[locale]?.[`msg.${input.event}`] ?? catalogs.ar[`msg.${input.event}`];
+        const body = tpl ? renderTemplate(tpl.body, input.vars) : builtIn ? renderTemplate(builtIn, input.vars) : JSON.stringify(input.vars);
         const row = await tx.maybeOne<{ id: string }>(
           `insert into messages (organisation_id, clinic_id, patient_id, event, channel, recipient, locale, body, segments, scheduled_for, dedupe_key, data)
            values (app_org(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)

@@ -1,4 +1,6 @@
-import { Body, Controller, Get, HttpCode, MessageEvent, Param, Patch, Post, Query, Req, Sse } from '@nestjs/common';
+import { MessagingService } from './messaging.service';
+import { CONFIG, type Config } from '../config';
+import { Body, Controller, Get, HttpCode, Inject, MessageEvent, Param, Patch, Post, Query, Req, Sse } from '@nestjs/common';
 import { Observable, concat, defer, from, interval, map, merge } from 'rxjs';
 import { z } from 'zod';
 import { QUEUE_PRIORITIES, checkInSchema, createAppointmentSchema, rescheduleSchema, transitionAppointmentSchema, zDate, localDate } from '@hf/shared';
@@ -19,6 +21,8 @@ export class AppointmentsController {
     private readonly svc: AppointmentsService,
     private readonly audit: AuditService,
     private readonly events: EventBus,
+    private readonly messaging: MessagingService,
+    @Inject(CONFIG) private readonly cfg: Config,
   ) {}
 
   /** Calendar views (FR-APT-8): day/week/month per doctor or clinic. */
@@ -153,13 +157,23 @@ export class AppointmentsController {
   @Staff('appointment:edit')
   updateWaitlist(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     // 'offered' records an offer made by phone at the desk; the worker also offers slots automatically.
-    const b = parse(z.object({ status: z.enum(['waiting', 'offered', 'booked', 'cancelled']) }), body);
+    // notify: message the patient about the opening (offered only); slot: the time offered, shown in the message.
+    const b = parse(z.object({ status: z.enum(['waiting', 'offered', 'booked', 'cancelled']), notify: z.boolean().default(false), slot: z.string().max(40).optional() }), body);
+    if (b.notify && b.status !== 'offered') throw badRequest('notify_only_when_offered');
     return this.tenancy.run(p, async (tx) => {
       const r = await tx.maybeOne<{ patient_id: string; clinic_id: string }>(
         `update waitlist set status = $2, offered_at = case when $2 = 'offered' then now() when $2 = 'waiting' then null else offered_at end where id = $1 returning patient_id, clinic_id`,
         [uuid(id), b.status],
       );
       if (!r) throw notFound('waitlist');
+      if (b.notify) {
+        const w = await tx.one<{ doctor_id: string; doctor: string }>('select w.doctor_id, u.name_ar as doctor from waitlist w join users u on u.id = w.doctor_id where w.id = $1', [id]);
+        const site = this.cfg.PUBLIC_SITE_URL;
+        await this.messaging.enqueue(tx, {
+          event: 'waitlist_offer', patientId: r.patient_id, clinicId: r.clinic_id, dedupeKey: `waitlist:${id}:manual:${Date.now()}`, data: { path: '/book' },
+          vars: { doctor: w.doctor, date: b.slot ?? '', link: `${site}/ar/book?doctor=${w.doctor_id}` },
+        });
+      }
       await this.audit.record(tx, p, meta, { action: 'waitlist.update', entity: 'waitlist', entityId: id, patientId: r.patient_id, clinicId: r.clinic_id, details: b });
       return { ok: true };
     });

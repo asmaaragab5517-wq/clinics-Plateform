@@ -28,6 +28,8 @@ which the platform already calculates (FR-STF-3).
 ## Consequences and limits
 - The legal figures must be confirmed by the organisation's accountant before the first real payroll, and the
   social-insurance limits updated every January.
-- Not modelled: night-shift overtime rates, more than one shift per day, the income-tax phase-out for annual taxable
+- Sprint 21 added night overtime (its own window and multiplier, default 19:00–07:00 at +70%) and the payout of
+  unused annual leave when employment ends (prorated entitlement, added to the final month as a taxable item).
+- Not modelled: more than one shift per day, the income-tax phase-out for annual taxable
   income above EGP 600,000 (such payslips are flagged for manual review), sick-leave pay split with the social
   insurance authority, end-of-service settlements, and clock-in location checks (geofencing or clinic network).

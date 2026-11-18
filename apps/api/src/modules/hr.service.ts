@@ -56,6 +56,7 @@ export interface MonthSummary {
   unpaidLeaveDays: number;
   latenessMinutes: number;
   overtimeMinutes: number;
+  nightOvertimeMinutes: number;
   restDayOvertimeMinutes: number;
   pendingOvertimeMinutes: number;
   futureDays: number;
@@ -135,13 +136,14 @@ export class HrService {
       clockOut: toMinutes(r.work_date, r.clock_out),
       graceMinutes: s.graceMinutes,
       permissions: perms.map((p) => ({ start: minutesOf(p.s), end: minutesOf(p.e) })),
+      night: { start: minutesOf(s.nightStart), end: minutesOf(s.nightEnd) },
     });
     const status = r.clock_in && r.clock_out ? 'complete' : 'open';
     return tx.one(
-      `update attendance_records set late_minutes = $2, early_leave_minutes = $3, worked_minutes = $4, overtime_minutes = $5, rest_day = $6,
+      `update attendance_records set late_minutes = $2, early_leave_minutes = $3, worked_minutes = $4, overtime_minutes = $5, rest_day = $6, overtime_night_minutes = $8,
          status = case when status in ('absent','on_leave','holiday','rest_day','incomplete') and $7 = 'open' then status else $7 end, updated_at = now()
        where id = $1 returning *`,
-      [recordId, a.lateMinutes, a.earlyLeaveMinutes, a.workedMinutes, a.overtimeMinutes, a.restDay, status],
+      [recordId, a.lateMinutes, a.earlyLeaveMinutes, a.workedMinutes, a.overtimeMinutes, a.restDay, status, a.overtimeNightMinutes],
     );
   }
 
@@ -197,13 +199,13 @@ export class HrService {
     const periodDays = Number(last.slice(8, 10));
     const sum: MonthSummary = {
       periodDays, employedDays: 0, scheduledDays: 0, workedDays: 0, workedMinutes: 0, absentDays: 0, leaveDays: 0, unpaidLeaveDays: 0,
-      latenessMinutes: 0, overtimeMinutes: 0, restDayOvertimeMinutes: 0, pendingOvertimeMinutes: 0, futureDays: 0,
+      latenessMinutes: 0, overtimeMinutes: 0, nightOvertimeMinutes: 0, restDayOvertimeMinutes: 0, pendingOvertimeMinutes: 0, futureDays: 0,
     };
     if (from > to) return sum;
     sum.employedDays = Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1;
     const holidays = await this.holidays(tx, from, to);
-    const records = await tx.query<{ d: string; clock_in: Date | null; late_minutes: number; early_leave_minutes: number; worked_minutes: number; overtime_minutes: number; rest_day: boolean; overtime_approved: boolean; overtime_status: string }>(
-      `select to_char(work_date, 'YYYY-MM-DD') as d, clock_in, late_minutes, early_leave_minutes, worked_minutes, overtime_minutes, rest_day, overtime_approved, overtime_status
+    const records = await tx.query<{ d: string; clock_in: Date | null; late_minutes: number; early_leave_minutes: number; worked_minutes: number; overtime_minutes: number; rest_day: boolean; overtime_approved: boolean; overtime_status: string; overtime_night_minutes: number }>(
+      `select to_char(work_date, 'YYYY-MM-DD') as d, clock_in, late_minutes, early_leave_minutes, worked_minutes, overtime_minutes, rest_day, overtime_approved, overtime_status, overtime_night_minutes
        from attendance_records where user_id = $1 and work_date between $2 and $3`,
       [c.user_id, from, to],
     );
@@ -219,7 +221,10 @@ export class HrService {
         sum.workedMinutes += rec.worked_minutes;
         if (rec.overtime_approved) {
           if (rec.rest_day) sum.restDayOvertimeMinutes += rec.overtime_minutes;
-          else sum.overtimeMinutes += rec.overtime_minutes;
+          else {
+            sum.overtimeMinutes += rec.overtime_minutes;
+            sum.nightOvertimeMinutes += rec.overtime_night_minutes;
+          }
         } else if (rec.overtime_status === 'pending') sum.pendingOvertimeMinutes += rec.overtime_minutes;
       }
       if (!scheduledShift(pattern, d, holidays)) continue;
@@ -259,6 +264,7 @@ export class HrService {
         unpaidLeaveDays: summary.unpaidLeaveDays,
         latenessMinutes: summary.latenessMinutes,
         overtimeMinutes: summary.overtimeMinutes,
+        nightOvertimeMinutes: summary.nightOvertimeMinutes,
         restDayOvertimeMinutes: summary.restDayOvertimeMinutes,
         commission: Number(commission.n),
         adjustments,

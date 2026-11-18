@@ -26,13 +26,13 @@ must be closed before go-live.
 - **pilot** Confirm the payroll defaults with the organisation's accountant: social-insurance rates and the yearly
   minimum/maximum insurable wage (defaults hold the 2025 limits and runs warn until updated), income-tax brackets and
   personal exemption, Martyrs' Fund rate, overtime multipliers, leave entitlements. All are editable in HR settings.
-- Not modelled (ADR 0008): night overtime, split shifts, the income-tax phase-out above EGP 600,000 a year (flagged for
-  review), sick-leave pay shared with social insurance, end-of-service settlements, clock-in location checks.
+- Not modelled (ADR 0008): split shifts, the income-tax phase-out above EGP 600,000 a year (flagged for
+  review), sick-leave pay shared with social insurance, end-of-service gratuity and notice pay (unused annual leave is paid out
+  when employment ends).
 - Mobile clock-in by GPS radius needs `expo-location` (blocked until the lockfile can change); until then the mobile app
   is verified by the clinic network (phone on the clinic Wi-Fi). The console deliberately does not use browser location.
 - The console's clinic admin page cannot set a clinic's map position (the API accepts it), so a GPS radius rule needs
-  the position set through the API first. A decided overtime cannot be returned to pending (approve or reject only).
-- Smaller follow-ups: payslip line `basis`
+  the position set through the API first. - Smaller follow-ups: payslip line `basis`
   text ("20 d", "125 min") is English only; (the rest were closed in Sprint 20).
 
 ## Product/API
@@ -41,7 +41,7 @@ must be closed before go-live.
 - Mobile features added in Sprints 16–18 (dictation, pending drafts, insurance, video booking, push taps, payment return) have
   not been run on a device or emulator.
 - Mobile dictation recordings stay in the app's private cache after upload (deleting needs expo-file-system). Dictation, notification taps and payment return are not yet tested on a device.
-- Public catalogue cache is per process: after a write, other replicas can serve catalogue data up to `PUBLIC_CACHE_SECONDS` (60 s) old and slots up to 5 s old. Booking stays correct because the database exclusion constraint decides. Move the cache to Redis if staff need instant consistency across replicas.
+- Public catalogue cache: shared through Redis when `REDIS_URL` is set (writes invalidate every replica at once); without Redis, or while it is unreachable, each replica falls back to its own cache, which converges within `PUBLIC_CACHE_SECONDS`.
 - Uncached public reads cost ~2–14 ms CPU each; the sandbox load test saturates one Node process at ~260 req/s, so size replicas from the staging k6 run.
 - Idempotency keys are honoured for bookings, walk-ins and payments; check-in and queue updates rely on state-machine conflicts.
 - Console: tablet signature capture for re-consent.

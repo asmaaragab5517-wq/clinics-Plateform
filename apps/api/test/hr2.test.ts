@@ -83,6 +83,10 @@ describe('Sprint 20: clock-in location, overtime decisions, settings, previews',
     await h.http().post(`/v1/hr/attendance/${rec.body.id}/overtime`).set(auth(h.staff.manager!)).send({ approved: false }).expect(200);
     let row = (await admin.query('select overtime_status, overtime_approved, overtime_decided_by from attendance_records where id = $1', [rec.body.id])).rows[0];
     expect(row).toMatchObject({ overtime_status: 'rejected', overtime_approved: false, overtime_decided_by: id.manager });
+    await h.http().post(`/v1/hr/attendance/${rec.body.id}/overtime`).set(auth(h.staff.manager!)).send({ approved: null }).expect(200);
+    row = (await admin.query('select overtime_status, overtime_decided_by, overtime_decided_at from attendance_records where id = $1', [rec.body.id])).rows[0];
+    expect(row).toMatchObject({ overtime_status: 'pending', overtime_decided_by: null, overtime_decided_at: null });
+    await h.http().post(`/v1/hr/attendance/${rec.body.id}/overtime`).set(auth(h.staff.manager!)).send({ approved: false }).expect(200);
     await h.http().put('/v1/hr/attendance').set(auth(h.staff.manager!)).send({ userId: id.reception, workDate: '2026-10-03', clockIn: '09:00', clockOut: '22:00', reason: 'corrected' }).expect(200);
     row = (await admin.query('select overtime_status, overtime_decided_by from attendance_records where id = $1', [rec.body.id])).rows[0];
     expect(row).toMatchObject({ overtime_status: 'pending', overtime_decided_by: null });
@@ -108,5 +112,14 @@ describe('Sprint 20: clock-in location, overtime decisions, settings, previews',
     const people = await h.http().get('/v1/payroll/people').set(auth(h.staff.accountant!));
     expect(people.body.map((x: { id: string }) => x.id).sort()).toEqual([id.nurse, id.reception].sort());
     await h.http().get('/v1/payroll/people').set(auth(h.staff.manager!)).expect(403);
+  });
+
+  it('pays unused annual leave in the final month when employment ends', async () => {
+    // Reception joined 2026-01-01 on 8,000 EGP: 15 days for the first year, 15 × 181/365 = 7.4 → 7 days earned by 30 June.
+    const r = await h.http().post(`/v1/hr/staff/${id.reception}/contract/end`).set(auth(h.staff.owner!)).send({ endDate: '2026-06-30', reason: 'Resigned' });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body).toMatchObject({ unusedLeaveDays: 7, leavePayout: Math.round((7 * 800000) / 30), payoutMonth: '2026-06' });
+    const adj = await admin.query(`select kind, amount, taxable from payroll_adjustments where user_id = $1 and period = '2026-06-01'`, [id.reception]);
+    expect(adj.rows[0]).toMatchObject({ kind: 'leave_encashment', amount: 186667, taxable: true });
   });
 });

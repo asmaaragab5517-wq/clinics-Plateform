@@ -20,11 +20,12 @@ export interface Harness {
   healthpay: FakeHealthPayClient;
   sms: FakeProvider;
   close: () => Promise<void>;
+  cfg: ReturnType<typeof loadConfig>;
 }
 
 export const CHROMIUM = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium-1243/chrome-linux64/chrome';
 
-export async function startHarness(dbName: string): Promise<Harness> {
+export async function startHarness(dbName: string, extraEnv: Record<string, string> = {}): Promise<Harness> {
   const env = await createTestDatabase(dbName);
   const cfg = loadConfig({
     NODE_ENV: 'test',
@@ -36,6 +37,7 @@ export async function startHarness(dbName: string): Promise<Harness> {
     PUBLIC_SITE_URL: 'http://site.test',
     RATE_LIMIT_PUBLIC_PER_MIN: '100000',
     RATE_LIMIT_PATIENT_PER_MIN: '100000',
+    ...extraEnv,
   } as NodeJS.ProcessEnv);
   const app = await createApp(cfg, { logger: false });
   await app.init();
@@ -55,7 +57,7 @@ export async function startHarness(dbName: string): Promise<Harness> {
   }
   const channels = app.get(CHANNELS) as { sms: FakeProvider };
   return {
-    app, env, http, staff, otherStaff,
+    app, env, http, staff, otherStaff, cfg,
     healthpay: app.get(HEALTHPAY) as FakeHealthPayClient,
     sms: channels.sms,
     close: async () => {

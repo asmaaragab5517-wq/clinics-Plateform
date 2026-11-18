@@ -174,7 +174,9 @@ export class PrescriptionsController {
   @Staff('prescription:view')
   async getRx(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
     return this.tenancy.run(p, async (tx) => {
-      const rx = await tx.maybeOne<{ patient_id: string; encounter_id: string }>('select id, clinic_id, encounter_id, patient_id, doctor_id, status, notes, issued_at, verify_code, created_at, revoked_at, revoked_reason, revoked_by from prescriptions where id = $1', [uuid(id)]);
+      const rx = await tx.maybeOne<{ patient_id: string; encounter_id: string }>(`select r.id, r.clinic_id, r.encounter_id, r.patient_id, r.doctor_id, r.status, r.notes, r.issued_at, r.verify_code, r.created_at, r.revoked_at, r.revoked_reason, r.revoked_by,
+                ru.name_ar as revoked_by_name_ar, ru.name_en as revoked_by_name_en
+         from prescriptions r left join users ru on ru.id = r.revoked_by where r.id = $1`, [uuid(id)]);
       if (!rx) throw notFound('prescription');
       const lines = await tx.query(
         `select l.position, l.drug_id, coalesce(d.trade_name_en, l.free_text) as drug, d.strength, l.dose, l.route, l.frequency, l.duration_days, l.quantity, l.instructions_ar, l.instructions_en, l.warnings
