@@ -556,6 +556,50 @@
         ]
       }
     },
+    "/v1/custom-fields/{id}": {
+      "patch": {
+        "operationId": "CatalogueController_updateCustomField",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      },
+      "delete": {
+        "operationId": "CatalogueController_deleteCustomField",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Catalogue"
+        ]
+      }
+    },
     "/v1/staff": {
       "get": {
         "operationId": "StaffController_list",
@@ -2098,6 +2142,50 @@
         ]
       }
     },
+    "/v1/encounter-templates/{id}": {
+      "patch": {
+        "operationId": "EmrController_updateTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      },
+      "delete": {
+        "operationId": "EmrController_deleteTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Emr"
+        ]
+      }
+    },
     "/v1/drugs": {
       "get": {
         "operationId": "PrescriptionsController_drugs",
@@ -3515,6 +3603,55 @@
         "tags": [
           "Portal"
         ]
+      },
+      "post": {
+        "operationId": "PortalController_addCoverage",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/payers": {
+      "get": {
+        "operationId": "PortalController_payers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
+      }
+    },
+    "/v1/portal/coverages/{id}/withdraw": {
+      "post": {
+        "operationId": "PortalController_withdrawCoverage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Portal"
+        ]
       }
     },
     "/v1/portal/visits": {
@@ -4013,7 +4150,24 @@
     "/v1/privacy/retention-review": {
       "get": {
         "operationId": "GovernanceController_retention",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "offset",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -4639,6 +4793,43 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/coverages/unverified": {
+      "get": {
+        "operationId": "InsuranceController_unverified",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Insurance"
+        ]
+      }
+    },
+    "/v1/insurance/coverages/{id}/verify": {
+      "post": {
+        "operationId": "InsuranceController_verify",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
@@ -5739,6 +5930,862 @@
         },
         "tags": [
           "ExternalApi"
+        ]
+      }
+    },
+    "/v1/hr/me": {
+      "get": {
+        "operationId": "HrController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/attendance/clock": {
+      "post": {
+        "operationId": "HrController_clock",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/me/attendance": {
+      "get": {
+        "operationId": "HrController_myAttendance",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/me/requests": {
+      "get": {
+        "operationId": "HrController_myRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/me/balances": {
+      "get": {
+        "operationId": "HrController_myBalances",
+        "parameters": [
+          {
+            "name": "year",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/leave-types": {
+      "get": {
+        "operationId": "HrController_leaveTypes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/leave-requests": {
+      "post": {
+        "operationId": "HrController_requestLeave",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "get": {
+        "operationId": "HrController_leaveRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/permission-requests": {
+      "post": {
+        "operationId": "HrController_requestPermission",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "get": {
+        "operationId": "HrController_permissionRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/leave-requests/{id}/cancel": {
+      "post": {
+        "operationId": "HrController_cancelLeave",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/permission-requests/{id}/cancel": {
+      "post": {
+        "operationId": "HrController_cancelPermission",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/attendance": {
+      "get": {
+        "operationId": "HrController_board",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "clinicId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "put": {
+        "operationId": "HrController_correct",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/attendance/month": {
+      "get": {
+        "operationId": "HrController_month",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/attendance/{id}/overtime": {
+      "post": {
+        "operationId": "HrController_approveOvertime",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/leave-requests/{id}/decide": {
+      "post": {
+        "operationId": "HrController_decideLeave",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/permission-requests/{id}/decide": {
+      "post": {
+        "operationId": "HrController_decidePermission",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/balances": {
+      "get": {
+        "operationId": "HrController_teamBalances",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "year",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "patch": {
+        "operationId": "HrController_adjustBalance",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/holidays": {
+      "get": {
+        "operationId": "HrController_holidaysList",
+        "parameters": [
+          {
+            "name": "year",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "post": {
+        "operationId": "HrController_addHoliday",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/holidays/{id}": {
+      "delete": {
+        "operationId": "HrController_deleteHoliday",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/leave-types/{id}": {
+      "patch": {
+        "operationId": "HrController_updateLeaveType",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/staff": {
+      "get": {
+        "operationId": "HrController_staff",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/staff/{userId}/contract": {
+      "get": {
+        "operationId": "HrController_contract",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "put": {
+        "operationId": "HrController_saveContract",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/staff/{userId}/contract/end": {
+      "post": {
+        "operationId": "HrController_endContract",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/hr/settings": {
+      "get": {
+        "operationId": "HrController_getSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      },
+      "patch": {
+        "operationId": "HrController_saveSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Hr"
+        ]
+      }
+    },
+    "/v1/payroll/runs": {
+      "get": {
+        "operationId": "PayrollController_runs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      },
+      "post": {
+        "operationId": "PayrollController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/runs/{id}": {
+      "get": {
+        "operationId": "PayrollController_run",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/runs/{id}/calculate": {
+      "post": {
+        "operationId": "PayrollController_recalculate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/runs/{id}/approve": {
+      "post": {
+        "operationId": "PayrollController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/runs/{id}/paid": {
+      "post": {
+        "operationId": "PayrollController_paid",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/runs/{id}/cancel": {
+      "post": {
+        "operationId": "PayrollController_cancelRun",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/runs/{id}/bank-file.csv": {
+      "get": {
+        "operationId": "PayrollController_bankFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/runs/{id}/insurance.csv": {
+      "get": {
+        "operationId": "PayrollController_insuranceFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/adjustments": {
+      "get": {
+        "operationId": "PayrollController_adjustments",
+        "parameters": [
+          {
+            "name": "month",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      },
+      "post": {
+        "operationId": "PayrollController_addAdjustment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/adjustments/{id}": {
+      "delete": {
+        "operationId": "PayrollController_deleteAdjustment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/me/payslips": {
+      "get": {
+        "operationId": "PayrollController_myPayslips",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
+        ]
+      }
+    },
+    "/v1/payroll/payslips/{id}/pdf": {
+      "get": {
+        "operationId": "PayrollController_payslipPdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Payroll"
         ]
       }
     },
