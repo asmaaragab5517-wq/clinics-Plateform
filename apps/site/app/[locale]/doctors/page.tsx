@@ -84,7 +84,7 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
         <Card className="h-fit lg:sticky lg:top-4">
           {/* On phones the filters fold behind a toggle so the doctors show first (they open when filters are in use);
               a visually hidden checkbox keeps it working without JavaScript. Large screens always show the form. */}
-          <input type="checkbox" id="f-toggle" className="peer sr-only" defaultChecked={activeFilters > 0} aria-controls="f-panel" />
+          <input type="checkbox" id="f-toggle" className="peer sr-only lg:hidden" defaultChecked={activeFilters > 0} aria-controls="f-panel" aria-label={tt('filter.title')} />
           <label htmlFor="f-toggle" className="btn-secondary btn-sm w-full cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-primary lg:hidden">
             {tt('filter.title')}
             {activeFilters > 0 && <span className="num rounded-full bg-primary px-2 text-xs text-primary-fg">{activeFilters}</span>}
