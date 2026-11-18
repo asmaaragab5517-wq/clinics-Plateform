@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { ADJUSTMENT_KINDS, localDate, workPatternSchema } from '@hf/shared';
 import type { Tx } from '@hf/db';
 import { payslipHtml, renderPdf } from '@hf/documents';
-import { Auth, Meta, Staff } from '../common/decorators';
+import { Auth, Meta, Staff, Webhook } from '../common/decorators';
+import { TokenService } from '../common/tokens';
+import { CONFIG, type Config } from '../config';
 import { asStaff } from '../common/auth.guard';
 import type { Principal, RequestMeta, StaffPrincipal } from '../common/principal';
 import { AuditService, Tenancy } from '../common/services';
@@ -28,7 +30,13 @@ const egp = (p: number) => (p / 100).toFixed(2);
  */
 @Controller('v1/payroll')
 export class PayrollController {
-  constructor(private readonly tenancy: Tenancy, private readonly audit: AuditService, private readonly hr: HrService) {}
+  constructor(
+    private readonly tenancy: Tenancy,
+    private readonly audit: AuditService,
+    private readonly hr: HrService,
+    private readonly tokens: TokenService,
+    @Inject(CONFIG) private readonly cfg: Config,
+  ) {}
 
   @Get('runs')
   @Staff('payroll:view')
@@ -223,34 +231,88 @@ export class PayrollController {
     );
   }
 
+  /** One of your own payslips (approved or paid runs). */
+  @Get('me/payslips/:id')
+  @Staff()
+  myPayslip(@Auth() p: Principal, @Param('id') id: string) {
+    const s = asStaff(p);
+    return this.tenancy.system(s.orgId, async (tx) => {
+      const r = await tx.maybeOne(
+        `select s.id, to_char(r.period, 'YYYY-MM') as month, r.status, s.gross, s.deductions, s.net, s.lines, s.inputs from payslips s join payroll_runs r on r.id = s.run_id
+         where s.id = $1 and s.user_id = $2 and r.status in ('approved','paid')`,
+        [uuid(id), s.userId],
+      );
+      if (!r) throw notFound('payslip');
+      return r;
+    });
+  }
+
   @Get('payslips/:id/pdf')
   @Staff()
   async payslipPdf(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta, @Res() res: Response) {
     const s = asStaff(p);
     const html = await this.tenancy.system(s.orgId, async (tx) => {
-      const row = await tx.maybeOne<{ user_id: string; status: string; period: string; gross: number; deductions: number; net: number; lines: never; inputs: { workedDays: number; absentDays: number; leaveDays: number; latenessMinutes: number; overtimeMinutes: number; restDayOvertimeMinutes: number }; name_ar: string; job_title_ar: string; social_insurance_number: string | null; iban_last4: string | null; clinic_ar: string; clinic_en: string; address: string | null; phones: string[] | null }>(
-        `select s.user_id, r.status, to_char(r.period, 'YYYY-MM-DD') as period, s.gross, s.deductions, s.net, s.lines, s.inputs, u.name_ar, c.job_title_ar, c.social_insurance_number, c.iban_last4,
-                cl.name_ar as clinic_ar, cl.name_en as clinic_en, cl.address_lines as address, cl.phones
-         from payslips s join payroll_runs r on r.id = s.run_id join users u on u.id = s.user_id join employment_contracts c on c.id = s.contract_id join clinics cl on cl.id = s.clinic_id
-         where s.id = $1`,
-        [uuid(id)],
-      );
-      const own = row?.user_id === s.userId && (row.status === 'approved' || row.status === 'paid');
-      if (!row || (!own && !s.privileges.has('payroll:view'))) throw notFound('payslip');
+      const doc = await this.payslipDoc(tx, uuid(id), s);
       await this.audit.record(tx, s, meta, { action: 'payroll.payslip_print', entity: 'payslip', entityId: id });
-      return payslipHtml({
-        clinic: { nameAr: row.clinic_ar, nameEn: row.clinic_en, address: row.address ?? '', phones: row.phones ?? [] },
-        employee: { name: row.name_ar, jobTitle: row.job_title_ar, socialInsuranceNumber: row.social_insurance_number, ibanLast4: row.iban_last4 },
-        period: row.period,
-        lines: row.lines,
-        gross: row.gross,
-        deductions: row.deductions,
-        net: row.net,
-        attendance: { workedDays: row.inputs.workedDays, absentDays: row.inputs.absentDays, leaveDays: row.inputs.leaveDays, lateMinutes: row.inputs.latenessMinutes, overtimeMinutes: row.inputs.overtimeMinutes + row.inputs.restDayOvertimeMinutes },
-        status: row.status,
-      });
+      return doc;
     });
     res.setHeader('content-type', 'application/pdf').setHeader('cache-control', 'no-store').send(await renderPdf(html));
+  }
+
+  /** A 10-minute link to the payslip PDF, for apps that cannot send the sign-in header to a browser. */
+  @Get('payslips/:id/link')
+  @Staff()
+  payslipLink(@Auth() p: Principal, @Param('id') id: string, @Meta() meta: RequestMeta) {
+    const s = asStaff(p);
+    return this.tenancy.system(s.orgId, async (tx) => {
+      await this.payslipDoc(tx, uuid(id), s);
+      await this.audit.record(tx, s, meta, { action: 'payroll.payslip_link', entity: 'payslip', entityId: id });
+      const token = this.tokens.signShareLink('payslip', `${s.orgId}:${id}:${s.userId}`, 600);
+      return { url: `${this.cfg.API_PUBLIC_URL}/v1/payroll/share/payslip/${token}`, expiresInSeconds: 600 };
+    });
+  }
+
+  @Get('share/payslip/:token')
+  @Webhook()
+  async sharedPayslip(@Param('token') token: string, @Res() res: Response) {
+    const [orgId, id, userId] = this.tokens.verifyShareLink('payslip', token)?.split(':') ?? [];
+    if (!orgId || !id || !userId) throw notFound('link');
+    const html = await this.tenancy.system(orgId, async (tx) => {
+      // Re-check at open time: the run must still be approved or paid, and the link holder's access unchanged.
+      const row = await tx.maybeOne<{ user_id: string; status: string }>('select s.user_id, r.status from payslips s join payroll_runs r on r.id = s.run_id where s.id = $1', [id]);
+      if (!row || row.user_id !== userId || (row.status !== 'approved' && row.status !== 'paid')) throw notFound('link');
+      const html = await this.payslipDoc(tx, id, null);
+      await this.audit.record(tx, null, null, { action: 'payroll.payslip_link_open', entity: 'payslip', entityId: id });
+      return html;
+    });
+    res.setHeader('content-type', 'application/pdf').setHeader('cache-control', 'no-store, private').setHeader('x-robots-tag', 'noindex').send(await renderPdf(html));
+  }
+
+  /** Payslip HTML; `viewer` must own it (approved/paid run) or hold payroll:view. Null viewer: caller already checked. */
+  private async payslipDoc(tx: Tx, id: string, viewer: StaffPrincipal | null) {
+    const row = await tx.maybeOne<{ user_id: string; status: string; period: string; gross: number; deductions: number; net: number; lines: never; inputs: { workedDays: number; absentDays: number; leaveDays: number; latenessMinutes: number; overtimeMinutes: number; restDayOvertimeMinutes: number }; name_ar: string; job_title_ar: string; social_insurance_number: string | null; iban_last4: string | null; clinic_ar: string; clinic_en: string; address: string | null; phones: string[] | null }>(
+      `select s.user_id, r.status, to_char(r.period, 'YYYY-MM-DD') as period, s.gross, s.deductions, s.net, s.lines, s.inputs, u.name_ar, c.job_title_ar, c.social_insurance_number, c.iban_last4,
+              cl.name_ar as clinic_ar, cl.name_en as clinic_en, cl.address_lines as address, cl.phones
+       from payslips s join payroll_runs r on r.id = s.run_id join users u on u.id = s.user_id join employment_contracts c on c.id = s.contract_id join clinics cl on cl.id = s.clinic_id
+       where s.id = $1`,
+      [id],
+    );
+    if (!row) throw notFound('payslip');
+    if (viewer) {
+      const own = row.user_id === viewer.userId && (row.status === 'approved' || row.status === 'paid');
+      if (!own && !viewer.privileges.has('payroll:view')) throw notFound('payslip');
+    }
+    return payslipHtml({
+      clinic: { nameAr: row.clinic_ar, nameEn: row.clinic_en, address: row.address ?? '', phones: row.phones ?? [] },
+      employee: { name: row.name_ar, jobTitle: row.job_title_ar, socialInsuranceNumber: row.social_insurance_number, ibanLast4: row.iban_last4 },
+      period: row.period,
+      lines: row.lines,
+      gross: row.gross,
+      deductions: row.deductions,
+      net: row.net,
+      attendance: { workedDays: row.inputs.workedDays, absentDays: row.inputs.absentDays, leaveDays: row.inputs.leaveDays, lateMinutes: row.inputs.latenessMinutes, overtimeMinutes: row.inputs.overtimeMinutes + row.inputs.restDayOvertimeMinutes },
+      status: row.status,
+    });
   }
 
   // ---- Helpers -------------------------------------------------------------------------------------------------

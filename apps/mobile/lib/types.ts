@@ -514,3 +514,142 @@ export interface ApproveEncounterDraft {
   diagnosisCodes?: string[];
   followUpDate?: string | null;
 }
+
+// ---- staff HR and payroll (hr.ts, payroll.ts; self-service "me" routes). Dates are YYYY-MM-DD, times Cairo local.
+export type PermissionKind = 'late_arrival' | 'early_leave' | 'during_day';
+export type HrRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export interface WorkPattern {
+  /** Weekdays worked, 0 = Sunday … 6 = Saturday. */
+  days: number[];
+  start: string;
+  end: string;
+}
+export interface HrContract {
+  id: string;
+  clinic_id: string;
+  job_title_ar: string;
+  job_title_en: string;
+  employment_type: 'full_time' | 'part_time' | 'contractor';
+  pay_basis: 'monthly' | 'hourly' | 'commission_only';
+  start_date: string;
+  end_date: string | null;
+  work_pattern: WorkPattern;
+  status: string;
+}
+export interface AttendanceRecord {
+  id: string;
+  work_date: string;
+  /** Present on month rows (to_char of work_date). */
+  day?: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  source: 'console' | 'mobile' | 'manual' | 'system';
+  status: 'open' | 'complete' | 'incomplete' | 'absent' | 'on_leave' | 'holiday' | 'rest_day';
+  late_minutes: number;
+  early_leave_minutes: number;
+  worked_minutes: number;
+  overtime_minutes: number;
+  rest_day: boolean;
+  overtime_approved: boolean;
+}
+export interface AnnualBalance {
+  year: number;
+  entitled: number;
+  carried: number;
+  adjusted: number;
+  used: number;
+  pending: number;
+  available: number;
+}
+export interface LeaveRequest extends Named {
+  id: string;
+  leave_type_id: string;
+  code: string;
+  start_date: string;
+  end_date: string;
+  days: number | string;
+  reason: string | null;
+  status: HrRequestStatus;
+  decision_note: string | null;
+  created_at: string;
+}
+export interface PermissionRequest {
+  id: string;
+  work_date: string;
+  kind: PermissionKind;
+  /** HH:MM:SS from /me routes; month rows also carry `start` / `end` as HH:MM. */
+  start_time: string;
+  end_time: string;
+  minutes: number;
+  reason: string | null;
+  status: HrRequestStatus;
+  decision_note: string | null;
+  created_at: string;
+}
+export interface HrMe {
+  contract: HrContract | null;
+  today: AttendanceRecord | null;
+  annualBalance: AnnualBalance | null;
+  pending: { leave: LeaveRequest[]; permissions: PermissionRequest[] };
+}
+export interface MonthSummary {
+  periodDays: number;
+  employedDays: number;
+  scheduledDays: number;
+  workedDays: number;
+  workedMinutes: number;
+  absentDays: number;
+  leaveDays: number;
+  unpaidLeaveDays: number;
+  latenessMinutes: number;
+  overtimeMinutes: number;
+  restDayOvertimeMinutes: number;
+  pendingOvertimeMinutes: number;
+  futureDays: number;
+}
+export interface HrMonth {
+  month: string;
+  contract: HrContract | null;
+  summary: MonthSummary | null;
+  days: (AttendanceRecord & { day: string })[];
+  leave: (Named & { id: string; start_date: string; end_date: string; days: number | string; status: HrRequestStatus; code: string })[];
+  permissions: (PermissionRequest & { day: string; start: string; end: string })[];
+  holidays: (Named & { day: string })[];
+}
+export interface LeaveType extends Named {
+  id: string;
+  code: string;
+  paid: boolean;
+  uses_annual_balance: boolean;
+  annual_quota: number | string | null;
+  max_consecutive_days: number | string | null;
+  is_active: boolean;
+}
+export interface HrBalances {
+  year: number;
+  annual: AnnualBalance;
+  types: (Named & { id: string; code: string; paid: boolean; uses_annual_balance: boolean; annual_quota: number | string | null; used: number })[];
+}
+export interface MyRequests {
+  leave: LeaveRequest[];
+  permissions: PermissionRequest[];
+}
+export interface PayslipLine {
+  code: string;
+  labelAr: string;
+  labelEn: string;
+  /** Positive piastres; `kind` says whether it adds to or reduces pay (employer lines are for information). */
+  amount: number;
+  kind: 'earning' | 'deduction' | 'employer';
+  /** e.g. "3 d", "125 min", "4.5 h", "11%", "12/30". */
+  basis?: string;
+}
+export interface MyPayslip {
+  id: string;
+  month: string;
+  status: 'approved' | 'paid';
+  gross: number;
+  deductions: number;
+  net: number;
+  lines: PayslipLine[];
+}

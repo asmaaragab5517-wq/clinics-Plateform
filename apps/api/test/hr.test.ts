@@ -155,5 +155,19 @@ describe('Staff HR and payroll (Sprint 19)', () => {
     const pdf = await h.http().get(`/v1/payroll/payslips/${mine.body[0].id}/pdf`).set(auth(h.staff.reception!));
     expect(pdf.headers['content-type']).toBe('application/pdf');
     await h.http().get(`/v1/payroll/payslips/${mine.body[0].id}/pdf`).set(auth(h.staff.nurse!)).expect(404); // someone else's payslip
+    const one = await h.http().get(`/v1/payroll/me/payslips/${mine.body[0].id}`).set(auth(h.staff.reception!));
+    expect(one.body.net).toBe(rec.net);
+    await h.http().get(`/v1/payroll/me/payslips/${mine.body[0].id}`).set(auth(h.staff.nurse!)).expect(404);
+    // Signed link for apps: opens without the sign-in header, and only the owner can create one.
+    await h.http().get(`/v1/payroll/payslips/${mine.body[0].id}/link`).set(auth(h.staff.nurse!)).expect(404);
+    const link = await h.http().get(`/v1/payroll/payslips/${mine.body[0].id}/link`).set(auth(h.staff.reception!));
+    const path = new URL(link.body.url).pathname;
+    const opened = await h.http().get(path);
+    expect(opened.status).toBe(200);
+    expect(opened.headers['content-type']).toBe('application/pdf');
+    await h.http().get(path.replace(/.$/, (c) => (c === 'a' ? 'b' : 'a'))).expect(404);
+
+    const me = await h.http().get('/v1/hr/me').set(auth(h.staff.reception!));
+    expect(me.body.permissionAllowance).toMatchObject({ perMonth: 2, minutesPerMonth: 240 });
   }, 60000);
 });

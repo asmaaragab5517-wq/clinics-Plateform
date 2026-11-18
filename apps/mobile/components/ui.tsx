@@ -122,7 +122,7 @@ export function Chevron({ back = false }: { back?: boolean }) {
 }
 
 type ButtonKind = 'primary' | 'secondary' | 'danger' | 'ghost';
-export function Button({ title, onPress, kind = 'primary', disabled, loading, style, accessibilityHint }: { title: string; onPress: () => void; kind?: ButtonKind; disabled?: boolean; loading?: boolean; style?: StyleProp<ViewStyle>; accessibilityHint?: string }) {
+export function Button({ title, onPress, kind = 'primary', disabled, loading, style, accessibilityHint, large }: { title: string; onPress: () => void; kind?: ButtonKind; disabled?: boolean; loading?: boolean; style?: StyleProp<ViewStyle>; accessibilityHint?: string; large?: boolean }) {
   const bg = { primary: colors.primary, secondary: colors.card, danger: colors.danger, ghost: 'transparent' }[kind];
   const fg = kind === 'primary' || kind === 'danger' ? '#fff' : kind === 'ghost' ? colors.primary : colors.text;
   const off = disabled || loading;
@@ -134,9 +134,9 @@ export function Button({ title, onPress, kind = 'primary', disabled, loading, st
       accessibilityLabel={title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: !!off, busy: !!loading }}
-      style={({ pressed }) => [s.button, { backgroundColor: bg, borderColor: kind === 'secondary' ? colors.border : bg, opacity: off ? 0.5 : pressed ? 0.85 : 1 }, style]}
+      style={({ pressed }) => [s.button, large && { minHeight: 64, borderRadius: 14 }, { backgroundColor: bg, borderColor: kind === 'secondary' ? colors.border : bg, opacity: off ? 0.5 : pressed ? 0.85 : 1 }, style]}
     >
-      {loading ? <ActivityIndicator color={fg} /> : <T style={{ color: fg, fontWeight: '600', textAlign: 'center' }}>{title}</T>}
+      {loading ? <ActivityIndicator color={fg} /> : <T style={[{ color: fg, fontWeight: '600', textAlign: 'center' }, large && { fontSize: 20, fontWeight: '700' }]}>{title}</T>}
     </Pressable>
   );
 }

@@ -6,6 +6,16 @@ import type {
   BookingResponse,
   ComplaintCategory,
   DoctorVideoVisit,
+  AttendanceRecord,
+  HrBalances,
+  HrMe,
+  HrMonth,
+  LeaveRequest,
+  LeaveType,
+  MyPayslip,
+  MyRequests,
+  PermissionKind,
+  PermissionRequest,
   CommissionStatement,
   ConsentsResponse,
   DoctorProfile,
@@ -173,6 +183,32 @@ export const staffApi = {
   aiDrafts: (q: { encounterId?: string; prescriptionId?: string; status?: AiDraft['status'] }) => api.get<AiDraft[]>('/v1/ai/drafts', { status: 'pending', ...q }, 'staff'),
   approveDraft: (id: string, b: ApproveEncounterDraft) => api.post<{ ok: true; applied: unknown }>(`/v1/ai/drafts/${id}/approve`, b, 'staff'),
   rejectDraft: (id: string) => api.post<{ ok: true }>(`/v1/ai/drafts/${id}/reject`, {}, 'staff'),
+};
+
+/**
+ * Staff self-service HR (hr.ts) and payslips (payroll.ts). Every staff member may call these for their own records.
+ * Errors: clock → no_active_contract, already_clocked_in, not_clocked_in; leave → overlapping_leave,
+ * insufficient_leave_balance {available}, leave_quota_exceeded {quota}, exceeds_max_consecutive_days {max},
+ * no_working_days_in_range, leave_must_stay_within_one_year; permission → permission_allowance_exceeded
+ * {perMonth, minutesPerMonth, used, usedMinutes}; cancel → 404 when the request can no longer be cancelled.
+ */
+export const hrApi = {
+  me: () => api.get<HrMe>('/v1/hr/me', undefined, 'staff'),
+  /** The server stamps the time; the work day is the Cairo day of the clock-in. */
+  clock: (action: 'in' | 'out') => api.post<AttendanceRecord>('/v1/hr/attendance/clock', { action, source: 'mobile' }, 'staff'),
+  month: (month: string) => api.get<HrMonth>('/v1/hr/me/attendance', { month }, 'staff'),
+  balances: (year?: number) => api.get<HrBalances>('/v1/hr/me/balances', { year }, 'staff'),
+  leaveTypes: () => api.get<LeaveType[]>('/v1/hr/leave-types', undefined, 'staff'),
+  requests: () => api.get<MyRequests>('/v1/hr/me/requests', undefined, 'staff'),
+  requestLeave: (b: { leaveTypeId: string; startDate: string; endDate: string; reason?: string }) => api.post<LeaveRequest>('/v1/hr/leave-requests', b, 'staff'),
+  requestPermission: (b: { workDate: string; kind: PermissionKind; startTime: string; endTime: string; reason?: string }) =>
+    api.post<PermissionRequest>('/v1/hr/permission-requests', b, 'staff'),
+  cancelLeave: (id: string) => api.post<{ ok: true }>(`/v1/hr/leave-requests/${id}/cancel`, {}, 'staff'),
+  cancelPermission: (id: string) => api.post<{ ok: true }>(`/v1/hr/permission-requests/${id}/cancel`, {}, 'staff'),
+  /** Approved and paid payslips, newest first (36 months). The PDF route needs a bearer header, see app/hr/payslip/[id].tsx. */
+  payslips: () => api.get<MyPayslip[]>('/v1/payroll/me/payslips', undefined, 'staff'),
+  /** 10-minute signed link to the payslip PDF (opens in the in-app browser without the sign-in header). */
+  payslipLink: (id: string) => api.get<{ url: string; expiresInSeconds: number }>(`/v1/payroll/payslips/${encodeURIComponent(id)}/link`, undefined, 'staff'),
 };
 
 export const newIdempotencyKey = () => `app-${randomId()}`;

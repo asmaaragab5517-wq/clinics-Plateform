@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { View, useWindowDimensions } from 'react-native';
 import { router } from 'expo-router';
+import { HrClockCard } from '../../components/HrClockCard';
 import { ActionButton, Button, Card, Empty, ErrorBox, Loading, Muted, Row, Screen, Section, StatusBadge, T, colors, s } from '../../components/ui';
 import { staffApi } from '../../lib/endpoints';
 import { time } from '../../lib/format';
@@ -63,6 +64,7 @@ export default function Reception() {
         <Button kind="secondary" title={t('reception.searchCheckIn')} onPress={() => router.push('/reception/search')} style={{ flexGrow: 1 }} />
         <Button kind="secondary" title={t('reception.walkIn')} onPress={() => router.push('/reception/walk-in')} style={{ flexGrow: 1 }} />
       </Row>
+      <HrClockCard />
       <ErrorBox error={act.error ?? queue.error} />
       <View style={wide ? [s.row, { gap: 16, alignItems: 'flex-start' }] : undefined}>
         <View style={wide ? { flex: 3 } : undefined}>

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
-import { localDate, toWesternDigits } from '@hf/shared';
+import { localDate } from '@hf/shared';
 import { ActionButton, Banner, Button, Card, Chip, Empty, ErrorBox, Field, Loading, Muted, Row, Screen, Section, StatusBadge, T, colors, s, useErrorText } from '../../components/ui';
 import { ApiError, isApiError } from '../../lib/api';
 import { portalApi } from '../../lib/endpoints';
-import { money, patientName, plainDate } from '../../lib/format';
+import { money, parseYmd as ymd, patientName, plainDate } from '../../lib/format';
 import { useI18n } from '../../lib/i18n';
 import { useAction, useQuery } from '../../lib/useQuery';
 import type { PortalCoverage } from '../../lib/types';
@@ -25,14 +25,6 @@ const isClosed = (c: PortalCoverage) => c.verified === false && !c.is_active;
 /** Withdrawn by the patient or rejected by the clinic, when the API says which. */
 const closedKey = (c: PortalCoverage) =>
   c.status === 'withdrawn' ? 'insurance.statusWithdrawn' : c.status === 'rejected' ? 'insurance.statusRejected' : 'insurance.closed';
-
-/** YYYY-MM-DD that is a real calendar date (Arabic-Indic digits accepted). */
-function ymd(v: string): string | null {
-  const x = toWesternDigits(v).trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(x)) return null;
-  const d = new Date(`${x}T00:00:00Z`);
-  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === x ? x : null;
-}
 
 /**
  * Insurance (GET /v1/portal/coverages). Staff-recorded cover is read-only. The patient can submit a card

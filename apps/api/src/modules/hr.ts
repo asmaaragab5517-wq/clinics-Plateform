@@ -58,9 +58,22 @@ export class HrController {
       const day = today();
       const att = await tx.maybeOne(`select * from attendance_records where user_id = $1 and work_date = $2`, [s.userId, day]);
       const year = Number(day.slice(0, 4));
+      const settings = await this.hr.settings(tx);
+      const used = await tx.one<{ n: number; minutes: number }>(
+        `select count(*)::int as n, coalesce(sum(minutes), 0)::int as minutes from permission_requests
+         where user_id = $1 and status in ('pending','approved') and work_date >= date_trunc('month', $2::date) and work_date < date_trunc('month', $2::date) + interval '1 month'`,
+        [s.userId, day],
+      );
+      // A shift that crossed midnight leaves yesterday's record open.
+      const openRecord = await tx.maybeOne(
+        `select * from attendance_records where user_id = $1 and clock_in is not null and clock_out is null and clock_in > now() - interval '16 hours' order by work_date desc limit 1`,
+        [s.userId],
+      );
       return {
         contract: contractView(c, true),
         today: att,
+        openRecord,
+        permissionAllowance: { perMonth: settings.permissionsPerMonth, minutesPerMonth: settings.permissionMinutesPerMonth, used: used.n, usedMinutes: used.minutes },
         annualBalance: c ? await this.hr.annualBalance(tx, s.userId, year) : null,
         pending: {
           leave: await tx.query(`select r.*, t.code, t.name_ar, t.name_en from leave_requests r join leave_types t on t.id = r.leave_type_id where r.user_id = $1 and r.status = 'pending' order by r.start_date`, [s.userId]),

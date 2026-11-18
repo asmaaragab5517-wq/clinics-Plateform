@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import { ActionButton, Button, Card, Empty, ErrorBox, Loading, Muted, Row, Screen, Section, StatusBadge, T } from '../../components/ui';
 import { statusTone } from '../../components/AppointmentCard';
+import { HrClockCard } from '../../components/HrClockCard';
 import { isApiError } from '../../lib/api';
 import { staffApi } from '../../lib/endpoints';
 import { time } from '../../lib/format';
@@ -52,6 +53,7 @@ export default function DoctorToday() {
   return (
     <Screen refreshing={queue.loading} onRefresh={() => { void queue.reload(); void appts.reload(); }}>
       <Muted>{pick(clinics.find((c) => c.id === clinicId))}</Muted>
+      <HrClockCard />
       <ErrorBox error={act.error ?? queue.error} />
       <Section title={t('queue.nowServing')}>
         {queue.loading && !queue.data ? <Loading /> : null}

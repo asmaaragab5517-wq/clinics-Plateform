@@ -43,6 +43,7 @@ function Navigator() {
       <Stack.Screen name="patient" options={{ headerShown: false }} />
       <Stack.Screen name="doctor" options={{ headerShown: false }} />
       <Stack.Screen name="reception" options={{ headerShown: false }} />
+      <Stack.Screen name="hr" options={{ headerShown: false }} />
     </Stack>
   );
 }
