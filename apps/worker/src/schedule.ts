@@ -16,6 +16,7 @@ export const SCHEDULE: { name: string; every?: number; cron?: string }[] = [
   { name: 'verify-audit', cron: '0 3 * * *' },
   { name: 'retention', cron: '30 3 * * *' },
   { name: 'prune-device-tokens', cron: '45 3 * * *' },
+  { name: 'prune-idempotency', cron: '50 3 * * *' },
   { name: 'hr-close-day', cron: '15 0 * * *' },
   { name: 'director-summary', cron: '0 8 * * *' },
   { name: 'commissions', cron: '0 4 1 * *' },

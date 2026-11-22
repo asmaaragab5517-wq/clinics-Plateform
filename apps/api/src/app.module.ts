@@ -1,6 +1,7 @@
 import { Module, type DynamicModule, type Provider } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PublicCacheInterceptor } from './common/public-cache';
+import { IdempotencyInterceptor } from './common/idempotency';
 import { CONFIG, loadConfig, type Config } from './config';
 import { AuthGuard } from './common/auth.guard';
 import { AllExceptionsFilter } from './common/errors';
@@ -106,7 +107,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: CONTROLLERS,
-      providers: [...coreProviders(cfg), AuthService, { provide: APP_GUARD, useClass: AuthGuard }, { provide: APP_FILTER, useClass: AllExceptionsFilter }, { provide: APP_INTERCEPTOR, useClass: PublicCacheInterceptor }],
+      providers: [...coreProviders(cfg), AuthService, { provide: APP_GUARD, useClass: AuthGuard }, { provide: APP_FILTER, useClass: AllExceptionsFilter }, { provide: APP_INTERCEPTOR, useClass: PublicCacheInterceptor }, { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],
       exports: [],
     };
   }

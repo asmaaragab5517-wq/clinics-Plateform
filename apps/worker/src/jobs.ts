@@ -304,6 +304,11 @@ export async function pruneDeviceTokens(c: JobContext) {
   );
 }
 
+/** Drop stored Idempotency-Key responses after 24 hours (the API ignores older ones anyway). */
+export async function pruneIdempotency(c: JobContext) {
+  await forEachOrg(c, 'prune-idempotency', (org) => c.tenancy.system(org, (tx) => tx.query(`delete from idempotency_responses where created_at < now() - interval '24 hours'`)));
+}
+
 /** D12: monthly retention review - raise an owner task when records are past the retention period (no automatic deletion). */
 export async function retentionReview(c: JobContext) {
   await forEachOrg(c, 'retention-review', async (org) => {
