@@ -510,5 +510,6 @@
   "insurance.statusWithdrawn": "Withdrawn",
   "insurance.statusWithdrawnNote": "You withdrew this card before the clinic checked it. Add it again if you still want to use it.",
   "insurance.statusRejected": "Not accepted",
-  "insurance.statusRejectedNote": "The clinic could not verify this card with the insurer. Contact reception for details, or add the card again with the correct details."
+  "insurance.statusRejectedNote": "The clinic could not verify this card with the insurer. Contact reception for details, or add the card again with the correct details.",
+  "doctors.resultsHeading": "Search results"
 }

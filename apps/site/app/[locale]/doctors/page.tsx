@@ -179,7 +179,11 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
             </Link>
           </form>
         </Card>
-        <div className="lg:col-span-3">
+        <section className="lg:col-span-3" aria-labelledby="results-heading">
+          {/* The filter heading is folded away on phones, so the results carry their own (visually hidden) h2. */}
+          <h2 id="results-heading" className="sr-only">
+            {tt('doctors.resultsHeading')}
+          </h2>
           {doctors === null ? (
             <Unavailable locale={locale} />
           ) : (
@@ -200,7 +204,7 @@ export default async function DoctorsPage({ params, searchParams }: Props) {
               )}
             </>
           )}
-        </div>
+        </section>
       </div>
       {doctors && doctors.length > 0 && <JsonLd data={doctors.slice(0, 20).map((d) => physicianLd(locale, d))} />}
     </div>
