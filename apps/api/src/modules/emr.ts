@@ -345,6 +345,46 @@ export class EmrController {
     });
   }
 
+  /**
+   * Upload the file for a patient's `file` custom field (registration attachments such as an ID copy or a referral letter).
+   * Needs `patient:edit` only, so reception can attach it without clinical-record privileges; the stored document is
+   * linked from the field and can be opened through the field's own link below.
+   */
+  @Post('patients/:patientId/custom-fields/:key/file')
+  @Staff('patient:edit')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES } }))
+  uploadFieldFile(@Auth() p: Principal, @Param('patientId') patientId: string, @Param('key') key: string, @UploadedFile() file: { buffer: Buffer; size: number; originalname?: string } | undefined, @Meta() meta: RequestMeta) {
+    const s = asStaff(p);
+    return this.tenancy.run(s, async (tx) => {
+      const pt = await tx.maybeOne('select id from patients where id = $1 and anonymised_at is null', [uuid(patientId)]);
+      if (!pt) throw notFound('patient');
+      const def = await tx.maybeOne<{ label_en: string | null; label_ar: string }>(`select label_ar, label_en from custom_field_defs where entity = 'patient' and type = 'file' and key = $1`, [key]);
+      if (!def) throw notFound('custom_field');
+      const name = (Buffer.from(file?.originalname ?? 'file', 'latin1').toString('utf8') || 'file').slice(0, 255);
+      const d = await storeDocument({ storage: this.storage, av: this.av }, tx, { orgId: s.orgId, patientId, title: `${def.label_en || def.label_ar} - ${name}`, kind: 'custom_field', file, patientProvided: false, actorId: s.userId });
+      await tx.query(`update patients set custom_fields = custom_fields || jsonb_build_object($2::text, jsonb_build_object('documentId', $3::text, 'name', $4::text)) where id = $1`, [patientId, key, d.id, name]);
+      await this.audit.record(tx, s, meta, { action: 'patient.custom_field_file', entity: 'patient', entityId: patientId, patientId, details: { key, documentId: d.id } });
+      return { key, documentId: d.id, name };
+    });
+  }
+
+  /** Signed link (5 minutes) to the file held in a patient's custom field; anyone who can see the patient may open it. */
+  @Get('patients/:patientId/custom-fields/:key/file')
+  @Staff('patient:view')
+  async fieldFileUrl(@Auth() p: Principal, @Param('patientId') patientId: string, @Param('key') key: string, @Meta() meta: RequestMeta) {
+    const d = await this.tenancy.run(p, async (tx) => {
+      const row = await tx.maybeOne<{ storage_key: string; title: string; id: string }>(
+        `select d.id, d.storage_key, d.title from patients pt join documents d on d.id = (pt.custom_fields -> $2 ->> 'documentId')::uuid and d.patient_id = pt.id
+         where pt.id = $1 and d.scan_status = 'clean'`,
+        [uuid(patientId), key],
+      );
+      if (!row) throw notFound('document');
+      await this.audit.record(tx, p, meta, { action: 'document.access', entity: 'document', entityId: row.id, patientId });
+      return row;
+    });
+    return { url: await this.storage.signedUrl(d.storage_key, 300, d.title), expiresInSeconds: 300 };
+  }
+
   @Get('patients/:patientId/documents')
   @Staff()
   documents(@Auth() p: Principal, @Param('patientId') patientId: string, @Meta() meta: RequestMeta) {

@@ -99,7 +99,7 @@ export function customFieldsPayload(defs: CustomFieldDef[], values: CustomValues
   return out;
 }
 
-export function CustomFieldValue({ def, value }: { def: CustomFieldDef; value: unknown }) {
+export function CustomFieldValue({ def, value, patientId }: { def: CustomFieldDef; value: unknown; patientId?: string }) {
   const { t, locale, err } = useI18n();
   const toast = useToast();
   if (isEmpty(value)) return <>—</>;
@@ -125,7 +125,7 @@ export function CustomFieldValue({ def, value }: { def: CustomFieldDef; value: u
           className="underline"
           onClick={async () => {
             try {
-              const r = await get<{ url: string }>(`/documents/${f.documentId}/url`);
+              const r = await get<{ url: string }>(patientId ? `/patients/${patientId}/custom-fields/${encodeURIComponent(def.key)}/file` : `/documents/${f.documentId}/url`);
               window.open(r.url, '_blank', 'noopener,noreferrer');
             } catch (e) {
               toast(err(e), 'danger');
@@ -227,7 +227,7 @@ function CustomFieldInput({ def, label, value, onChange, error, patientId }: { d
           )}
           {!patientId ? (
             <p className="text-xs text-muted">{t('cf.fileAfterRegister')}</p>
-          ) : !can('emr:create') ? (
+          ) : !can('patient:edit') ? (
             <p className="text-xs text-muted">{t('cf.fileNoPrivilege')}</p>
           ) : (
             <Input
@@ -243,10 +243,9 @@ function CustomFieldInput({ def, label, value, onChange, error, patientId }: { d
                 try {
                   const fd = new FormData();
                   fd.set('file', file);
-                  fd.set('title', `${label.replace(/ \*$/, '')} - ${file.name}`);
-                  fd.set('kind', 'other');
-                  const r = await upload<{ id: string }>(`/patients/${patientId}/documents`, fd);
-                  onChange({ documentId: r.id, name: file.name } satisfies FileValue);
+                  // Stored and linked to the field at once, so the attachment survives even if the form is not saved.
+                  const r = await upload<{ documentId: string; name: string }>(`/patients/${patientId}/custom-fields/${encodeURIComponent(def.key)}/file`, fd);
+                  onChange({ documentId: r.documentId, name: r.name } satisfies FileValue);
                 } catch (x) {
                   setUpErr(err(x));
                 } finally {

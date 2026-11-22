@@ -75,6 +75,9 @@ export default function ClinicsAdminPage() {
   };
   const gov = GOVERNORATES.find((g) => g.slug === f.governorate);
   const pos = parsePosition(f.lat, f.lng);
+  const hadPosition = !!editing && editing.lat !== null && editing.lat !== undefined;
+  // Emptying both fields of a clinic that has a position removes it (refused while a clock-in radius uses it).
+  const clearing = hadPosition && !pos.value && !pos.error;
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={t('nav.clinicsAdmin')} actions={can('clinic:create') ? <Button onClick={() => start(null)}>{t('clin.new')}</Button> : null} />
@@ -126,7 +129,7 @@ export default function ClinicsAdminPage() {
                 governorate: gov?.ar ?? f.governorate,
                 city: f.city,
                 addressLines: f.addressLines,
-                ...(pos.value ? { lat: pos.value.lat, lng: pos.value.lng } : {}),
+                ...(pos.value ? { lat: pos.value.lat, lng: pos.value.lng } : clearing ? { clearPosition: true } : {}),
                 phones: f.phones.split(/[,\u060C]/).map((x) => x.trim()).filter(Boolean),
                 email: f.email || undefined,
                 workingHours: WEEK_ORDER.filter((d) => f.hours[d]?.on).map((d) => ({ weekday: d, open: f.hours[d]!.open, close: f.hours[d]!.close })),
@@ -178,7 +181,7 @@ export default function ClinicsAdminPage() {
                   {t('clin.locationCheck')}
                 </a>
               )}
-              {editing && editing.lat !== null && editing.lat !== undefined && <p className="text-xs text-muted">{t('clin.locationKeep')}</p>}
+              {clearing ? <Alert tone="warning">{t('clin.locationClear')}</Alert> : hadPosition && <p className="text-xs text-muted">{t('clin.locationKeep')}</p>}
               {editing && (editing.lat === null || editing.lat === undefined) && <p className="text-xs text-muted">{t('clin.locationMissing')}</p>}
             </fieldset>
             <TextField label={t('pat.phones')} hint={t('pat.phonesHint')} value={f.phones} onChange={(e) => setF({ ...f, phones: e.target.value })} dir="ltr" />

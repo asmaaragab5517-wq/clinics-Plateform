@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpStatus, Inject, Param, Patch, Post, Put } from '@nestjs/common';
 import { z } from 'zod';
 import { DEFAULT_PRIVILEGES, PRIVILEGE_ACTIONS, PRIVILEGE_MODULES, ROLES, clinicSchema, type Privilege } from '@hf/shared';
 import type { SecretBox } from '@hf/db';
@@ -7,7 +7,7 @@ import { asStaff } from '../common/auth.guard';
 import type { Principal, RequestMeta } from '../common/principal';
 import { AuditService, BOX, Tenancy } from '../common/services';
 import { TokenService } from '../common/tokens';
-import { notFound } from '../common/errors';
+import { DomainError, badRequest, notFound } from '../common/errors';
 import { parse, uuid } from '../common/zod';
 import { assertPlanLimit } from './platform';
 
@@ -160,8 +160,17 @@ export class OrgController {
   @Staff('clinic:edit')
   updateClinic(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const c = parse(clinicSchema.partial().extend({ specialtyIds: z.array(z.string().uuid()).optional(), isActive: z.boolean().optional() }), body);
+    const c = parse(clinicSchema.partial().extend({ specialtyIds: z.array(z.string().uuid()).optional(), isActive: z.boolean().optional(), clearPosition: z.literal(true).optional() }), body);
+    if (c.clearPosition && (c.lat !== undefined || c.lng !== undefined)) throw badRequest('position_conflict');
+    if ((c.lat === undefined) !== (c.lng === undefined)) throw badRequest('position_needs_lat_and_lng');
     return this.tenancy.run(s, async (tx) => {
+      if (c.clearPosition) {
+        // A clinic without a map position cannot check clock-ins by radius, so keep the position while a rule uses it.
+        const cur = await tx.maybeOne<{ geofence: string | null }>(`select settings -> 'attendance' ->> 'geofenceMeters' as geofence from clinics where id = $1 for update`, [uuid(id)]);
+        if (!cur) throw notFound('clinic');
+        if (cur.geofence) throw new DomainError('clinic_location_in_use', HttpStatus.CONFLICT);
+        await tx.query('update clinics set lat = null, lng = null where id = $1', [id]);
+      }
       const row = await tx.maybeOne(
         `update clinics set
            name_ar = coalesce($2, name_ar), name_en = coalesce($3, name_en), slug = coalesce($4, slug), governorate = coalesce($5, governorate),

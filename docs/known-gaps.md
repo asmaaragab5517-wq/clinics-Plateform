@@ -31,13 +31,9 @@ must be closed before go-live.
   when employment ends).
 - Mobile clock-in by GPS radius needs `expo-location` (blocked until the lockfile can change); until then the mobile app
   is verified by the clinic network (phone on the clinic Wi-Fi). The console deliberately does not use browser location.
-- The console's clinic admin page cannot set a clinic's map position (the API accepts it), so a GPS radius rule needs
-  the position set through the API first. - Smaller follow-ups: payslip line `basis`
-  text ("20 d", "125 min") is English only; (the rest were closed in Sprint 20).
+- Clinic map positions are typed or pasted as numbers (no map picker in the console).
 
 ## Product/API
-- Remaining Sprint 16 follow-ups: waitlist offers by message are automatic only (no manual "send offer" message); prescription
-  revocation returns the revoking doctor's id, not name; custom-field file values reuse patient documents (needs `emr:create`).
 - Mobile features added in Sprints 16–18 (dictation, pending drafts, insurance, video booking, push taps, payment return) have
   not been run on a device or emulator.
 - Mobile dictation recordings stay in the app's private cache after upload (deleting needs expo-file-system). Dictation, notification taps and payment return are not yet tested on a device.

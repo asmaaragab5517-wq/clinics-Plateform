@@ -165,7 +165,7 @@ function Overview({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
             <Row k={t('pat.emergency')} v={pt.emergency_contact && <Bdi>{`${pt.emergency_contact.name} · ${pt.emergency_contact.phone} · ${pt.emergency_contact.relation}`}</Bdi>} />
             <Row k={t('family.guardian')} v={pt.guardian && <Link className="underline" href={`/patients/${pt.guardian.id}`}><Bdi>{patientName(pt.guardian, locale)}</Bdi></Link>} />
             {cfDefs.map((d) => (
-              <Row key={d.id} k={fieldLabel(d, locale)} v={<CustomFieldValue def={d} value={pt.custom_fields?.[d.key]} />} />
+              <Row key={d.id} k={fieldLabel(d, locale)} v={<CustomFieldValue def={d} value={pt.custom_fields?.[d.key]} patientId={pt.id} />} />
             ))}
           </dl>
         ) : (
