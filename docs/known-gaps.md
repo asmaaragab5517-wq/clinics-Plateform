@@ -1,4 +1,4 @@
-# Known gaps and follow-ups (end of Sprint 18)
+# Known gaps and follow-ups (end of Sprint 22)
 
 Collected from the build and the front-end integration reviews. None blocks the R1 pilot build; items marked **pilot**
 must be closed before go-live.
@@ -39,8 +39,8 @@ must be closed before go-live.
 - Mobile dictation recordings stay in the app's private cache after upload (deleting needs expo-file-system). Dictation, notification taps and payment return are not yet tested on a device.
 - Public catalogue cache: shared through Redis when `REDIS_URL` is set (writes invalidate every replica at once); without Redis, or while it is unreachable, each replica falls back to its own cache, which converges within `PUBLIC_CACHE_SECONDS`.
 - Uncached public reads cost ~2–14 ms CPU each; the sandbox load test saturates one Node process at ~260 req/s, so size replicas from the staging k6 run.
-- Idempotency keys are honoured for bookings, walk-ins and payments; check-in and queue updates rely on state-machine conflicts.
-- Console: tablet signature capture for re-consent.
+- Idempotency-Key is honoured on every staff and patient write (stored responses kept 24 hours, replayed on retry); bookings,
+  walk-ins and payments also keep their own per-record keys. A multipart upload's key covers its form fields, not the file bytes.
 - Mobile: live queue uses polling (SSE in web), screenshot blocking is app-wide on Android only, root/jailbreak warning not implemented, certificate pins must be supplied (`CERT_PINS`).
 - Concurrent refreshes from several site instances are tolerated: a token rotated less than 10 s earlier, whose successor
   is still live, gets another token in the same family; replays after that window still revoke the family.
