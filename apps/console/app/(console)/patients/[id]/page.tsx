@@ -42,7 +42,7 @@ interface PatientDetail {
   contacts: { id: string; phone: string; is_primary: boolean }[];
   allergies: { id: string; text: string; severity: string | null; ingredient: string | null }[];
   guardian: PatientRow | null;
-  consents: { type: string; granted: boolean; created_at: string; version_id: string }[];
+  consents: { id: string; type: string; granted: boolean; created_at: string; version_id: string; channel: string; signed: boolean }[];
   custom_fields: Record<string, unknown> | null;
 }
 
@@ -557,7 +557,7 @@ function Documents({ id }: { id: string }) {
 }
 
 function Consents({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
-  const { t, locale } = useI18n();
+  const { t, locale, err } = useI18n();
   const { can } = useSession();
   const toast = useToast();
   const current = Object.fromEntries(pt.consents.map((c) => [c.type, c.granted]));
@@ -573,6 +573,7 @@ function Consents({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
             <tr>
               <th>{t('consent.type')}</th>
               <th>{t('consent.granted')}</th>
+              <th>{t('consent.channel')}</th>
               <th>{t('common.date')}</th>
             </tr>
           </thead>
@@ -581,6 +582,28 @@ function Consents({ pt, onSaved }: { pt: PatientDetail; onSaved: () => void }) {
               <tr key={c.type}>
                 <td>{t(`consent.${c.type}`)}</td>
                 <td>{c.granted ? <Badge tone="success">{t('common.yes')}</Badge> : <Badge tone="danger">{t('common.no')}</Badge>}</td>
+                <td>
+                  <span className="flex flex-wrap items-center gap-2">
+                    {['reception', 'portal', 'app'].includes(c.channel) ? t(`consent.channel.${c.channel}`) : c.channel}
+                    {c.signed && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          try {
+                            const r = await get<{ url: string }>(`/patients/${pt.id}/consents/${c.id}/signature`);
+                            window.open(r.url, '_blank', 'noopener,noreferrer');
+                          } catch (e) {
+                            toast(err(e), 'danger');
+                          }
+                        }}
+                      >
+                        {t('consent.viewSignature')}
+                      </Button>
+                    )}
+                  </span>
+                </td>
                 <td>
                   <DateText value={c.created_at} locale={locale} withTime />
                 </td>

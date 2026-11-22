@@ -108,7 +108,7 @@ export class PatientsController {
       // Allergy banner is shown to clinical roles (FR-EMR-4).
       const allergies = emr ? await tx.query(`select id, text, severity, ingredient from medical_history_items where patient_id = $1 and kind = 'allergy' and is_active`, [id]) : [];
       const guardian = row.guardian_patient_id ? await tx.maybeOne(`select ${PUBLIC_COLS} from patients p where id = $1`, [row.guardian_patient_id]) : null;
-      const consents = await tx.query(`select distinct on (type) type, granted, created_at, version_id from consents where patient_id = $1 order by type, created_at desc`, [id]);
+      const consents = await tx.query(`select distinct on (type) id, type, granted, created_at, version_id, channel, signature_key is not null as signed from consents where patient_id = $1 order by type, created_at desc`, [id]);
       await this.audit.record(tx, s, meta, { action: 'patient.read', entity: 'patient', entityId: id, patientId: id });
       const { national_id_enc: _n, passport_enc: _p, national_id_bidx: _b, passport_bidx: _pb, name_search: _ns, ...rest } = row as Record<string, unknown>;
       return {
@@ -278,6 +278,19 @@ export class PatientsController {
       }
       return this.recordConsents(tx, p, meta, id, b.consents, 'reception', signatureKey);
     });
+  }
+
+  /** Signed link (5 minutes) to the signature drawn on the tablet for a consent record; every access is audited. */
+  @Get(':id/consents/:consentId/signature')
+  @Staff('patient:view')
+  async consentSignature(@Auth() p: Principal, @Param('id') id: string, @Param('consentId') consentId: string, @Meta() meta: RequestMeta) {
+    const key = await this.tenancy.run(p, async (tx) => {
+      const c = await tx.maybeOne<{ signature_key: string | null }>('select signature_key from consents where id = $1 and patient_id = $2', [uuid(consentId), uuid(id)]);
+      if (!c?.signature_key) throw notFound('signature');
+      await this.audit.record(tx, p, meta, { action: 'consent.signature_access', entity: 'consent', entityId: consentId, patientId: id });
+      return c.signature_key;
+    });
+    return { url: await this.storage.signedUrl(key, 300, 'signature.png'), expiresInSeconds: 300 };
   }
 
   private async recordConsents(tx: import('@hf/db').Tx, p: Principal, meta: RequestMeta, patientId: string, consents: Partial<Record<(typeof CONSENT_TYPES)[number], boolean>>, channel: string, signatureKey: string | null = null) {

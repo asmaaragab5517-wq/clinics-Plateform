@@ -44,6 +44,23 @@ describe('custom-field files (patient:edit, no clinical privilege)', () => {
   });
 });
 
+describe('re-consent signed on the tablet', () => {
+  it('stores the signature and lets staff open it later, audited', async () => {
+    const png = 'data:image/png;base64,' + Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]).toString('base64');
+    const r = await h.http().post(`/v1/patients/${ctx.patient}/consents`).set(auth(h.staff.reception!)).send({ consents: { marketing: true }, signatureDataUrl: png });
+    expect(r.status, JSON.stringify(r.body)).toBe(201);
+    const pt = await h.http().get(`/v1/patients/${ctx.patient}`).set(auth(h.staff.reception!));
+    const c = pt.body.consents.find((x: { type: string }) => x.type === 'marketing');
+    expect(c).toMatchObject({ channel: 'reception', signed: true });
+    const unsigned = pt.body.consents.find((x: { type: string }) => x.type === 'health_data');
+    expect(unsigned.signed).toBe(false);
+    const link = await h.http().get(`/v1/patients/${ctx.patient}/consents/${c.id}/signature`).set(auth(h.staff.reception!));
+    expect(link.status).toBe(200);
+    expect(link.body.url).toBeTruthy();
+    expect((await h.http().get(`/v1/patients/${ctx.patient}/consents/${unsigned.id}/signature`).set(auth(h.staff.reception!))).status).toBe(404);
+  });
+});
+
 describe('clinic map position', () => {
   it('sets, protects and clears the position', async () => {
     const set = await h.http().patch(`/v1/clinics/${ctx.clinic}`).set(auth(h.staff.owner!)).send({ lat: 30.0444, lng: 31.2357 });
