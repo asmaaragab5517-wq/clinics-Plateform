@@ -78,7 +78,7 @@ export class PublicController {
   @PublicCache()
   doctors(@Auth() p: Principal, @Query() q: Record<string, string>) {
     const f = parse(
-      z.object({ specialty: z.string().optional(), governorate: z.string().optional(), city: z.string().max(80).optional(), clinicId: z.string().uuid().optional(), gender: z.enum(['male', 'female']).optional(), minFee: z.coerce.number().int().optional(), maxFee: z.coerce.number().int().optional(), minRating: z.coerce.number().optional(), q: z.string().max(60).optional(), availableBy: zDate.optional() }),
+      z.object({ specialty: z.string().optional(), governorate: z.string().optional(), city: z.string().max(80).optional(), clinicId: z.guid().optional(), gender: z.enum(['male', 'female']).optional(), minFee: z.coerce.number().int().optional(), maxFee: z.coerce.number().int().optional(), minRating: z.coerce.number().optional(), q: z.string().max(60).optional(), availableBy: zDate.optional() }),
       q,
     );
     return this.tenancy.run(p, async (tx) => {
@@ -122,7 +122,7 @@ export class PublicController {
   @HttpCode(204)
   async funnel(@Auth() p: Principal, @Body() body: unknown, @Req() req: Request) {
     const steps = ['doctor', 'service', 'slot', 'patient', 'payment', 'done'] as const;
-    const b = parse(z.object({ sessionId: z.string().uuid(), step: z.enum(steps), doctorId: z.string().uuid().optional(), clinicId: z.string().uuid().optional(), appointmentId: z.string().uuid().optional() }), body);
+    const b = parse(z.object({ sessionId: z.guid(), step: z.enum(steps), doctorId: z.guid().optional(), clinicId: z.guid().optional(), appointmentId: z.guid().optional() }), body);
     const channel = req.headers['x-client'] === 'app' ? 'app' : 'site';
     await this.tenancy.system(p.orgId, (tx) =>
       tx.query(
@@ -209,7 +209,7 @@ export class PublicController {
   @Public()
   @PublicCache(5)
   slots(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ doctorId: z.string().uuid(), clinicId: z.string().uuid().optional(), serviceId: z.string().uuid().optional(), from: zDate.optional(), days: z.coerce.number().int().min(1).max(14).default(14) }), q);
+    const b = parse(z.object({ doctorId: z.guid(), clinicId: z.guid().optional(), serviceId: z.guid().optional(), from: zDate.optional(), days: z.coerce.number().int().min(1).max(14).default(14) }), q);
     return this.tenancy.run(p, async (tx) => {
       const policy = await this.appointments.policy(tx);
       const slots = await this.availability.slots(tx, { doctorIds: [b.doctorId], clinicId: b.clinicId, serviceId: b.serviceId, from: b.from ?? localDate(new Date()), days: b.days, channel: 'online', leadMinutes: policy.leadMinutes });

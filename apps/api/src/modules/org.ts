@@ -142,7 +142,7 @@ export class OrgController {
   @Staff('clinic:create')
   createClinic(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const c = parse(clinicSchema.extend({ specialtyIds: z.array(z.string().uuid()).default([]) }), body);
+    const c = parse(clinicSchema.extend({ specialtyIds: z.array(z.guid()).default([]) }), body);
     return this.tenancy.run(s, async (tx) => {
       await assertPlanLimit(tx, 'clinics');
       const row = await tx.one<{ id: string }>(
@@ -160,7 +160,7 @@ export class OrgController {
   @Staff('clinic:edit')
   updateClinic(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const c = parse(clinicSchema.partial().extend({ specialtyIds: z.array(z.string().uuid()).optional(), isActive: z.boolean().optional(), clearPosition: z.literal(true).optional() }), body);
+    const c = parse(clinicSchema.partial().extend({ specialtyIds: z.array(z.guid()).optional(), isActive: z.boolean().optional(), clearPosition: z.literal(true).optional() }), body);
     if (c.clearPosition && (c.lat !== undefined || c.lng !== undefined)) throw badRequest('position_conflict');
     if ((c.lat === undefined) !== (c.lng === undefined)) throw badRequest('position_needs_lat_and_lng');
     return this.tenancy.run(s, async (tx) => {

@@ -247,7 +247,7 @@ export class AiController {
   @Staff('emr:view')
   drafts(@Auth() p: Principal, @Query() q: Record<string, string>) {
     const s = asStaff(p);
-    const b = parse(z.object({ encounterId: z.string().uuid().optional(), prescriptionId: z.string().uuid().optional(), status: z.enum(['pending', 'approved', 'rejected', 'expired']).default('pending') }), q);
+    const b = parse(z.object({ encounterId: z.guid().optional(), prescriptionId: z.guid().optional(), status: z.enum(['pending', 'approved', 'rejected', 'expired']).default('pending') }), q);
     return this.tenancy.run(s, (tx) =>
       tx.query(
         `select id, kind, status, output, warnings, encounter_id, prescription_id, created_at from ai_drafts

@@ -102,7 +102,7 @@ export class SchedulesController {
     const b = parse(
       scheduleExceptionSchema.extend({
         action: z.enum(['list', 'cancel_all']).default('list'),
-        extraSession: z.object({ clinicId: z.string().uuid(), startTime: zTime, endTime: zTime, slotMinutes: z.number().int().min(5), capacityPerSlot: z.number().int().min(1).default(1) }).optional(),
+        extraSession: z.object({ clinicId: z.guid(), startTime: zTime, endTime: zTime, slotMinutes: z.number().int().min(5), capacityPerSlot: z.number().int().min(1).default(1) }).optional(),
       }),
       body,
     );
@@ -150,7 +150,7 @@ export class SchedulesController {
   @Get('availability')
   @Staff('appointment:view')
   availabilityDesk(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ doctorId: z.string().uuid().optional(), clinicId: z.string().uuid().optional(), serviceId: z.string().uuid().optional(), from: zDate, days: z.coerce.number().int().min(1).max(31).default(7) }), q);
+    const b = parse(z.object({ doctorId: z.guid().optional(), clinicId: z.guid().optional(), serviceId: z.guid().optional(), from: zDate, days: z.coerce.number().int().min(1).max(31).default(7) }), q);
     return this.tenancy.run(p, async (tx) => {
       const doctors = b.doctorId
         ? [b.doctorId]

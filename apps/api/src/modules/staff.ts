@@ -76,7 +76,7 @@ export class StaffController {
   @Staff('staff:edit')
   async memberships(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ memberships: z.array(z.object({ role: z.enum(ROLES).exclude(['patient']), clinicId: z.string().uuid().nullable() })).min(1) }), body);
+    const b = parse(z.object({ memberships: z.array(z.object({ role: z.enum(ROLES).exclude(['patient']), clinicId: z.guid().nullable() })).min(1) }), body);
     if (b.memberships.some((m) => m.role === 'owner' || m.role === 'network_director') && !s.roles.includes('owner')) throw forbidden('owner_only_role');
     return this.tenancy.run(s, async (tx) => {
       const u = await tx.maybeOne('select id from users where id = $1', [uuid(id)]);
@@ -179,7 +179,7 @@ export class StaffController {
   @Post('commission-rules')
   @Staff('commission:edit')
   createRule(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ doctorId: z.string().uuid(), clinicId: z.string().uuid().optional(), serviceId: z.string().uuid().optional(), serviceType: z.string().optional(), rule: commissionRuleSchema, effectiveFrom: z.string().optional() }), body);
+    const b = parse(z.object({ doctorId: z.guid(), clinicId: z.guid().optional(), serviceId: z.guid().optional(), serviceType: z.string().optional(), rule: commissionRuleSchema, effectiveFrom: z.string().optional() }), body);
     return this.tenancy.run(p, async (tx) => {
       const r = await tx.one<{ id: string }>(
         `insert into commission_rules (organisation_id, doctor_id, clinic_id, service_id, service_type, rule, effective_from) values (app_org(), $1,$2,$3,$4,$5, coalesce($6::date, current_date)) returning *`,

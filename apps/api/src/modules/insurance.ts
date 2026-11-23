@@ -27,7 +27,7 @@ export class InsuranceController {
   @Post('payers')
   @Staff('settings:edit')
   createPayer(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ code: z.string().regex(/^[A-Z0-9_-]{2,20}$/), nameAr: z.string().min(2), nameEn: z.string().default(''), kind: z.enum(['insurer', 'tpa', 'corporate']), contact: z.record(z.string()).default({}) }), body);
+    const b = parse(z.object({ code: z.string().regex(/^[A-Z0-9_-]{2,20}$/), nameAr: z.string().min(2), nameEn: z.string().default(''), kind: z.enum(['insurer', 'tpa', 'corporate']), contact: z.record(z.string(), z.string()).default({}) }), body);
     return this.tenancy.run(p, async (tx) => {
       const r = await tx.one<{ id: string }>(`insert into payers (organisation_id, code, name_ar, name_en, kind, contact) values (app_org(), $1,$2,$3,$4,$5) returning *`, [b.code, b.nameAr, b.nameEn, b.kind, JSON.stringify(b.contact)]);
       await this.audit.record(tx, p, meta, { action: 'insurance.payer_create', entity: 'payer', entityId: r.id });
@@ -40,8 +40,8 @@ export class InsuranceController {
   createPlan(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const b = parse(
       z.object({
-        payerId: z.string().uuid(), name: z.string().min(2), coveragePercent: z.number().min(0).max(100), copayFixed: z.number().int().min(0).default(0),
-        typeOverrides: z.record(z.enum(SERVICE_TYPES), z.number().min(0).max(100)).default({}), excludedServiceIds: z.array(z.string().uuid()).default([]),
+        payerId: z.guid(), name: z.string().min(2), coveragePercent: z.number().min(0).max(100), copayFixed: z.number().int().min(0).default(0),
+        typeOverrides: z.partialRecord(z.enum(SERVICE_TYPES), z.number().min(0).max(100)).default({}), excludedServiceIds: z.array(z.guid()).default([]),
         requiresApproval: z.boolean().default(false), annualLimit: z.number().int().positive().optional(),
       }),
       body,
@@ -72,7 +72,7 @@ export class InsuranceController {
   @Post('patients/:patientId/coverages')
   @Staff('patient:edit')
   addCoverage(@Auth() p: Principal, @Param('patientId') patientId: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ planId: z.string().uuid(), memberNumber: z.string().min(2).max(60), validFrom: zDate, validTo: zDate.optional() }), body);
+    const b = parse(z.object({ planId: z.guid(), memberNumber: z.string().min(2).max(60), validFrom: zDate, validTo: zDate.optional() }), body);
     return this.tenancy.run(p, async (tx) => {
       await visiblePatient(tx, patientId);
       const r = await tx.one<{ id: string }>(
@@ -160,7 +160,7 @@ export class InsuranceController {
     const b = parse(
       z.object({
         code: z.string().regex(/^[A-Z0-9_-]{2,20}$/).optional(), kind: z.enum(['insurer', 'tpa', 'corporate']).optional(),
-        nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), isActive: z.boolean().optional(), contact: z.record(z.string()).optional(),
+        nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), isActive: z.boolean().optional(), contact: z.record(z.string(), z.string()).optional(),
       }),
       body,
     );
@@ -182,8 +182,8 @@ export class InsuranceController {
     const b = parse(
       z.object({
         name: z.string().min(2).optional(), isActive: z.boolean().optional(), coveragePercent: z.number().min(0).max(100).optional(), copayFixed: z.number().int().min(0).optional(),
-        requiresApproval: z.boolean().optional(), typeOverrides: z.record(z.enum(SERVICE_TYPES), z.number().min(0).max(100)).optional(),
-        excludedServiceIds: z.array(z.string().uuid()).optional(), annualLimit: z.number().int().positive().nullable().optional(),
+        requiresApproval: z.boolean().optional(), typeOverrides: z.partialRecord(z.enum(SERVICE_TYPES), z.number().min(0).max(100)).optional(),
+        excludedServiceIds: z.array(z.guid()).optional(), annualLimit: z.number().int().positive().nullable().optional(),
       }),
       body,
     );
@@ -206,7 +206,7 @@ export class InsuranceController {
   @Staff('bill:approve')
   createBatch(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ payerId: z.string().uuid(), from: zDate, to: zDate }), body);
+    const b = parse(z.object({ payerId: z.guid(), from: zDate, to: zDate }), body);
     return this.tenancy.run(s, async (tx) => {
       const payer = await tx.maybeOne<{ code: string }>('select code from payers where id = $1', [b.payerId]);
       if (!payer) throw notFound('payer');
@@ -279,7 +279,7 @@ export class InsuranceController {
   @HttpCode(200)
   settle(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ reference: z.string().min(1).max(100), items: z.array(z.object({ billId: z.string().uuid(), paidAmount: z.number().int().min(0), rejectionReason: z.string().max(300).optional() })).min(1) }), body);
+    const b = parse(z.object({ reference: z.string().min(1).max(100), items: z.array(z.object({ billId: z.guid(), paidAmount: z.number().int().min(0), rejectionReason: z.string().max(300).optional() })).min(1) }), body);
     return this.tenancy.run(s, async (tx) => {
       const batch = await tx.maybeOne<{ id: string; status: string }>('select id, status from claim_batches where id = $1 for update', [uuid(id)]);
       if (!batch) throw notFound('claim_batch');

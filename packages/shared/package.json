@@ -13,6 +13,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
-  "dependencies": { "zod": "^3.25.0" },
+  "dependencies": { "zod": "4.6.7" },
   "devDependencies": { "vitest": "^3.2.0", "typescript": "^5.8.0" }
 }

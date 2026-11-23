@@ -14,7 +14,7 @@ import { decodeNationalId } from './egypt/national-id';
 import { normalisePhone } from './egypt/phone';
 import { dentalChartSchema } from './dental';
 
-export const zUuid = z.string().uuid();
+export const zUuid = z.guid();
 export const zDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be YYYY-MM-DD');
 export const zTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'time must be HH:mm');
 export const zPiastres = z.number().int().nonnegative();
@@ -158,7 +158,7 @@ export const patientSchema = z
     occupation: z.string().max(100).optional(),
     emergencyContact: z.object({ name: z.string(), phone: zPhone, relation: z.string() }).optional(),
     guardianPatientId: zUuid.optional(),
-    customFields: z.record(z.unknown()).default({}),
+    customFields: z.record(z.string(), z.unknown()).default({}),
   })
   .superRefine((p, ctx) => {
     if (p.nationalId) {
@@ -216,7 +216,7 @@ export const encounterUpdateSchema = z.object({
   problems: z.array(z.object({ text: z.string().max(500), status: z.enum(['active', 'resolved']).default('active') })).optional(),
   observations: z.array(z.object({ name: z.string().max(200), value: z.string().max(500) })).optional(),
   bodyChart: z
-    .object({ image: z.string().max(50), shapes: z.array(z.record(z.unknown())).max(500), pngDataUrl: z.string().max(400_000).regex(/^data:image\/png;base64,/).optional() })
+    .object({ image: z.string().max(50), shapes: z.array(z.record(z.string(), z.unknown())).max(500), pngDataUrl: z.string().max(400_000).regex(/^data:image\/png;base64,/).optional() })
     .optional(),
   followUp: z.object({ date: zDate, serviceId: zUuid.optional(), note: z.string().max(500).optional() }).nullable().optional(),
   dentalChart: dentalChartSchema.nullable().optional(), // null clears the visit's chart

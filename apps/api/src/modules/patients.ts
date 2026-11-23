@@ -135,7 +135,7 @@ export class PatientsController {
         occupation: z.string().max(100).optional(),
         nameEn: z.string().max(200).optional(),
         emergencyContact: z.object({ name: z.string(), phone: z.string(), relation: z.string() }).optional(),
-        customFields: z.record(z.unknown()).optional(),
+        customFields: z.record(z.string(), z.unknown()).optional(),
         phones: z.array(z.object({ number: z.string(), primary: z.boolean().default(false) })).optional(),
       }),
       body,
@@ -166,7 +166,7 @@ export class PatientsController {
   @Staff('patient:edit')
   merge(@Auth() p: Principal, @Param('id') targetId: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ sourcePatientId: z.string().uuid(), reason: z.string().min(3).max(500) }), body);
+    const b = parse(z.object({ sourcePatientId: z.guid(), reason: z.string().min(3).max(500) }), body);
     return this.tenancy.run(s, async (tx) => {
       const both = await tx.query('select id from patients where id = any($1::uuid[]) and merged_into_id is null', [[uuid(targetId), b.sourcePatientId]]);
       if (both.length !== 2) throw notFound('patient');
@@ -265,7 +265,7 @@ export class PatientsController {
   @Post(':id/consents')
   @Staff('patient:edit')
   consents(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ consents: z.record(z.enum(CONSENT_TYPES), z.boolean()), signatureDataUrl: z.string().max(200000).optional() }), body);
+    const b = parse(z.object({ consents: z.partialRecord(z.enum(CONSENT_TYPES), z.boolean()), signatureDataUrl: z.string().max(200000).optional() }), body);
     return this.tenancy.run(p, async (tx) => {
       const exists = await tx.maybeOne('select 1 from patients where id = $1', [uuid(id)]);
       if (!exists) throw notFound('patient');
@@ -342,7 +342,7 @@ export class PatientsController {
   @Post(':id/family')
   @Staff('patient:edit')
   setGuardian(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ guardianPatientId: z.string().uuid() }), body);
+    const b = parse(z.object({ guardianPatientId: z.guid() }), body);
     return this.tenancy.run(p, async (tx) => {
       if (b.guardianPatientId === id) throw badRequest('self_guardian');
       const r = await tx.maybeOne('update patients set guardian_patient_id = $2 where id = $1 returning id', [uuid(id), b.guardianPatientId]);

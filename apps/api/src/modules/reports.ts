@@ -12,7 +12,7 @@ import { badRequest } from '../common/errors';
 import { parse } from '../common/zod';
 import { AvailabilityService } from './availability.service';
 
-const rangeSchema = z.object({ from: zDate, to: zDate, clinicId: z.string().uuid().optional(), doctorId: z.string().uuid().optional() }).refine((r) => r.from <= r.to, 'from_after_to');
+const rangeSchema = z.object({ from: zDate, to: zDate, clinicId: z.guid().optional(), doctorId: z.guid().optional() }).refine((r) => r.from <= r.to, 'from_after_to');
 
 type Range = z.infer<typeof rangeSchema>;
 
@@ -94,7 +94,7 @@ export class ReportsController {
   @Get('daily-appointments')
   @Staff('report:view')
   daily(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ date: zDate, clinicId: z.string().uuid().optional() }), q);
+    const b = parse(z.object({ date: zDate, clinicId: z.guid().optional() }), q);
     return this.tenancy.run(p, (tx) => this.dailyRows(tx, b.date, b.clinicId));
   }
 
@@ -111,7 +111,7 @@ export class ReportsController {
   @Get('daily-closing')
   @Staff('report:view')
   closing(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ date: zDate, clinicId: z.string().uuid().optional() }), q);
+    const b = parse(z.object({ date: zDate, clinicId: z.guid().optional() }), q);
     return this.tenancy.run(p, (tx) =>
       tx.query(
         `select sh.id, sh.clinic_id, u.name_ar as cashier, sh.status, sh.opening_float, sh.cash_in, sh.cash_out, sh.expected, sh.counted, sh.variance, sh.opened_at, sh.closed_at,
@@ -140,7 +140,7 @@ export class ReportsController {
   @Staff('report:export')
   async export(@Auth() p: Principal, @Query() q: Record<string, string>, @Meta() meta: RequestMeta, @Res() res: Response) {
     const s = asStaff(p);
-    const b = parse(z.object({ report: z.enum(['daily-appointments', 'outstanding', 'revenue-by-service']), format: z.enum(['csv', 'xlsx', 'pdf']), date: zDate.optional(), from: zDate.optional(), to: zDate.optional(), clinicId: z.string().uuid().optional() }), q);
+    const b = parse(z.object({ report: z.enum(['daily-appointments', 'outstanding', 'revenue-by-service']), format: z.enum(['csv', 'xlsx', 'pdf']), date: zDate.optional(), from: zDate.optional(), to: zDate.optional(), clinicId: z.guid().optional() }), q);
     const rows: Record<string, unknown>[] = await this.tenancy.run(s, async (tx) => {
       let data: Record<string, unknown>[];
       if (b.report === 'daily-appointments') {

@@ -465,15 +465,15 @@ export function computePayslip(i: PayslipInput, s: HrSettings): PayslipResult {
 const zDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const leaveRequestSchema = z
-  .object({ leaveTypeId: z.string().uuid(), startDate: zDay, endDate: zDay, reason: z.string().max(1000).optional(), userId: z.string().uuid().optional() })
+  .object({ leaveTypeId: z.guid(), startDate: zDay, endDate: zDay, reason: z.string().max(1000).optional(), userId: z.guid().optional() })
   .refine((r) => r.endDate >= r.startDate, { message: 'end before start', path: ['endDate'] });
 
 export const permissionRequestSchema = z
-  .object({ workDate: zDay, kind: z.enum(PERMISSION_KINDS), startTime: hhmm, endTime: hhmm, reason: z.string().max(1000).optional(), userId: z.string().uuid().optional() })
+  .object({ workDate: zDay, kind: z.enum(PERMISSION_KINDS), startTime: hhmm, endTime: hhmm, reason: z.string().max(1000).optional(), userId: z.guid().optional() })
   .refine((r) => minutesOf(r.endTime) > minutesOf(r.startTime), { message: 'end before start', path: ['endTime'] });
 
 export const contractSchema = z.object({
-  clinicId: z.string().uuid(),
+  clinicId: z.guid(),
   jobTitleAr: z.string().min(2).max(120),
   jobTitleEn: z.string().max(120).default(''),
   employmentType: z.enum(['full_time', 'part_time', 'contractor']),

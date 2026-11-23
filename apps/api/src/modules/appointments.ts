@@ -29,7 +29,7 @@ export class AppointmentsController {
   @Get('appointments')
   @Staff('appointment:view')
   list(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ clinicId: z.string().uuid().optional(), doctorId: z.string().uuid().optional(), patientId: z.string().uuid().optional(), from: z.string().datetime(), to: z.string().datetime(), status: z.string().optional(), ref: z.string().max(20).optional() }), q);
+    const b = parse(z.object({ clinicId: z.guid().optional(), doctorId: z.guid().optional(), patientId: z.guid().optional(), from: z.string().datetime(), to: z.string().datetime(), status: z.string().optional(), ref: z.string().max(20).optional() }), q);
     const s = asStaff(p);
     // Doctors without broader appointment rights see their own schedule.
     const onlyOwn = s.roles.length === 1 && s.roles[0] === 'doctor' && !b.doctorId ? s.userId : null;
@@ -74,7 +74,7 @@ export class AppointmentsController {
   @Post('appointments/walk-in')
   @Staff('queue:create')
   walkIn(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta, @Req() req: Request) {
-    const b = parse(z.object({ patientId: z.string().uuid(), clinicId: z.string().uuid(), doctorId: z.string().uuid(), serviceIds: z.array(z.string().uuid()).min(1), priority: z.enum(QUEUE_PRIORITIES).default('normal') }), body);
+    const b = parse(z.object({ patientId: z.guid(), clinicId: z.guid(), doctorId: z.guid(), serviceIds: z.array(z.guid()).min(1), priority: z.enum(QUEUE_PRIORITIES).default('normal') }), body);
     const idem = (req.headers['idempotency-key'] as string | undefined)?.slice(0, 100);
     return this.tenancy.run(p, (tx) => this.svc.walkIn(tx, p, meta, { ...b, idempotencyKey: idem ? `walkin:${p.kind === 'staff' ? p.userId : ''}:${idem}` : undefined }));
   }
@@ -129,7 +129,7 @@ export class AppointmentsController {
   @Post('waitlist')
   @Staff('appointment:create')
   addWaitlist(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ patientId: z.string().uuid(), clinicId: z.string().uuid(), doctorId: z.string().uuid(), serviceId: z.string().uuid().optional(), earliest: zDate, latest: zDate.optional() }), body);
+    const b = parse(z.object({ patientId: z.guid(), clinicId: z.guid(), doctorId: z.guid(), serviceId: z.guid().optional(), earliest: zDate, latest: zDate.optional() }), body);
     return this.tenancy.run(p, async (tx) => {
       const r = await tx.one<{ id: string }>(
         `insert into waitlist (organisation_id, clinic_id, doctor_id, patient_id, service_id, earliest, latest) values (app_org(), $1,$2,$3,$4,$5,$6) returning *`,
@@ -190,7 +190,7 @@ export class AppointmentsController {
   @Staff('queue:edit')
   @HttpCode(200)
   callNext(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const b = parse(z.object({ clinicId: z.string().uuid(), doctorId: z.string().uuid() }), body);
+    const b = parse(z.object({ clinicId: z.guid(), doctorId: z.guid() }), body);
     return this.tenancy.run(p, (tx) => this.svc.callNext(tx, p, meta, b.clinicId, b.doctorId));
   }
 

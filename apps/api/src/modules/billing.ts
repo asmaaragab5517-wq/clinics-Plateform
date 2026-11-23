@@ -31,7 +31,7 @@ export class BillingController {
   @Get('bills')
   @Staff('bill:view')
   list(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ clinicId: z.string().uuid().optional(), patientId: z.string().uuid().optional(), status: z.string().optional(), from: z.string().optional(), to: z.string().optional() }), q);
+    const b = parse(z.object({ clinicId: z.guid().optional(), patientId: z.guid().optional(), status: z.string().optional(), from: z.string().optional(), to: z.string().optional() }), q);
     return this.tenancy.run(p, (tx) =>
       tx.query(
         `select b.*, p.first_name_ar || ' ' || p.family_name_ar as patient_name, p.mrn from bills b join patients p on p.id = b.patient_id

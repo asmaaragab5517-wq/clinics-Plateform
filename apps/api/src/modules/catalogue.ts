@@ -103,7 +103,7 @@ export class CatalogueController {
   @Put('doctors/:id/services')
   @Staff('staff:edit')
   setDoctorServices(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
-    const { serviceIds } = parse(z.object({ serviceIds: z.array(z.string().uuid()) }), body);
+    const { serviceIds } = parse(z.object({ serviceIds: z.array(z.guid()) }), body);
     return this.tenancy.run(p, async (tx) => {
       await tx.query('delete from doctor_services where doctor_id = $1', [uuid(id)]);
       for (const s of serviceIds) await tx.query('insert into doctor_services (organisation_id, doctor_id, service_id) values (app_org(), $1, $2)', [id, s]);
@@ -166,7 +166,7 @@ export class CatalogueController {
     const b = parse(
       z.object({
         entity: z.enum(['patient']).default('patient'),
-        specialtyId: z.string().uuid().optional(),
+        specialtyId: z.guid().optional(),
         key: z.string().regex(/^[a-z][a-z0-9_]{1,40}$/),
         labelAr: z.string().min(1),
         labelEn: z.string().default(''),

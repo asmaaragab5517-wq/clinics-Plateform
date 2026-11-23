@@ -334,7 +334,7 @@ export class PortalController {
   @PatientAuth()
   addCoverage(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const pt = asPatient(p);
-    const b = parse(z.object({ patientId: z.string().uuid(), planId: z.string().uuid(), memberNumber: z.string().trim().min(2).max(60), validFrom: zDate, validTo: zDate.optional() }), body);
+    const b = parse(z.object({ patientId: z.guid(), planId: z.guid(), memberNumber: z.string().trim().min(2).max(60), validFrom: zDate, validTo: zDate.optional() }), body);
     if (!pt.patientIds.includes(b.patientId)) throw forbidden();
     if (b.validTo && b.validTo < b.validFrom) throw badRequest('invalid_dates');
     return this.tenancy.system(pt.orgId, async (tx) => {
@@ -519,7 +519,7 @@ export class PortalController {
   @PatientAuth()
   giveConsent(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta, @Req() req: Request) {
     const pt = asPatient(p);
-    const b = parse(z.object({ patientId: z.string().uuid(), type: z.enum(CONSENT_TYPES), granted: z.boolean(), versionId: z.string().uuid() }), body);
+    const b = parse(z.object({ patientId: z.guid(), type: z.enum(CONSENT_TYPES), granted: z.boolean(), versionId: z.guid() }), body);
     this.own(pt, b.patientId);
     return this.tenancy.run(pt, async (tx) => {
       const v = await tx.maybeOne<{ type: string }>('select type from consent_versions where id = $1', [b.versionId]);
@@ -538,7 +538,7 @@ export class PortalController {
   @PatientAuth()
   dataRequest(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const pt = asPatient(p);
-    const b = parse(z.object({ patientId: z.string().uuid(), kind: z.enum(['access', 'export', 'correction', 'erasure']), details: z.string().max(2000).optional() }), body);
+    const b = parse(z.object({ patientId: z.guid(), kind: z.enum(['access', 'export', 'correction', 'erasure']), details: z.string().max(2000).optional() }), body);
     this.own(pt, b.patientId);
     return this.tenancy.run(pt, async (tx) => {
       const r = await tx.one(`insert into data_requests (organisation_id, patient_id, kind, details, due_at) values (app_org(), $1,$2,$3, now() + interval '30 days') returning *`, [b.patientId, b.kind, b.details ?? null]);

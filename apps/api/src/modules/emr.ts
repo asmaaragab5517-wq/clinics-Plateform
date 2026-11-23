@@ -439,7 +439,7 @@ export class EmrController {
   @Staff('emr:edit')
   createTemplate(@Auth() p: Principal, @Body() body: unknown) {
     const s = asStaff(p);
-    const b = parse(z.object({ nameAr: z.string().min(2), nameEn: z.string().default(''), specialtyId: z.string().uuid().optional(), sections: z.array(z.string()).min(1), defaults: z.record(z.string()).default({}), commonDiagnoses: z.array(z.string()).default([]), personal: z.boolean().default(true) }), body);
+    const b = parse(z.object({ nameAr: z.string().min(2), nameEn: z.string().default(''), specialtyId: z.guid().optional(), sections: z.array(z.string()).min(1), defaults: z.record(z.string(), z.string()).default({}), commonDiagnoses: z.array(z.string()).default([]), personal: z.boolean().default(true) }), body);
     return this.tenancy.run(s, (tx) =>
       tx.one(
         'insert into encounter_templates (organisation_id, specialty_id, doctor_id, name_ar, name_en, sections, defaults, common_diagnoses) values (app_org(), $1,$2,$3,$4,$5,$6,$7) returning *',
@@ -454,7 +454,7 @@ export class EmrController {
   updateTemplate(@Auth() p: Principal, @Param('id') id: string, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
     const b = parse(
-      z.object({ nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), specialtyId: z.string().uuid().nullable().optional(), sections: z.array(z.string()).min(1).optional(), defaults: z.record(z.string()).optional(), commonDiagnoses: z.array(z.string()).optional() }),
+      z.object({ nameAr: z.string().min(2).optional(), nameEn: z.string().optional(), specialtyId: z.guid().nullable().optional(), sections: z.array(z.string()).min(1).optional(), defaults: z.record(z.string(), z.string()).optional(), commonDiagnoses: z.array(z.string()).optional() }),
       body,
     );
     return this.tenancy.run(s, async (tx) => {

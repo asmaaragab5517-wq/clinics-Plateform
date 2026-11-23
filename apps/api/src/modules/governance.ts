@@ -194,7 +194,7 @@ export class GovernanceController {
   @HttpCode(200)
   anonymiseExpired(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ patientIds: z.array(z.string().uuid()).min(1).max(200), confirm: z.literal(true) }), body);
+    const b = parse(z.object({ patientIds: z.array(z.guid()).min(1).max(200), confirm: z.literal(true) }), body);
     return this.tenancy.run(s, async (tx) => {
       const eligible = new Set((await retentionCandidates(tx, b.patientIds.length, { ids: b.patientIds })).map((c) => c.id));
       const notEligible = b.patientIds.filter((id) => !eligible.has(id));
@@ -263,7 +263,7 @@ export class GovernanceController {
   @Get('audit')
   @Staff('audit:view')
   auditLog(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ patientId: z.string().uuid().optional(), actorId: z.string().uuid().optional(), action: z.string().max(100).optional(), from: z.string().optional(), to: z.string().optional(), limit: z.coerce.number().int().min(1).max(1000).default(200) }), q);
+    const b = parse(z.object({ patientId: z.guid().optional(), actorId: z.guid().optional(), action: z.string().max(100).optional(), from: z.string().optional(), to: z.string().optional(), limit: z.coerce.number().int().min(1).max(1000).default(200) }), q);
     return this.tenancy.run(p, (tx) =>
       tx.query(
         `select seq, at, actor_type, actor_id, role, action, entity, entity_id, patient_id, clinic_id, ip, reason, details from audit_log

@@ -84,8 +84,8 @@ export class EventsService {
 }
 
 const complaintSchema = z.object({
-  clinicId: z.string().uuid(),
-  patientId: z.string().uuid().optional(),
+  clinicId: z.guid(),
+  patientId: z.guid().optional(),
   channel: z.enum(['reception', 'phone', 'portal', 'app', 'email', 'review']).default('reception'),
   category: z.enum(['waiting_time', 'staff_behaviour', 'clinical_care', 'billing', 'facility', 'communication', 'other']),
   description: z.string().min(5).max(5000),
@@ -114,7 +114,7 @@ export class EventsController {
   @PatientAuth()
   patientComplaint(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const pt = asPatient(p);
-    const b = parse(complaintSchema.extend({ patientId: z.string().uuid(), channel: z.enum(['portal', 'app']).default('portal') }), body);
+    const b = parse(complaintSchema.extend({ patientId: z.guid(), channel: z.enum(['portal', 'app']).default('portal') }), body);
     if (!pt.patientIds.includes(b.patientId)) throw notFound('patient');
     return this.tenancy.system(pt.orgId, (tx) => this.recordComplaint(tx, pt, meta, b));
   }
@@ -173,7 +173,7 @@ export class EventsController {
     const s = asStaff(p);
     const b = parse(
       z.object({
-        clinicId: z.string().uuid(), patientId: z.string().uuid().optional(),
+        clinicId: z.guid(), patientId: z.guid().optional(),
         category: z.enum(['medication_error', 'fall', 'misidentification', 'infection_control', 'equipment', 'privacy', 'other']),
         severity: z.enum(['near_miss', 'no_harm', 'minor', 'moderate', 'severe', 'death']), description: z.string().min(5).max(5000), occurredAt: z.string().datetime(), actionsTaken: z.string().max(5000).optional(),
       }),

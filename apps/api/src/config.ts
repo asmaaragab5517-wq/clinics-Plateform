@@ -18,12 +18,12 @@ const schema = z.object({
   // Staff auth (Keycloak OIDC)
   KEYCLOAK_ISSUER: z.string().optional(),
   KEYCLOAK_AUDIENCE: z.string().default('healthflow-api'),
-  STAFF_REQUIRE_MFA: bool.default('true'),
+  STAFF_REQUIRE_MFA: bool.prefault('true'),
   AUTH_DEV_SECRET: z.string().optional(),
   // Patient auth
   PATIENT_JWT_SECRET: z.string().min(32).default('dev-only-patient-jwt-secret-change-me-0123456789'),
   OTP_PEPPER: z.string().default('dev-otp-pepper'),
-  OTP_DEV_ECHO: bool.default('false'),
+  OTP_DEV_ECHO: bool.prefault('false'),
   DISPLAY_TOKEN_SECRET: z.string().default('dev-display-token-secret'),
   SHARE_LINK_SECRET: z.string().default('dev-share-link-secret'),
   // Integrations

@@ -330,7 +330,7 @@ export class ExternalApiController {
   @Get('availability')
   @ApiKey('availability:read')
   slots(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ doctorId: z.string().uuid(), clinicId: z.string().uuid().optional(), from: zDate.optional(), days: z.coerce.number().int().min(1).max(14).default(7) }), q);
+    const b = parse(z.object({ doctorId: z.guid(), clinicId: z.guid().optional(), from: zDate.optional(), days: z.coerce.number().int().min(1).max(14).default(7) }), q);
     return this.run(p, async (tx) => (await this.availability.slots(tx, { doctorIds: [b.doctorId], clinicId: b.clinicId, from: b.from ?? localDate(new Date()), days: b.days, channel: 'online', leadMinutes: 60 }))
       .filter((s) => s.available > 0).map((s) => ({ start: s.start, end: s.end, clinicId: s.clinicId })));
   }
@@ -339,7 +339,7 @@ export class ExternalApiController {
   @Get('appointments')
   @ApiKey('appointments:read')
   appointments(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ from: z.string().datetime(), to: z.string().datetime(), clinicId: z.string().uuid().optional() }), q);
+    const b = parse(z.object({ from: z.string().datetime(), to: z.string().datetime(), clinicId: z.guid().optional() }), q);
     if (Date.parse(b.to) - Date.parse(b.from) > 31 * 86400_000) throw badRequest('range_too_large');
     return this.run(p, (tx) =>
       tx.query(
@@ -353,7 +353,7 @@ export class ExternalApiController {
   @Get('reports/dashboard')
   @ApiKey('reports:read')
   dashboard(@Auth() p: Principal, @Query() q: Record<string, string>) {
-    const b = parse(z.object({ from: zDate, to: zDate, clinicId: z.string().uuid().optional() }), q);
+    const b = parse(z.object({ from: zDate, to: zDate, clinicId: z.guid().optional() }), q);
     return this.run(p, (tx) => this.reports.compute(tx, b));
   }
 }

@@ -335,7 +335,7 @@ export class HrController {
     const s = asStaff(p);
     const b = parse(
       z.object({
-        userId: z.string().uuid(), workDate: zDay,
+        userId: z.guid(), workDate: zDay,
         clockIn: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(), clockOut: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
         // Several pairs for a split shift or stepping out, in order; a later time earlier than the previous one is the next day.
         punches: z.array(z.object({ in: z.string().regex(/^\d{2}:\d{2}$/), out: z.string().regex(/^\d{2}:\d{2}$/).nullable() })).min(1).max(6).optional(),
@@ -476,7 +476,7 @@ export class HrController {
   @Staff('hr:edit')
   adjustBalance(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
-    const b = parse(z.object({ userId: z.string().uuid(), year: z.number().int().min(2000).max(2100), carried: z.number().min(0).max(90).optional(), adjusted: z.number().min(-90).max(90).optional(), note: z.string().trim().min(3).max(300) }), body);
+    const b = parse(z.object({ userId: z.guid(), year: z.number().int().min(2000).max(2100), carried: z.number().min(0).max(90).optional(), adjusted: z.number().min(-90).max(90).optional(), note: z.string().trim().min(3).max(300) }), body);
     return this.tenancy.system(s.orgId, async (tx) => {
       await this.assertTeamMember(tx, s, b.userId);
       await this.hr.annualBalance(tx, b.userId, b.year);
@@ -721,7 +721,7 @@ export class HrController {
   @Staff()
   leavePreview(@Auth() p: Principal, @Query() q: Record<string, string>) {
     const s = asStaff(p);
-    const b = parse(z.object({ leaveTypeId: z.string().uuid(), startDate: zDay, endDate: zDay, userId: z.string().uuid().optional() }), q);
+    const b = parse(z.object({ leaveTypeId: z.guid(), startDate: zDay, endDate: zDay, userId: z.guid().optional() }), q);
     if (b.endDate < b.startDate) throw badRequest('end_before_start');
     const userId = b.userId ?? s.userId;
     if (userId !== s.userId && !can(s, 'hr:view')) throw forbidden();

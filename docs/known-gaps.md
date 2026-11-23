@@ -12,11 +12,9 @@ must be closed before go-live.
 - Docker image build was not exercised in the development sandbox (no registry access); the CI `image` job is the first real build.
 
 ## Security and pipeline
-- **Dependency audit (CI `security` job) is red** on high advisories: postcss < 8.5.18 (inside Next.js), nodemailer < 10.0.6,
-  zod 3.x (fixed only in zod 4.6.6+), picomatch (inside the Expo CLI; no fix released). Planned fix: postcss override 8.5.32,
-  nodemailer 10.4.0, zod 4.6.7 (API and shared; the AI module already uses the zod 4 API). Blocked because updating the lockfile
-  re-checks packages locked before the 7-day minimum release age was introduced (turbo 2.11.11 binaries, @tybys/wasm-util);
-  the install succeeds once those are 7 days old, or with an owner-approved exemption. picomatch needs a documented audit exception.
+- Dependency audit (CI `security` job): no high advisories after the Sprint 22 upgrade (nodemailer 10.4.0, zod 4.6.7,
+  postcss override `<8.5.18 → 8.5.33`). Two moderate advisories remain below the CI threshold. The 7-day minimum release age
+  stays on; upgrades wait until every locked package has aged.
 - Lighthouse performance (mobile, median of 3) in CI: home 93, doctor profile 96, doctors list 90 (one earlier run 86).
   The doctors list sits at the target on GitHub's 2-vCPU runners and may fail occasionally; locally it scores 95–97.
   Confirm on the staging deploy behind the CDN before treating it as a product issue.

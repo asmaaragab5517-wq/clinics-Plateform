@@ -23,8 +23,9 @@ export const IMPORT_TEMPLATES: Record<Entity, string[]> = {
 
 const rowSchemas: Record<Entity, ZodTypeAny> = {
   patients: z
-    .record(z.string())
-    .transform((r) => ({
+    .record(z.string(), z.string())
+    // The pipe re-validates everything, so the mapped row is passed on untyped.
+    .transform((r): unknown => ({
       nameAr: { first: r.first_name_ar ?? '', father: r.father_name_ar ?? '', grandfather: r.grandfather_name_ar ?? '', family: r.family_name_ar ?? '' },
       nameEn: r.name_en || undefined,
       nationalId: r.national_id || undefined,
@@ -37,11 +38,11 @@ const rowSchemas: Record<Entity, ZodTypeAny> = {
     }))
     .pipe(patientSchema),
   services: z
-    .record(z.string())
-    .transform((r) => ({ code: r.code, name: { ar: r.name_ar, en: r.name_en ?? '' }, durationMinutes: Number(r.duration_minutes), type: r.type, vat: r.vat }))
+    .record(z.string(), z.string())
+    .transform((r): unknown => ({ code: r.code, name: { ar: r.name_ar, en: r.name_en ?? '' }, durationMinutes: Number(r.duration_minutes), type: r.type, vat: r.vat }))
     .pipe(serviceSchema),
   prices: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .transform((r, ctx) => {
       try {
         return { clinicSlug: r.clinic_slug, serviceCode: r.service_code, price: egpToPiastres(r.price_egp ?? ''), effectiveFrom: r.effective_from };
@@ -116,7 +117,7 @@ export class ImportsController {
     const s = asStaff(p);
     const entity = parse(z.enum(['patients', 'services', 'prices']), body?.entity);
     if (!file) throw badRequest('file_required');
-    const mapping = body?.mapping ? parse(z.record(z.string()), JSON.parse(body.mapping)) : {};
+    const mapping = body?.mapping ? parse(z.record(z.string(), z.string()), JSON.parse(body.mapping)) : {};
     const table = await readTable(file);
     if (table.length < 2) throw badRequest('empty_file');
     if (table.length > 5001) throw badRequest('too_many_rows', 5000);
@@ -133,7 +134,7 @@ export class ImportsController {
         const raw = Object.fromEntries(fields.map((f) => [f, (cells[colOf(f)] ?? '').trim()]));
         const r = rowSchemas[entity].safeParse(raw);
         const rowErrors: string[] = r.success ? [] : r.error.issues.map((x) => `${x.path.join('.') || 'row'}: ${x.message}`);
-        if (r.success) rowErrors.push(...(await this.crossCheck(tx, s, entity, r.data, seen)));
+        if (r.success) rowErrors.push(...(await this.crossCheck(tx, s, entity, r.data as Record<string, unknown>, seen)));
         if (rowErrors.length) errors++;
         await tx.query('insert into import_rows (organisation_id, batch_id, row_number, data, errors) values (app_org(), $1,$2,$3,$4)', [batch.id, i + 2, JSON.stringify(r.success ? r.data : raw), JSON.stringify(rowErrors)]);
       }

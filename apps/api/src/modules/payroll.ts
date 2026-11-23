@@ -200,7 +200,7 @@ export class PayrollController {
   addAdjustment(@Auth() p: Principal, @Body() body: unknown, @Meta() meta: RequestMeta) {
     const s = asStaff(p);
     const b = parse(
-      z.object({ userId: z.string().uuid(), month: zMonth, kind: z.enum(ADJUSTMENT_KINDS), amount: z.number().int().positive().max(100_000_000), taxable: z.boolean().optional(), note: z.string().trim().min(2).max(300) }),
+      z.object({ userId: z.guid(), month: zMonth, kind: z.enum(ADJUSTMENT_KINDS), amount: z.number().int().positive().max(100_000_000), taxable: z.boolean().optional(), note: z.string().trim().min(2).max(300) }),
       body,
     );
     return this.tenancy.run(s, async (tx) => {
