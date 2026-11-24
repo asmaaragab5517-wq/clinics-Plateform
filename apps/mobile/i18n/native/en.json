@@ -2,5 +2,6 @@
   "CFBundleDisplayName": "HealthFlow",
   "NSCameraUsageDescription": "The camera is used to scan the booking QR code at check-in.",
   "NSFaceIDUsageDescription": "Face ID is used to unlock your account securely.",
-  "NSMicrophoneUsageDescription": "The microphone is used to record the doctor's visit dictation and turn it into a draft clinical note."
+  "NSMicrophoneUsageDescription": "The microphone is used to record the doctor's visit dictation and turn it into a draft clinical note.",
+  "NSLocationWhenInUseUsageDescription": "Your location is checked only when you clock in or out, if your clinic uses a radius around it."
 }

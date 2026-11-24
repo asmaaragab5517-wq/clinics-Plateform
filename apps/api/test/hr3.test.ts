@@ -54,3 +54,18 @@ describe('split shifts and several clock-in pairs', () => {
     expect(bad.status).toBe(400);
   });
 });
+
+describe('what the app must send when clocking', () => {
+  it('reports a position check only while the clinic uses a radius', async () => {
+    const me = () => h.http().get('/v1/hr/me').set(auth(h.staff.nurse!));
+    expect((await me()).body.clockCheck).toEqual({ mode: 'off', usesPosition: false, usesNetwork: false });
+    await h.http().patch(`/v1/clinics/${id.clinic}`).set(auth(h.staff.owner!)).send({ lat: 30.05, lng: 31.24 });
+    const put = await h.http().put(`/v1/hr/clinics/${id.clinic}/attendance-rules`).set(auth(h.staff.owner!)).send({ mode: 'flag', allowedNetworks: ['10.0.0.0/8'], geofenceMeters: 200 });
+    expect(put.status, JSON.stringify(put.body)).toBe(200);
+    const body = (await me()).body;
+    expect(body.clockCheck).toEqual({ mode: 'flag', usesPosition: true, usesNetwork: true });
+    expect(JSON.stringify(body)).not.toContain('10.0.0.0'); // the networks and coordinates stay private
+    expect(JSON.stringify(body)).not.toContain('31.24');
+    await h.http().put(`/v1/hr/clinics/${id.clinic}/attendance-rules`).set(auth(h.staff.owner!)).send({ mode: 'off', allowedNetworks: [], geofenceMeters: null });
+  });
+});

@@ -27,19 +27,20 @@ must be closed before go-live.
 - Not modelled (ADR 0008): the income-tax phase-out above EGP 600,000 a year (flagged for
   review), sick-leave pay shared with social insurance, end-of-service gratuity and notice pay (unused annual leave is paid out
   when employment ends).
-- Mobile clock-in by GPS radius needs `expo-location` (blocked until the lockfile can change); until then the mobile app
-  is verified by the clinic network (phone on the clinic Wi-Fi). The console deliberately does not use browser location.
+- Mobile clock-in sends one foreground position (expo-location) only when the clinic uses a radius; positions from
+  Android mock-location apps are not sent. Not yet tried on a device. The console deliberately does not use browser location.
 - Clinic map positions are typed or pasted as numbers (no map picker in the console).
 
 ## Product/API
 - Mobile features added in Sprints 16–18 (dictation, pending drafts, insurance, video booking, push taps, payment return) have
   not been run on a device or emulator.
-- Mobile dictation recordings stay in the app's private cache after upload (deleting needs expo-file-system). Dictation, notification taps and payment return are not yet tested on a device.
+- Mobile dictation recordings are deleted from the app's cache once sent, discarded or abandoned (expo-file-system); not yet tried on a device.
+- Root/jailbreak warning not built: `expo-device` pulls in `ua-parser-js` 0.7.41, which the pnpm trust policy refuses (earlier versions had provenance, this one has none).
 - Public catalogue cache: shared through Redis when `REDIS_URL` is set (writes invalidate every replica at once); without Redis, or while it is unreachable, each replica falls back to its own cache, which converges within `PUBLIC_CACHE_SECONDS`.
 - Uncached public reads cost ~2–14 ms CPU each; the sandbox load test saturates one Node process at ~260 req/s, so size replicas from the staging k6 run.
 - Idempotency-Key is honoured on every staff and patient write (stored responses kept 24 hours, replayed on retry); bookings,
   walk-ins and payments also keep their own per-record keys. A multipart upload's key covers its form fields, not the file bytes.
-- Mobile: live queue uses polling (SSE in web), screenshot blocking is app-wide on Android only, root/jailbreak warning not implemented, certificate pins must be supplied (`CERT_PINS`).
+- Mobile: live queue uses polling (SSE in web), screenshot blocking is app-wide on Android only, certificate pins must be supplied (`CERT_PINS`).
 - Concurrent refreshes from several site instances are tolerated: a token rotated less than 10 s earlier, whose successor
   is still live, gets another token in the same family; replays after that window still revoke the family.
 - R2/R3 integrations are built against fakes; each needs a real-account check: Zoom/Google OAuth apps, ETA preprod

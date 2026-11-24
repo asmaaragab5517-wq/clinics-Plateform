@@ -1,3 +1,4 @@
+import type { ClockPosition } from './location';
 import { api, request } from './api';
 import { randomId } from './random';
 import type {
@@ -199,10 +200,10 @@ export const hrApi = {
   /** Same as `me`, with the permission allowance for another month (YYYY-MM). */
   meForMonth: (month: string) => api.get<HrMe>('/v1/hr/me', { month }, 'staff'),
   /**
-   * The server stamps the time; the work day is the Cairo day of the clock-in. No position is sent: the app has no
-   * location library yet, so only the clinic network can verify where the person is.
+   * The server stamps the time; the work day is the Cairo day of the clock-in. `position` is sent only when the
+   * clinic checks a radius (`HrMe.clockCheck.usesPosition`); otherwise the clinic network verifies presence.
    */
-  clock: (action: 'in' | 'out') => api.post<AttendanceRecord>('/v1/hr/attendance/clock', { action, source: 'mobile' }, 'staff'),
+  clock: (action: 'in' | 'out', position?: ClockPosition) => api.post<AttendanceRecord>('/v1/hr/attendance/clock', { action, source: 'mobile', ...(position ? { position } : {}) }, 'staff'),
   month: (month: string) => api.get<HrMonth>('/v1/hr/me/attendance', { month }, 'staff'),
   balances: (year?: number) => api.get<HrBalances>('/v1/hr/me/balances', { year }, 'staff'),
   leaveTypes: () => api.get<LeaveType[]>('/v1/hr/leave-types', undefined, 'staff'),

@@ -2,5 +2,6 @@
   "CFBundleDisplayName": "هيلث فلو",
   "NSCameraUsageDescription": "يستخدم التطبيق الكاميرا لمسح رمز QR الخاص بالحجز عند تسجيل الوصول.",
   "NSFaceIDUsageDescription": "يستخدم التطبيق Face ID لفتح حسابك بأمان.",
-  "NSMicrophoneUsageDescription": "يستخدم التطبيق الميكروفون لتسجيل إملاء الطبيب للزيارة وتحويله إلى مسودة ملاحظة طبية."
+  "NSMicrophoneUsageDescription": "يستخدم التطبيق الميكروفون لتسجيل إملاء الطبيب للزيارة وتحويله إلى مسودة ملاحظة طبية.",
+  "NSLocationWhenInUseUsageDescription": "يُستخدم موقعك عند تسجيل الحضور أو الانصراف فقط، إذا كانت عيادتك تستخدم نطاقًا حولها."
 }

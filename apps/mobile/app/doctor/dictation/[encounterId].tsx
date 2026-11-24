@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { getRecordingPermissionsAsync, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import { ActionButton, Banner, Button, Chip, ErrorBox, Field, ListItem, Loading, Muted, Row, Screen, Section, StatusBadge, T, colors, s } from '../../../components/ui';
 import { isApiError } from '../../../lib/api';
-import { DICTATION_RECORDING, MAX_AUDIO_BYTES, MAX_RECORDING_MS, MIN_RECORDING_MS, clock, dictationForm, type DictationLanguage } from '../../../lib/dictation';
+import { DICTATION_RECORDING, MAX_AUDIO_BYTES, MAX_RECORDING_MS, MIN_RECORDING_MS, clock, dictationForm, discardRecording, type DictationLanguage } from '../../../lib/dictation';
 import { staffApi } from '../../../lib/endpoints';
 import { dateTime } from '../../../lib/format';
 import { hasKey, useI18n, type TKey } from '../../../lib/i18n';
@@ -45,6 +45,14 @@ export default function Dictation() {
   const [phase, setPhase] = useState<Phase>('idle');
   const phaseRef = useRef<Phase>('idle');
   const [clip, setClip] = useState<{ uri: string; ms: number; bytes: number } | null>(null);
+  // The clip's file is deleted whenever it is replaced, sent or discarded, and when the screen closes.
+  const clipUri = useRef<string | null>(null);
+  const setClipFile = (next: { uri: string; ms: number; bytes: number } | null) => {
+    if (clipUri.current && clipUri.current !== next?.uri) discardRecording(clipUri.current);
+    clipUri.current = next?.uri ?? null;
+    setClip(next);
+  };
+  useEffect(() => () => discardRecording(clipUri.current), []);
   const [perm, setPerm] = useState<Permission>('unknown');
   const [note, setNote] = useState<TKey | null>(null);
   const stopping = useRef(false);
@@ -72,7 +80,7 @@ export default function Dictation() {
       }
       setPerm('granted');
       go('starting');
-      setClip(null);
+      setClipFile(null);
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -100,18 +108,20 @@ export default function Dictation() {
       const uri = recorder.uri;
       const ms = status.durationMillis;
       if (!keep || !uri) {
+        discardRecording(uri);
         go('idle');
-        setClip(null);
+        setClipFile(null);
         setNote(why);
         return;
       }
       if (ms < MIN_RECORDING_MS) {
+        discardRecording(uri);
         go('idle');
-        setClip(null);
+        setClipFile(null);
         setNote('ai.recordTooShort');
         return;
       }
-      setClip({ uri, ms, bytes: status.fileSize ?? 0 });
+      setClipFile({ uri, ms, bytes: status.fileSize ?? 0 });
       go('recorded');
       setNote(why);
     },
@@ -152,7 +162,7 @@ export default function Dictation() {
     void act.run(async () => {
       if (!clip) return;
       const d = await staffApi.dictationAudio(encounterId!, await dictationForm(clip.uri, lang));
-      setClip(null);
+      setClipFile(null);
       go('idle');
       toDraft(d.id);
     });
@@ -210,7 +220,7 @@ export default function Dictation() {
               title={t('ai.discardRecording')}
               disabled={act.busy}
               onPress={() => {
-                setClip(null);
+                setClipFile(null);
                 go('idle');
               }}
             />

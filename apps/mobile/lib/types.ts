@@ -622,6 +622,8 @@ export interface HrMe {
   permissionAllowance?: { perMonth: number; minutesPerMonth: number; used: number; usedMinutes: number };
   annualBalance: AnnualBalance | null;
   pending: { leave: LeaveRequest[]; permissions: PermissionRequest[] };
+  /** What the clinic checks at clocking: `usesPosition` means the app should send the phone's position. */
+  clockCheck?: { mode: 'off' | 'flag' | 'block'; usesPosition: boolean; usesNetwork: boolean } | null;
 }
 export interface MonthSummary {
   periodDays: number;

@@ -92,6 +92,21 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         enableBackgroundPlayback: false,
       },
     ],
+    [
+      'expo-location',
+      {
+        // Clock-in radius check (HR): foreground only, one reading per clock-in/out. Localised in i18n/native/*.json.
+        locationWhenInUsePermission: 'يُستخدم موقعك عند تسجيل الحضور أو الانصراف فقط، إذا كانت عيادتك تستخدم نطاقًا حولها.',
+        // No background location: `false` removes the "always" purpose strings and motion access.
+        locationAlwaysAndWhenInUsePermission: false,
+        locationAlwaysPermission: false,
+        motionUsagePermission: false,
+        locationFullAccuracyPermission: 'الموقع الدقيق مطلوب لمعرفة ما إذا كنت داخل نطاق العيادة.',
+        isIosBackgroundLocationEnabled: false,
+        isAndroidBackgroundLocationEnabled: false,
+        isAndroidForegroundServiceEnabled: false,
+      },
+    ],
     ['expo-notifications', { color: '#0F766E', defaultChannel: 'default' }],
     'expo-web-browser',
     [

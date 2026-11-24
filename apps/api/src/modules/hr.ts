@@ -82,6 +82,7 @@ export class HrController {
         contract: contractView(c, true),
         today: att,
         openRecord,
+        clockCheck: c ? await this.clockCheckInfo(tx, c.clinic_id) : null,
         permissionAllowance: { perMonth: settings.permissionsPerMonth, minutesPerMonth: settings.permissionMinutesPerMonth, used: used.n, usedMinutes: used.minutes },
         annualBalance: c ? await this.hr.annualBalance(tx, s.userId, year) : null,
         pending: {
@@ -785,6 +786,17 @@ export class HrController {
     const ip = meta.ip?.replace(/^::ffff:/, '') ?? null;
     const v = ip ? isIP(ip) : 0;
     return { ip, suggestedRange: ip && v ? `${ip}/${v === 4 ? 32 : 128}` : null };
+  }
+
+  /**
+   * What the person's clinic checks at clocking, so the app asks for the phone's position only when a radius rule
+   * uses it. Never exposes the clinic's networks or coordinates.
+   */
+  private async clockCheckInfo(tx: Tx, clinicId: string) {
+    const c = await tx.one<{ settings: { attendance?: unknown }; lat: number | null }>('select settings, lat from clinics where id = $1', [clinicId]);
+    const rules = attendanceRulesSchema.safeParse(c.settings.attendance ?? DEFAULT_ATTENDANCE_RULES);
+    const r = rules.success ? rules.data : DEFAULT_ATTENDANCE_RULES;
+    return { mode: r.mode, usesPosition: r.mode !== 'off' && r.geofenceMeters !== null && c.lat !== null, usesNetwork: r.mode !== 'off' && r.allowedNetworks.length > 0 };
   }
 
   /** Clinic-scoped staff may only manage clinics they belong to; network roles manage all. */

@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { RecordingPresets, type RecordingOptions } from 'expo-audio';
+import { File } from 'expo-file-system';
 
 export type DictationLanguage = 'auto' | 'ar' | 'en';
 
@@ -45,4 +46,18 @@ export async function dictationForm(uri: string, language: DictationLanguage): P
     form.append('audio', { uri, name, type } as unknown as Blob);
   }
   return form;
+}
+
+/**
+ * Deletes a recording from the app's private cache once it is uploaded, discarded or abandoned, so patient audio does
+ * not stay on the phone. Best effort: a file that is already gone, or the web build, is ignored.
+ */
+export function discardRecording(uri: string | null | undefined) {
+  if (!uri || Platform.OS === 'web') return;
+  try {
+    const f = new File(uri);
+    if (f.exists) f.delete();
+  } catch {
+    /* already removed */
+  }
 }

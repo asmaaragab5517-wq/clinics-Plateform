@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { ActionButton, Banner, Button, Card, ErrorBox, Loading, Muted, Row, StatusBadge, T, colors } from './ui';
 import { isApiError } from '../lib/api';
 import { hrApi } from '../lib/endpoints';
+import { clockPosition } from '../lib/location';
 import { time } from '../lib/format';
 import { MAX_PUNCHES, isWorkDay, jobTitle, minutesText, punchesOf, punchesText, shiftHours, todayCairo } from '../lib/hr';
 import { useI18n } from '../lib/i18n';
@@ -46,12 +47,20 @@ export function HrClockCard({ showLink = true }: { showLink?: boolean }) {
     void act.run(async () => {
       setNotice(null);
       setLocationRefused(false);
+      const check = me.data?.clockCheck;
+      let position;
+      if (check?.usesPosition) {
+        const r = await clockPosition();
+        if (r.ok) position = r.position;
+        // Without a position the clinic network may still verify the person; a 'flag' clinic records it as unverified.
+        else setNotice(t(`hr.clock.location.${r.reason}`));
+      }
       try {
-        await hrApi.clock(action);
+        await hrApi.clock(action, position);
       } catch (e) {
         // Clocked in or out on another device or in the console: show the current state instead of an error.
         if (isApiError(e, 'already_clocked_in') || isApiError(e, 'not_clocked_in') || isApiError(e, 'too_many_clock_ins')) setNotice(t(`error.${e.code}` as 'error.already_clocked_in'));
-        // The clinic refuses clocking it cannot verify (not on its network; the app sends no position yet).
+        // The clinic refuses clocking it cannot verify (not on its network and no position inside its radius).
         else if (isApiError(e, 'clock_location_not_allowed')) {
           setLocationRefused(true);
           return;
