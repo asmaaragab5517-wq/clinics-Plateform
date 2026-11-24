@@ -1,4 +1,7 @@
-import { GOVERNORATES, addDays, formatDate, formatMoney, formatTime12, localDate } from '@hf/shared';
+// Subpath imports: this module runs in client components, and the package index would bring zod with it.
+import { addDays, formatDate, formatTime12, localDate } from '@hf/shared/datetime';
+import { GOVERNORATES } from '@hf/shared/egypt/governorates';
+import { formatMoney } from '@hf/shared/money';
 import { has, t, tDyn, type Locale } from './i18n';
 import type { Named, Num } from './types';
 

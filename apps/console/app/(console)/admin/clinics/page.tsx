@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ARABIC_WEEKDAYS, GOVERNORATES, WEEK_ORDER } from '@hf/shared';
+import { ARABIC_WEEKDAYS, WEEK_ORDER } from '@hf/shared/datetime';
+import { GOVERNORATES } from '@hf/shared/egypt/governorates';
 import { Alert, Badge, Bdi, Button, PageHeader, Table } from '@hf/ui';
 import { Check, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

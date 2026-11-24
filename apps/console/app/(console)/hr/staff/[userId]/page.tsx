@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
-import { DEFAULT_WORK_PATTERN, formatMoney } from '@hf/shared';
+import { DEFAULT_WORK_PATTERN } from '@hf/shared/hr';
+import { formatMoney } from '@hf/shared/money';
 import { Alert, Badge, Bdi, Button, Money, PageHeader, Select, Table } from '@hf/ui';
 import { Check, DataState, InlineError, ReasonDialog, Section, SelectField, TextField, useAction } from '@/components/common';
 import { Dialog } from '@/components/dialog';

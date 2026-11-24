@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatMoney } from '@hf/shared';
+import { formatMoney } from '@hf/shared/money';
 import { Alert, Badge, Bdi, Button, PageHeader, Table } from '@hf/ui';
 import { DataState, Section, SelectField, TextField, useAction } from '@/components/common';
 import { Dialog } from '@/components/dialog';

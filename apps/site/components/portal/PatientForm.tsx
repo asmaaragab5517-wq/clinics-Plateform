@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { decodeNationalId, toWesternDigits } from '@hf/shared';
+import { toWesternDigits } from '@hf/shared/arabic';
+import { decodeNationalId } from '@hf/shared/egypt/national-id';
 import { Alert, Button, Field, Input, Select } from '@hf/ui';
 import { bff, errorText } from '@/lib/bff';
 import { t, tDyn, type Locale } from '@/lib/i18n';

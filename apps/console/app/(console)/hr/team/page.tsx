@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { addDays } from '@hf/shared';
+import { addDays } from '@hf/shared/datetime';
 import { Alert, Bdi, Button, PageHeader, Select, Table } from '@hf/ui';
 import { DataState, Section, useAction } from '@/components/common';
 import { CorrectionDialog, MonthPicker, MonthSheet, OvertimeActions, PunchList, RecordChips, StateBadge } from '@/components/hr';

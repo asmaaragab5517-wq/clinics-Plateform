@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { addDays } from '@hf/shared';
+import { addDays } from '@hf/shared/datetime';
 import { Alert, Badge, Bdi, Button, DateText, Select, Textarea } from '@hf/ui';
 import { post, qs, upload } from '@/lib/api';
 import { useApi } from '@/lib/hooks';

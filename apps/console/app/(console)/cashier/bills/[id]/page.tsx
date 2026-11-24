@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { use, useState } from 'react';
-import { formatMoney, type PaymentMethod } from '@hf/shared';
+import { type PaymentMethod } from '@hf/shared/enums';
+import { formatMoney } from '@hf/shared/money';
 import { Alert, Badge, Bdi, Button, DateText, Money, PageHeader, Table } from '@hf/ui';
 import { Dialog } from '@/components/dialog';
 import { DataState, FileLink, ReasonDialog, Section, SelectField, TextField, useAction } from '@/components/common';

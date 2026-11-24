@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PERMISSION_KINDS, weekdayOf } from '@hf/shared';
+import { weekdayOf } from '@hf/shared/datetime';
+import { PERMISSION_KINDS } from '@hf/shared/hr';
 import { Alert, Badge, Bdi, Button, PageHeader, Stat, Table, Tabs } from '@hf/ui';
 import { ConfirmDialog, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { BalanceView, MonthPicker, MonthSheet, PunchList, RecordChips, useReloadOn } from '@/components/hr';

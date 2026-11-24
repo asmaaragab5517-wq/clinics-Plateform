@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ADJUSTMENT_KINDS } from '@hf/shared';
+import { ADJUSTMENT_KINDS } from '@hf/shared/hr';
 import { Alert, Bdi, Button, Money, Table } from '@hf/ui';
 import { Check, ConfirmDialog, DataState, Section, SelectField, TextField, useAction } from './common';
 import { useI18n } from './i18n';

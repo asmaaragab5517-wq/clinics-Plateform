@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { formatLocalPhone, normalisePhone } from '@hf/shared';
+import { formatLocalPhone, normalisePhone } from '@hf/shared/egypt/phone';
 import { Alert, Bdi, Button, Field, Input } from '@hf/ui';
 import { bff, errorText } from '@/lib/bff';
 import { t, type Locale } from '@/lib/i18n';

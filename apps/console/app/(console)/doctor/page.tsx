@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { addDays } from '@hf/shared';
+import { addDays } from '@hf/shared/datetime';
 import { Alert, Badge, Bdi, Button, Input, Money, PageHeader, StatusBadge, Table, Tabs } from '@hf/ui';
 import { DataState, KeyHint, Section, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CONSENT_TYPES } from '@hf/shared';
+import { CONSENT_TYPES } from '@hf/shared/enums';
 import { Alert, Badge, Bdi, Button, DateText, Input, PageHeader, Table, Tabs } from '@hf/ui';
 import { Check, DataState, ErrorAlert, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { Dialog } from '@/components/dialog';

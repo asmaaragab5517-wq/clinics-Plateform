@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ROLES } from '@hf/shared';
+import { ROLES } from '@hf/shared/enums';
 import { Alert, Badge, Bdi, Button, DateText, PageHeader, Select, Table } from '@hf/ui';
 import { Dialog } from '@/components/dialog';
 import { Check, DataState, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';

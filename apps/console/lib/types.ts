@@ -1,4 +1,4 @@
-import type { AppointmentStatus, QueuePriority } from '@hf/shared';
+import type { AppointmentStatus, QueuePriority } from '@hf/shared/enums';
 
 export interface Me {
   userId: string;

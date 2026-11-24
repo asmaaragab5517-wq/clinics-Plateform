@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { smsSegments, templateVariables } from '@hf/shared';
+import { smsSegments, templateVariables } from '@hf/shared/sms';
 import { Alert, Badge, Button, PageHeader, Select, Table, Textarea } from '@hf/ui';
 import { Check, DataState, Section, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

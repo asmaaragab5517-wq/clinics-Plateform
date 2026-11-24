@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { formatDate, formatTime12 } from '@hf/shared';
+import { formatDate, formatTime12 } from '@hf/shared/datetime';
 import { Alert, Badge, Bdi, Button, Card, Spinner, cx } from '@hf/ui';
 import { BffError, bff, clearSession, errorText, loadSession, newIdempotencyKey, newUuid, saveSession, trackFunnel } from '@/lib/bff';
 import { dateTime, doctorPhotoSrc, doctorTitle, money, nameOf, nextAvailableText, num } from '@/lib/format';

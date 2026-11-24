@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SERVICE_TYPES, VAT_STATUSES } from '@hf/shared';
+import { SERVICE_TYPES, VAT_STATUSES } from '@hf/shared/enums';
 import { Alert, Badge, Bdi, Button, Money, PageHeader, Table, Tabs } from '@hf/ui';
 import { Check, DataState, Section, SelectField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

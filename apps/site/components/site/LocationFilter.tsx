@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { GOVERNORATES } from '@hf/shared';
+import { GOVERNORATES } from '@hf/shared/egypt/governorates';
 import { citiesOf } from '@/lib/format';
 import { t, type Locale } from '@/lib/i18n';
 

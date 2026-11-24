@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { localDate } from '@hf/shared';
+import { localDate } from '@hf/shared/datetime';
 import { Alert, Badge, Bdi, Button, Card, EmptyState, Field, Input, Select, Spinner, Table } from '@hf/ui';
 import { BffError, bff, errorText } from '@/lib/bff';
 import { dateOnly, money, num, pick } from '@/lib/format';

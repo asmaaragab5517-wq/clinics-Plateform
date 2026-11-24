@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { formatMoney } from '@hf/shared';
+import { formatMoney } from '@hf/shared/money';
 import { Alert, Badge, Bdi, Button, DateText, Input, PageHeader, Select, Table } from '@hf/ui';
 import { DataState, Section, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

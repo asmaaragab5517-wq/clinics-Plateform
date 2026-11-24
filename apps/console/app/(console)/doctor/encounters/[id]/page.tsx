@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { use, useEffect, useMemo, useRef, useState } from 'react';
-import { dentalChartSchema, mergeDentalCharts, type DentalChart } from '@hf/shared';
+import { type DentalChart, dentalChartSchema, mergeDentalCharts } from '@hf/shared/dental';
 import { Alert, Badge, Bdi, Button, DateText, Input, PageHeader, Select, Textarea } from '@hf/ui';
 import { DentalChartEditor, EMPTY_CHART, isCharted, type PatientDentalChart } from '@/components/dental-chart';
 import { IcdSearch } from '@/components/icd-search';

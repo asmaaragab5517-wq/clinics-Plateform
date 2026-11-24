@@ -1,4 +1,6 @@
-import { addDays, egpToPiastres, formatTime12, localDate, localTime, zonedToUtc, type Locale } from '@hf/shared';
+import { addDays, formatTime12, localDate, localTime, zonedToUtc } from '@hf/shared/datetime';
+import { type Locale } from '@hf/shared/i18n';
+import { egpToPiastres } from '@hf/shared/money';
 
 /** Postgres bigint/numeric columns arrive as strings: coerce for display. */
 export function num(v: unknown): number {

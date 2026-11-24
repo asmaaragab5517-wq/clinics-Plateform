@@ -1,4 +1,5 @@
-import { addDays, basisQuantity, formatDate, weekdayOf, WEEK_ORDER } from '@hf/shared';
+import { addDays, formatDate, WEEK_ORDER, weekdayOf } from '@hf/shared/datetime';
+import { basisQuantity } from '@hf/shared/hr';
 import { isoDate, num } from './format';
 import type { T } from './i18n';
 

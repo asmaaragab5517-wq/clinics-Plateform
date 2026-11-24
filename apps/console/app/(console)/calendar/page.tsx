@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { ARABIC_WEEKDAYS, WEEK_ORDER, addDays, startOfWeek, weekdayOf, zonedToUtc } from '@hf/shared';
+import { addDays, ARABIC_WEEKDAYS, startOfWeek, WEEK_ORDER, weekdayOf, zonedToUtc } from '@hf/shared/datetime';
 import { Alert, Bdi, Button, PageHeader, Select, StatusBadge, Tabs, cx } from '@hf/ui';
 import { Dialog } from '@/components/dialog';
 import { ErrorAlert, Loading, TextField } from '@/components/common';

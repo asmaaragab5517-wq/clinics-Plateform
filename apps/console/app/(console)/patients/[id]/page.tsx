@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { use, useState } from 'react';
-import { CONSENT_TYPES, formatMoney, type AppointmentStatus } from '@hf/shared';
+import { type AppointmentStatus, CONSENT_TYPES } from '@hf/shared/enums';
+import { formatMoney } from '@hf/shared/money';
 import { Alert, Badge, Bdi, Button, DateText, Money, PageHeader, StatusBadge, Table, Tabs } from '@hf/ui';
 import { Check, DataState, ErrorAlert, Loading, ReasonDialog, Section, SelectField, TextAreaField, TextField, useAction } from '@/components/common';
 import { CustomFieldInputs, CustomFieldValue, customFieldsPayload, fieldLabel, useCustomFields, validateCustomFields, type CustomValues } from '@/components/custom-fields';

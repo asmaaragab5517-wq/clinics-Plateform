@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { formatTime12 } from '@hf/shared';
+import { formatTime12 } from '@hf/shared/datetime';
 import { Alert, Spinner, cx } from '@hf/ui';
 import { errorText } from '@/lib/bff';
 import { dayLabel } from '@/lib/format';

@@ -1,4 +1,4 @@
-import { catalogs, type Locale } from '@hf/shared';
+import { catalogs, type Locale } from '@hf/shared/i18n';
 import appAr from '../i18n/ar.json';
 import appEn from '../i18n/en.json';
 

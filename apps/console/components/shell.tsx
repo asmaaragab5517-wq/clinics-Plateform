@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { toWesternDigits } from '@hf/shared';
+import { toWesternDigits } from '@hf/shared/arabic';
 import { Alert, Bdi, Button, Input, OnlineIndicator, Select, cx } from '@hf/ui';
 import { Dialog } from './dialog';
 import { ApiError, get, logout, markActivity, msSinceActivity, post, readCookie, writeCookie } from '@/lib/api';

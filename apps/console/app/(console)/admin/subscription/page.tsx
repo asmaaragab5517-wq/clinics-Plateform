@@ -1,6 +1,6 @@
 'use client';
 
-import { formatMoney } from '@hf/shared';
+import { formatMoney } from '@hf/shared/money';
 import { Alert, Badge, PageHeader, Table } from '@hf/ui';
 import { Gauge } from '@/components/charts';
 import { DataState, Section } from '@/components/common';

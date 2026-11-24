@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { GOVERNORATES, decodeNationalId, normalisePhone, toWesternDigits } from '@hf/shared';
+import { toWesternDigits } from '@hf/shared/arabic';
+import { GOVERNORATES } from '@hf/shared/egypt/governorates';
+import { decodeNationalId } from '@hf/shared/egypt/national-id';
+import { normalisePhone } from '@hf/shared/egypt/phone';
 import { Alert, Bdi, Button } from '@hf/ui';
 import { Dialog } from './dialog';
 import { ApiError, post } from '@/lib/api';

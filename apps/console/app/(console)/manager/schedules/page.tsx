@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ARABIC_WEEKDAYS, WEEK_ORDER, addDays, type AppointmentStatus } from '@hf/shared';
+import { addDays, ARABIC_WEEKDAYS, WEEK_ORDER } from '@hf/shared/datetime';
+import { type AppointmentStatus } from '@hf/shared/enums';
 import { Alert, Badge, Bdi, Button, PageHeader, StatusBadge, Table, Tabs } from '@hf/ui';
 import { Check, DataState, Section, SelectField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

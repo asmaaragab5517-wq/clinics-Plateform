@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { DENTAL_PROCEDURES, TOOTH_CONDITIONS, TOOTH_STATUSES, isAnterior, toothSchema, treatmentPlan, type DentalChart } from '@hf/shared';
+import { DENTAL_PROCEDURES, type DentalChart, isAnterior, TOOTH_CONDITIONS, TOOTH_STATUSES, toothSchema, treatmentPlan } from '@hf/shared/dental';
 import { Alert, Badge, Button, DateText, Select, Table, cx } from '@hf/ui';
 import { Check, DataState, ErrorAlert, Section, TextAreaField, TextField } from './common';
 import { Dialog } from './dialog';

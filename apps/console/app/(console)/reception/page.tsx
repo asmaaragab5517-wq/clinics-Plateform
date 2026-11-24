@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { QUEUE_PRIORITIES, formatDate, type QueuePriority } from '@hf/shared';
+import { formatDate } from '@hf/shared/datetime';
+import { QUEUE_PRIORITIES, type QueuePriority } from '@hf/shared/enums';
 import { Alert, Bdi, Button, PageHeader, Select, StatusBadge, Table, Tabs, cx } from '@hf/ui';
 import { Dialog } from '@/components/dialog';
 import { QuickBookingDialog, WalkInDialog } from '@/components/booking';

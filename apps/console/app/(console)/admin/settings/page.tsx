@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MESSAGE_EVENTS } from '@hf/shared';
+import { MESSAGE_EVENTS } from '@hf/shared/enums';
 import { Alert, Button, PageHeader } from '@hf/ui';
 import { Check, DataState, Section, SelectField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

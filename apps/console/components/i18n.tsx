@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useMemo } from 'react';
-import type { Locale } from '@hf/shared';
+import type { Locale } from '@hf/shared/i18n';
 import { ApiError } from '@/lib/api';
 import { hasKey, translator, type T } from '@/lib/i18n';
 

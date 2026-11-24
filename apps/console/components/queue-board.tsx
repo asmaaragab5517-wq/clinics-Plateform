@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { QUEUE_PRIORITIES, type QueuePriority } from '@hf/shared';
+import { QUEUE_PRIORITIES, type QueuePriority } from '@hf/shared/enums';
 import { Badge, Bdi, Button, Select, cx } from '@hf/ui';
 import { post, qs } from '@/lib/api';
 import { useApi, useEventSource, useInterval } from '@/lib/hooks';

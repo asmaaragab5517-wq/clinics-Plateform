@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { addDays } from '@hf/shared';
+import { addDays } from '@hf/shared/datetime';
 import { Alert, Badge, PageHeader, Stat, Table } from '@hf/ui';
 import type { AiSettings } from '@/components/ai';
 import { Check, DataState, Section, TextField, useAction } from '@/components/common';

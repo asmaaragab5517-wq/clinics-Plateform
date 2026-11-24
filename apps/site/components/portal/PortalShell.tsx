@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { formatLocalPhone } from '@hf/shared';
+import { formatLocalPhone } from '@hf/shared/egypt/phone';
 import { Alert, Bdi, Select, Spinner, cx } from '@hf/ui';
 import { bff, errorText } from '@/lib/bff';
 import { t, type Key, type Locale } from '@/lib/i18n';

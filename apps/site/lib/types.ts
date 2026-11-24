@@ -1,4 +1,4 @@
-import type { AppointmentStatus } from '@hf/shared';
+import type { AppointmentStatus } from '@hf/shared/enums';
 
 /** Response shapes of apps/api (see apps/api/src/modules/{public,portal,prescriptions}.ts). pg numerics may arrive as strings. */
 export type Num = number | string | null;

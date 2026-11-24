@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { addDays, formatMoney, localDate } from '@hf/shared';
+import { addDays, localDate } from '@hf/shared/datetime';
+import { formatMoney } from '@hf/shared/money';
 import { Button, PageHeader, Select, Stat } from '@hf/ui';
 import { DataState, FileLink, TextField } from '@/components/common';
 import { Gauge, HBarChart, StackedBar } from '@/components/charts';

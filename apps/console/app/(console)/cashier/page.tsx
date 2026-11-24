@@ -3,7 +3,12 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { DENOMINATIONS, addDays, VAT_STATUSES, computeBill, countCash, formatMoney, splitCoverage, type VatStatus } from '@hf/shared';
+import { countCash, DENOMINATIONS } from '@hf/shared/cash';
+import { addDays } from '@hf/shared/datetime';
+import { VAT_STATUSES, type VatStatus } from '@hf/shared/enums';
+import { splitCoverage } from '@hf/shared/insurance';
+import { formatMoney } from '@hf/shared/money';
+import { computeBill } from '@hf/shared/tax';
 import { Alert, Badge, Bdi, Button, DateText, Input, Money, PageHeader, Select, Table, Tabs } from '@hf/ui';
 import { DataState, FileLink, Section, SelectField, TextField, useAction } from '@/components/common';
 import { useI18n } from '@/components/i18n';

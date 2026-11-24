@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { QUEUE_PRIORITIES } from '@hf/shared';
+import { QUEUE_PRIORITIES } from '@hf/shared/enums';
 import { Alert, Bdi, Button, cx } from '@hf/ui';
 import { Dialog } from './dialog';
 import { ApiError, newKey, post, qs } from '@/lib/api';

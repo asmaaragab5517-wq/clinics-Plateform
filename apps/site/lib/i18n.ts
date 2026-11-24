@@ -1,4 +1,4 @@
-import { catalogs, dir, type I18nKey, type Locale } from '@hf/shared';
+import { catalogs, dir, type I18nKey, type Locale } from '@hf/shared/i18n';
 import siteAr from '../i18n/ar.json';
 import siteEn from '../i18n/en.json';
 

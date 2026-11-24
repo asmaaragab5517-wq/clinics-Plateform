@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ROLES } from '@hf/shared';
+import { ROLES } from '@hf/shared/enums';
 import { Alert, Badge, Bdi, Button, Input, PageHeader, Table } from '@hf/ui';
 import { Check, DataState, Section, SelectField, TextField, useAction } from '@/components/common';
 import { CUSTOM_FIELD_TYPES, fieldLabel, type CustomFieldDef, type CustomFieldType } from '@/components/custom-fields';

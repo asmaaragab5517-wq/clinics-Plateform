@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { formatTime12 } from '@hf/shared';
+import { formatTime12 } from '@hf/shared/datetime';
 import { cx } from '@hf/ui';
 import { useI18n } from '@/components/i18n';
 import { useEventSource, useInterval } from '@/lib/hooks';

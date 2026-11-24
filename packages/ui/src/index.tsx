@@ -1,6 +1,11 @@
 import { clsx } from 'clsx';
 import * as React from 'react';
-import { formatDate, formatMoney, formatTime12, t, toArabicIndicDigits, type AppointmentStatus, type Locale } from '@hf/shared';
+// Subpath imports keep client bundles free of the schemas (zod) and payroll code in the package index.
+import { toArabicIndicDigits } from '@hf/shared/arabic';
+import { formatDate, formatTime12 } from '@hf/shared/datetime';
+import type { AppointmentStatus } from '@hf/shared/enums';
+import { t, type Locale } from '@hf/shared/i18n';
+import { formatMoney } from '@hf/shared/money';
 
 export { clsx as cx };
 
