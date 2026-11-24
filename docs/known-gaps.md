@@ -15,9 +15,8 @@ must be closed before go-live.
 - Dependency audit (CI `security` job): no high advisories after the Sprint 22 upgrade (nodemailer 10.4.0, zod 4.6.7,
   postcss override `<8.5.18 → 8.5.33`). Two moderate advisories remain below the CI threshold. The 7-day minimum release age
   stays on; upgrades wait until every locked package has aged.
-- Lighthouse performance (mobile, median of 3) in CI: home 93, doctor profile 96, doctors list 90 (one earlier run 86).
-  The doctors list sits at the target on GitHub's 2-vCPU runners and may fail occasionally; locally it scores 95–97.
-  Confirm on the staging deploy behind the CDN before treating it as a product issue.
+- Lighthouse performance (mobile, median of 3) in CI after client bundles stopped shipping the shared schemas (Sprint 22):
+  home 96, doctors list 96 (was 86–93). Confirm on the staging deploy behind the CDN.
 - Deploy to staging/production waits for `STAGING_APP_ID`, `PRODUCTION_APP_ID` and `DO_TOKEN` (docs/runbooks/deploy.md).
 
 ## HR and payroll (Sprint 19)
