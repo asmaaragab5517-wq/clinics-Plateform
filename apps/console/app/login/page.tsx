@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 
 const SEEDED = ['owner', 'director', 'manager', 'reception', 'reception2', 'nurse', 'accountant', 'ahmed-samy', 'mona-khaled', 'sara-adel'];
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; notice?: string }> }) {
   const sp = await searchParams;
   const slug = serverConfig.orgSlug;
-  return <LoginForm mode={serverConfig.authMode} users={SEEDED.map((u) => `${u}@${slug}.healthflow.eg`)} next={sp.next ?? '/'} error={sp.error ?? null} />;
+  return <LoginForm mode={serverConfig.authMode} users={SEEDED.map((u) => `${u}@${slug}.healthflow.eg`)} next={sp.next ?? '/'} error={sp.error ?? null} notice={sp.notice ?? null} />;
 }

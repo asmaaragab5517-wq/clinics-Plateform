@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   }
   const res = NextResponse.redirect(url);
   // Lax (not Strict): the cookie must survive the top-level cross-site redirect back from Keycloak.
-  res.cookies.set(COOKIE.oidc, seal({ verifier, state, nonce, returnTo }), {
+  res.cookies.set(COOKIE.oidc, seal({ verifier, state, nonce, returnTo, again: req.nextUrl.searchParams.get('again') === '1' }), {
     httpOnly: true,
     secure: serverConfig.secureCookies,
     sameSite: 'lax',

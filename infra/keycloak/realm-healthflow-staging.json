@@ -1,0 +1,522 @@
+{
+  "realm": "healthflow",
+  "enabled": true,
+  "displayName": "HealthFlow Clinics",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "ar",
+    "en"
+  ],
+  "defaultLocale": "ar",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "maxFailureWaitSeconds": 900,
+  "passwordPolicy": "length(12) and notUsername and upperCase(1) and digits(1) and passwordHistory(5)",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyPeriod": 30,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 43200,
+  "accessTokenLifespan": 300,
+  "requiredActions": [
+    {
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 20
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 30
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "healthflow-console",
+      "name": "HealthFlow staff console",
+      "publicClient": false,
+      "secret": "${HF_KC_CONSOLE_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "${HF_CONSOLE_URL}/api/auth/callback",
+        "${HF_CONSOLE_URL}/api/platform/auth/callback"
+      ],
+      "webOrigins": [
+        "${HF_CONSOLE_URL}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${HF_CONSOLE_URL}/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "acr",
+        "web-origins",
+        "roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "healthflow-api",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "org",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "org",
+            "claim.name": "org",
+            "access.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "healthflow-mobile",
+      "name": "HealthFlow mobile (staff modes)",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "healthflow://oauth/callback"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "acr",
+        "roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "healthflow-api",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "org",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "org",
+            "claim.name": "org",
+            "access.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "healthflow-admin",
+      "name": "API service account for staff provisioning",
+      "publicClient": false,
+      "secret": "${HF_KC_ADMIN_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false
+    }
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "hf-ref-pwd",
+      "config": {
+        "default.reference.value": "pwd",
+        "default.reference.maxAge": "0"
+      }
+    },
+    {
+      "alias": "hf-ref-otp",
+      "config": {
+        "default.reference.value": "otp",
+        "default.reference.maxAge": "0"
+      }
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "hf-browser",
+      "description": "Password then TOTP for every staff sign-in; each step sets its AMR value (the API requires otp).",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "hf-browser-forms",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "hf-browser-forms",
+      "description": "Username, password and one-time code.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorConfig": "hf-ref-pwd",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorConfig": "hf-ref-otp",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": true
+        }
+      ]
+    }
+  ],
+  "browserFlow": "hf-browser",
+  "users": [
+    {
+      "id": "dev-demo-owner",
+      "username": "owner@demo.healthflow.eg",
+      "email": "owner@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Network",
+      "lastName": "Owner",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-director",
+      "username": "director@demo.healthflow.eg",
+      "email": "director@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Network",
+      "lastName": "Director",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-manager",
+      "username": "manager@demo.healthflow.eg",
+      "email": "manager@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Nasr City",
+      "lastName": "Manager",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-reception",
+      "username": "reception@demo.healthflow.eg",
+      "email": "reception@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "lastName": "Receptionist",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-reception2",
+      "username": "reception2@demo.healthflow.eg",
+      "email": "reception2@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Dokki",
+      "lastName": "Receptionist",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-nurse",
+      "username": "nurse@demo.healthflow.eg",
+      "email": "nurse@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "lastName": "Nurse",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-accountant",
+      "username": "accountant@demo.healthflow.eg",
+      "email": "accountant@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Demo",
+      "lastName": "Accountant",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-dr_ahmed",
+      "username": "ahmed-samy@demo.healthflow.eg",
+      "email": "ahmed-samy@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Ahmed",
+      "lastName": "Samy",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-dr_mona",
+      "username": "mona-khaled@demo.healthflow.eg",
+      "email": "mona-khaled@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Mona",
+      "lastName": "Khaled",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-demo-dr_sara",
+      "username": "sara-adel@demo.healthflow.eg",
+      "email": "sara-adel@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Sara",
+      "lastName": "Adel",
+      "attributes": {
+        "org": [
+          "demo"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "id": "dev-platform-demo",
+      "username": "platform@demo.healthflow.eg",
+      "email": "platform@demo.healthflow.eg",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "attributes": {},
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${HF_KC_STAFF_TEMP_PASSWORD}",
+          "temporary": true
+        }
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "CONFIGURE_TOTP"
+      ]
+    },
+    {
+      "username": "service-account-healthflow-admin",
+      "enabled": true,
+      "serviceAccountClientId": "healthflow-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users"
+        ]
+      }
+    }
+  ]
+}

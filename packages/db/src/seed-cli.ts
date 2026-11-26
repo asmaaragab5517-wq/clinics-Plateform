@@ -11,6 +11,11 @@ async function main() {
     await seedReference(c);
     if (process.argv.includes('--demo')) {
       if (process.env.NODE_ENV === 'production') throw new Error('refusing to seed demo data in production');
+      // --if-missing: safe to run on every deploy of a staging environment (seeds the demo organisation once).
+      if (process.argv.includes('--if-missing') && (await c.query(`select 1 from organisations where slug = 'demo'`)).rowCount) {
+        console.log('demo organisation already seeded');
+        return;
+      }
       const ids = await seedDemo(c, new SecretBox(process.env.FIELD_ENCRYPTION_KEY ?? devKey()));
       console.log(JSON.stringify(ids, null, 2));
     }

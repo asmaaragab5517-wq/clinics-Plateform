@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from '@/lib/server/config';
 import { exchangeCode } from '@/lib/server/oidc';
-import { COOKIE, safeReturnTo, unseal, writeSession } from '@/lib/server/session';
+import { COOKIE, jwtPayload, safeReturnTo, unseal, writeSession } from '@/lib/server/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,11 +18,19 @@ function htmlRedirect(to: string, status = 200) {
 export async function GET(req: NextRequest) {
   if (serverConfig.authMode !== 'oidc') return htmlRedirect('/login');
   const p = req.nextUrl.searchParams;
-  const pending = unseal<{ verifier: string; state: string; nonce: string; returnTo: string }>(req.cookies.get(COOKIE.oidc)?.value);
+  const pending = unseal<{ verifier: string; state: string; nonce: string; returnTo: string; again?: boolean }>(req.cookies.get(COOKIE.oidc)?.value);
   const code = p.get('code');
   if (!pending || !code || p.get('state') !== pending.state) return htmlRedirect('/login?error=state', 400);
   try {
     const tokens = await exchangeCode(code, pending.verifier, pending.nonce);
+    // The API accepts only tokens whose `amr` names an OTP method. The sign-in that enrols the authenticator app
+    // does not count as one, so the person is asked to sign in once more with a code instead of meeting a 401.
+    const amr = jwtPayload(tokens.accessToken).amr;
+    if (!(Array.isArray(amr) && amr.some((m) => ['otp', 'totp', 'mfa'].includes(String(m))))) {
+      const res = htmlRedirect(pending.again ? '/login?error=mfa' : `/login?notice=mfa_enrolled&next=${encodeURIComponent(safeReturnTo(pending.returnTo))}`);
+      res.cookies.set(COOKIE.oidc, '', { path: '/api/auth', maxAge: 0 });
+      return res;
+    }
     const res = htmlRedirect(safeReturnTo(pending.returnTo));
     writeSession(res, tokens);
     res.cookies.set(COOKIE.oidc, '', { path: '/api/auth', maxAge: 0 });

@@ -3,7 +3,10 @@
   "enabled": true,
   "displayName": "HealthFlow Clinics",
   "internationalizationEnabled": true,
-  "supportedLocales": ["ar", "en"],
+  "supportedLocales": [
+    "ar",
+    "en"
+  ],
   "defaultLocale": "ar",
   "sslRequired": "external",
   "registrationAllowed": false,
@@ -20,19 +23,29 @@
   "ssoSessionMaxLifespan": 43200,
   "accessTokenLifespan": 300,
   "requiredActions": [
-    { "alias": "CONFIGURE_TOTP", "name": "Configure OTP", "providerId": "CONFIGURE_TOTP", "enabled": true, "defaultAction": true, "priority": 10 },
-    { "alias": "UPDATE_PASSWORD", "name": "Update Password", "providerId": "UPDATE_PASSWORD", "enabled": true, "defaultAction": false, "priority": 20 },
-    { "alias": "VERIFY_EMAIL", "name": "Verify Email", "providerId": "VERIFY_EMAIL", "enabled": true, "defaultAction": false, "priority": 30 }
-  ],
-  "clientScopes": [
     {
-      "name": "healthflow-api",
-      "protocol": "openid-connect",
-      "attributes": { "include.in.token.scope": "true" },
-      "protocolMappers": [
-        { "name": "audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper", "config": { "included.custom.audience": "healthflow-api", "access.token.claim": "true" } },
-        { "name": "org", "protocol": "openid-connect", "protocolMapper": "oidc-usermodel-attribute-mapper", "config": { "user.attribute": "org", "claim.name": "org", "access.token.claim": "true", "jsonType.label": "String" } }
-      ]
+      "alias": "CONFIGURE_TOTP",
+      "name": "Configure OTP",
+      "providerId": "CONFIGURE_TOTP",
+      "enabled": true,
+      "defaultAction": true,
+      "priority": 10
+    },
+    {
+      "alias": "UPDATE_PASSWORD",
+      "name": "Update Password",
+      "providerId": "UPDATE_PASSWORD",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 20
+    },
+    {
+      "alias": "VERIFY_EMAIL",
+      "name": "Verify Email",
+      "providerId": "VERIFY_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 30
     }
   ],
   "clients": [
@@ -43,10 +56,60 @@
       "secret": "change-me-console-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["http://localhost:3001/api/auth/callback", "https://console.healthflow.example/api/auth/callback", "http://localhost:3001/api/platform/auth/callback", "https://console.healthflow.example/api/platform/auth/callback"],
-      "webOrigins": ["http://localhost:3001", "https://console.healthflow.example"],
-      "attributes": { "pkce.code.challenge.method": "S256", "post.logout.redirect.uris": "http://localhost:3001/*##https://console.healthflow.example/*" },
-      "defaultClientScopes": ["openid", "profile", "email", "healthflow-api"]
+      "redirectUris": [
+        "http://localhost:3001/api/auth/callback",
+        "https://console.healthflow.example/api/auth/callback",
+        "http://localhost:3001/api/platform/auth/callback",
+        "https://console.healthflow.example/api/platform/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3001",
+        "https://console.healthflow.example"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3001/*##https://console.healthflow.example/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "acr",
+        "web-origins",
+        "roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "healthflow-api",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "org",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "org",
+            "claim.name": "org",
+            "access.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "healthflow-mobile",
@@ -54,9 +117,50 @@
       "publicClient": true,
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "redirectUris": ["healthflow://oauth/callback"],
-      "attributes": { "pkce.code.challenge.method": "S256" },
-      "defaultClientScopes": ["openid", "profile", "healthflow-api"]
+      "redirectUris": [
+        "healthflow://oauth/callback"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "acr",
+        "roles"
+      ],
+      "protocolMappers": [
+        {
+          "name": "audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "healthflow-api",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "org",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "org",
+            "claim.name": "org",
+            "access.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-amr-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
     },
     {
       "clientId": "healthflow-admin",
@@ -66,5 +170,72 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false
     }
-  ]
+  ],
+  "authenticatorConfig": [
+    {
+      "alias": "hf-ref-pwd",
+      "config": {
+        "default.reference.value": "pwd",
+        "default.reference.maxAge": "0"
+      }
+    },
+    {
+      "alias": "hf-ref-otp",
+      "config": {
+        "default.reference.value": "otp",
+        "default.reference.maxAge": "0"
+      }
+    }
+  ],
+  "authenticationFlows": [
+    {
+      "alias": "hf-browser",
+      "description": "Password then TOTP for every staff sign-in; each step sets its AMR value (the API requires otp).",
+      "providerId": "basic-flow",
+      "topLevel": true,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-cookie",
+          "requirement": "ALTERNATIVE",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "flowAlias": "hf-browser-forms",
+          "requirement": "ALTERNATIVE",
+          "priority": 20,
+          "autheticatorFlow": true,
+          "userSetupAllowed": false
+        }
+      ]
+    },
+    {
+      "alias": "hf-browser-forms",
+      "description": "Username, password and one-time code.",
+      "providerId": "basic-flow",
+      "topLevel": false,
+      "builtIn": false,
+      "authenticationExecutions": [
+        {
+          "authenticator": "auth-username-password-form",
+          "authenticatorConfig": "hf-ref-pwd",
+          "requirement": "REQUIRED",
+          "priority": 10,
+          "autheticatorFlow": false,
+          "userSetupAllowed": false
+        },
+        {
+          "authenticator": "auth-otp-form",
+          "authenticatorConfig": "hf-ref-otp",
+          "requirement": "REQUIRED",
+          "priority": 20,
+          "autheticatorFlow": false,
+          "userSetupAllowed": true
+        }
+      ]
+    }
+  ],
+  "browserFlow": "hf-browser"
 }

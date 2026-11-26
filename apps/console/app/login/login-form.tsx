@@ -10,11 +10,12 @@ function safeNext(n: string) {
   return n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/api/') ? n : '/';
 }
 
-export function LoginForm({ mode, users, next, error }: { mode: 'dev' | 'oidc'; users: string[]; next: string; error: string | null }) {
+export function LoginForm({ mode, users, next, error, notice }: { mode: 'dev' | 'oidc'; users: string[]; next: string; error: string | null; notice?: string | null }) {
   const { t, locale } = useI18n();
   const [email, setEmail] = useState(users[0] ?? '');
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(error ? t('login.failed') : null);
+  const [msg, setMsg] = useState<string | null>(error === 'mfa' ? t('login.mfaMissing') : error ? t('login.failed') : null);
+  const enrolled = mode === 'oidc' && notice === 'mfa_enrolled';
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <Card className="flex w-full max-w-md flex-col gap-4 p-6">
@@ -33,9 +34,13 @@ export function LoginForm({ mode, users, next, error }: { mode: 'dev' | 'oidc'; 
         </div>
         <p className="text-sm text-muted">{t('auth.staffLogin')}</p>
         {msg && <Alert tone="danger">{msg}</Alert>}
+        {enrolled && <Alert tone="success">{t('login.mfaEnrolled')}</Alert>}
         {mode === 'oidc' ? (
-          <a className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-lg font-medium text-primary-fg" href={`/api/auth/login?returnTo=${encodeURIComponent(safeNext(next))}`}>
-            {t('login.sso')}
+          <a
+            className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-lg font-medium text-primary-fg"
+            href={enrolled ? `/api/auth/login?prompt=login&again=1&returnTo=${encodeURIComponent(safeNext(next))}` : `/api/auth/login?returnTo=${encodeURIComponent(safeNext(next))}`}
+          >
+            {enrolled ? t('login.mfaAgain') : t('login.sso')}
           </a>
         ) : (
           <form
