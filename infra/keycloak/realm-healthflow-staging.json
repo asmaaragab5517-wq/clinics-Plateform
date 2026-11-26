@@ -173,14 +173,14 @@
       "alias": "hf-ref-pwd",
       "config": {
         "default.reference.value": "pwd",
-        "default.reference.maxAge": "0"
+        "default.reference.maxAge": "43200"
       }
     },
     {
       "alias": "hf-ref-otp",
       "config": {
         "default.reference.value": "otp",
-        "default.reference.maxAge": "0"
+        "default.reference.maxAge": "43200"
       }
     }
   ],
