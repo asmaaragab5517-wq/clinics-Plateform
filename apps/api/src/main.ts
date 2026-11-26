@@ -12,7 +12,17 @@ async function serve() {
     const { openApiDocument } = await import('./openapi');
     SwaggerModule.setup('v1/docs', app, openApiDocument(app));
   }
-  await app.listen(cfg.PORT, '0.0.0.0');
+  // '::' accepts IPv6 and IPv4 on Linux (private networks such as Railway's reach services over IPv6); hosts
+  // without IPv6 fall back to IPv4. HOST overrides both.
+  if (process.env.HOST) await app.listen(cfg.PORT, process.env.HOST);
+  else {
+    try {
+      await app.listen(cfg.PORT, '::');
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EAFNOSUPPORT') throw e;
+      await app.listen(cfg.PORT, '0.0.0.0');
+    }
+  }
   console.log(`HealthFlow API listening on ${cfg.PORT}${cluster.isWorker ? ` (worker ${process.pid})` : ''}`);
 }
 
