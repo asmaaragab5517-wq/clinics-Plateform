@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { serverConfig } from '@/lib/server/config';
-import { exchangeCode } from '@/lib/server/oidc';
+import { discovery, exchangeCode } from '@/lib/server/oidc';
 import { COOKIE, jwtPayload, safeReturnTo, unseal, writeSession } from '@/lib/server/session';
 
 export const runtime = 'nodejs';
@@ -27,8 +27,21 @@ export async function GET(req: NextRequest) {
     // does not count as one, so the person is asked to sign in once more with a code instead of meeting a 401.
     const amr = jwtPayload(tokens.accessToken).amr;
     if (!(Array.isArray(amr) && amr.some((m) => ['otp', 'totp', 'mfa'].includes(String(m))))) {
-      const res = htmlRedirect(pending.again ? '/login?error=mfa' : `/login?notice=mfa_enrolled&next=${encodeURIComponent(safeReturnTo(pending.returnTo))}`);
+      const next = pending.again ? '/login?error=mfa' : `/login?notice=mfa_enrolled&next=${encodeURIComponent(safeReturnTo(pending.returnTo))}`;
+      // End the Keycloak session first: a re-authentication inside the enrolment session would still carry no OTP
+      // method, while a fresh sign-in with the new code does.
+      let to = next;
+      const d = await discovery().catch(() => null);
+      if (d?.end_session_endpoint && tokens.idToken) {
+        const u = new URL(d.end_session_endpoint);
+        u.searchParams.set('client_id', serverConfig.clientId);
+        u.searchParams.set('id_token_hint', tokens.idToken);
+        u.searchParams.set('post_logout_redirect_uri', `${serverConfig.consoleUrl}${next}`);
+        to = u.toString();
+      }
+      const res = to === next ? htmlRedirect(next) : NextResponse.redirect(to, 303);
       res.cookies.set(COOKIE.oidc, '', { path: '/api/auth', maxAge: 0 });
+      res.headers.set('cache-control', 'no-store');
       return res;
     }
     const res = htmlRedirect(safeReturnTo(pending.returnTo));
