@@ -36,6 +36,16 @@ site `site-staging-2bb92172.up.railway.app`, console `console-staging-2e8d0a72.u
   service variable `KC_BOOTSTRAP_ADMIN_PASSWORD`.
 - Patients: SMS sign-in uses the simulated Cequens provider, so codes are not delivered on staging.
 
+## Verified on this environment (2026-11-26)
+- Migrations, reference data and demo seed ran; the public site lists the demo doctors.
+- Staff sign-in end to end: temporary password → authenticator enrolment → new password → one more sign-in with a
+  code → console home; the API answered through the console with the staff member's role.
+- Worker scheduler running on Redis (BullMQ).
+- Fixes this needed, all in the repository: AMR mapper and standard client scopes in the realm, AMR `maxAge` 12 hours,
+  console re-authentication without `max_age=0`, Keycloak session ended after enrolment, single release script.
+- Keycloak's brute-force protection locks an account after repeated failures; unlock it in the admin console
+  (Users → the user → "Temporarily locked").
+
 ## Limits of this environment
 - Uploaded files live in memory (`STORAGE_MODE=memory`) and are lost on restart; switch to a Railway bucket (S3) when needed.
 - Payments, SMS/WhatsApp, e-receipts, telemedicine and AI run against fakes.
