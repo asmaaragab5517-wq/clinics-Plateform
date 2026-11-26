@@ -25,10 +25,9 @@ export async function GET(req: NextRequest) {
   url.searchParams.set('nonce', nonce);
   const locale = req.cookies.get('hf_locale')?.value === 'en' ? 'en' : 'ar';
   url.searchParams.set('ui_locales', locale);
-  if (req.nextUrl.searchParams.get('prompt') === 'login') {
-    url.searchParams.set('prompt', 'login');
-    url.searchParams.set('max_age', '0');
-  }
+  // prompt=login forces a fresh sign-in (new auth_time). Not max_age=0: Keycloak then drops every AMR value as too
+  // old, the token carries no OTP method and the API refuses it.
+  if (req.nextUrl.searchParams.get('prompt') === 'login') url.searchParams.set('prompt', 'login');
   const res = NextResponse.redirect(url);
   // Lax (not Strict): the cookie must survive the top-level cross-site redirect back from Keycloak.
   res.cookies.set(COOKIE.oidc, seal({ verifier, state, nonce, returnTo, again: req.nextUrl.searchParams.get('again') === '1' }), {
