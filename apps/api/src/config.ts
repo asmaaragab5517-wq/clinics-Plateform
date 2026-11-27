@@ -44,6 +44,10 @@ const schema = z.object({
   S3_BUCKET: z.string().default('healthflow-private'),
   S3_ACCESS_KEY: z.string().optional(),
   S3_SECRET_KEY: z.string().optional(),
+  // Path-style URLs suit MinIO and DigitalOcean Spaces; providers with virtual-host buckets (Railway) set 'false'.
+  S3_FORCE_PATH_STYLE: z.enum(['true', 'false']).optional(),
+  // Server-side encryption header on uploads; 'none' for stores that encrypt at rest but reject the header.
+  S3_SSE: z.enum(['AES256', 'none']).default('AES256'),
   STORAGE_MODE: z.enum(['memory', 's3']).default('memory'),
   AV_MODE: z.enum(['clamd', 'disabled']).default('disabled'),
   CLAMD_HOST: z.string().default('localhost'),

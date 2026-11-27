@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { connect } from 'node:net';
 import { CONFIG, type Config } from '../config';
@@ -38,16 +38,31 @@ export class MemoryStorage implements Storage {
 }
 
 @Injectable()
-export class S3Storage implements Storage {
+export class S3Storage implements Storage, OnApplicationBootstrap {
+  private readonly log = new Logger('Storage');
   private client: import('@aws-sdk/client-s3').S3Client | null = null;
   constructor(@Inject(CONFIG) private readonly cfg: Config) {}
+
+  /** Write, read back and delete a tiny object at startup so a misconfigured bucket shows in the logs, not at the first upload. */
+  async onApplicationBootstrap() {
+    const key = `health/${Date.now()}-${Math.random().toString(36).slice(2)}.txt`;
+    try {
+      await this.put(key, Buffer.from('ok'), 'text/plain');
+      const back = await this.get(key);
+      await this.delete(key);
+      if (back?.body.toString() !== 'ok') throw new Error('read-back mismatch');
+      this.log.log(`object storage check passed (bucket ${this.cfg.S3_BUCKET})`);
+    } catch (e) {
+      this.log.error(`object storage check failed: ${(e as Error).message}`);
+    }
+  }
   private async s3() {
     if (!this.client) {
       const { S3Client } = await import('@aws-sdk/client-s3');
       this.client = new S3Client({
         region: this.cfg.S3_REGION,
         endpoint: this.cfg.S3_ENDPOINT,
-        forcePathStyle: !!this.cfg.S3_ENDPOINT,
+        forcePathStyle: this.cfg.S3_FORCE_PATH_STYLE ? this.cfg.S3_FORCE_PATH_STYLE === 'true' : !!this.cfg.S3_ENDPOINT,
         credentials: this.cfg.S3_ACCESS_KEY ? { accessKeyId: this.cfg.S3_ACCESS_KEY, secretAccessKey: this.cfg.S3_SECRET_KEY! } : undefined,
       });
     }
@@ -55,7 +70,7 @@ export class S3Storage implements Storage {
   }
   async put(key: string, body: Buffer, contentType: string) {
     const { PutObjectCommand } = await import('@aws-sdk/client-s3');
-    await (await this.s3()).send(new PutObjectCommand({ Bucket: this.cfg.S3_BUCKET, Key: key, Body: body, ContentType: contentType, ServerSideEncryption: 'AES256' }));
+    await (await this.s3()).send(new PutObjectCommand({ Bucket: this.cfg.S3_BUCKET, Key: key, Body: body, ContentType: contentType, ...(this.cfg.S3_SSE === 'none' ? {} : { ServerSideEncryption: this.cfg.S3_SSE }) }));
   }
   async get(key: string) {
     const { GetObjectCommand } = await import('@aws-sdk/client-s3');
